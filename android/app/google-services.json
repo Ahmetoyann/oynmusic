@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "871651311558",
+    "project_id": "music-app-62ae8",
+    "storage_bucket": "music-app-62ae8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:871651311558:android:6e89ab2dc6b94d35bffcc7",
+        "android_client_info": {
+          "package_name": "com.example.bankacilik_uygulamasi"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "871651311558-jhue18v96pqb60or5g97i9gt1sdp3qbc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.bankacilik_uygulamasi",
+            "certificate_hash": "5da4f0903dcda86f20a66bca0a7752da8f0a3857"
+          }
+        },
+        {
+          "client_id": "871651311558-ih28n1pnrb154mn10fksple676bb7vn2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAvynM7Nyom1im6vsNq6J10zQqLGoxaSRA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "871651311558-ih28n1pnrb154mn10fksple676bb7vn2.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "871651311558-v3rh9rn37gpdgqn21talmtgd4n7mh9na.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.bankacilikUygulamasi"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
