@@ -7,7 +7,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:muzik_app/services/audio_handler.dart';
-import 'package:muzik_app/services/music_api_service.dart';
+import 'package:muzik_app/services/youtube_api_service.dart';
+import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:muzik_app/models/song_model.dart';
 
 class SongProvider with ChangeNotifier {
@@ -18,6 +19,7 @@ class SongProvider with ChangeNotifier {
   bool _isLocalFoldersLoaded = false; // Yerel klasörlerin yüklenme durumu
   bool _isLoading = true;
   String? _errorMessage;
+  String? _playbackError; // Oynatma hataları için özel değişken
   final List<MusicFolder> _folders = [];
   // AudioHandler referansı (geç başlatılacak)
   late MyAudioHandler _audioHandler;
@@ -25,7 +27,6 @@ class SongProvider with ChangeNotifier {
   List<Song> _playlist = [];
   int? _currentSongIndex;
   String _searchText = '';
-  int _currentOffset = 0; // Kaçıncı şarkıda kaldığımızı tutar
   String? _currentGenre; // Şu anki kategoriyi tutar
   List<Song> _searchResults = [];
   bool _isSearchLoading = false;
@@ -34,6 +35,11 @@ class SongProvider with ChangeNotifier {
   Timer? _searchDebounce;
   bool _isLoadingMore = false; // Ekstra yükleme yapılıyor mu?
   List<String> _searchHistory = [];
+  final YoutubeExplode _yt = YoutubeExplode(); // YouTube veri çekme aracı
+  String? _youtubeNextPageToken; // YouTube sayfalama token'ı
+  String? _trendsNextPageToken; // Trendler sayfası için token
+  bool _isLowDataMode = false; // Düşük veri modu (Düşük kalite ses)
+  bool _isSongLoading = false; // Şarkı hazırlanıyor mu?
   // Başlangıçta boş kalmaması için varsayılan popüler kategorileri ekliyoruz.
   List<String> _categories = [
     'Hepsi',
@@ -54,11 +60,14 @@ class SongProvider with ChangeNotifier {
   List<MusicFolder> get folders => _folders;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  String? get playbackError => _playbackError;
   bool get isSearchLoading => _isSearchLoading;
   bool get isSearchLoadingMore => _isSearchLoadingMore;
   bool get isLoadingMore => _isLoadingMore;
   List<String> get categories => _categories;
   List<String> get searchHistory => _searchHistory;
+  bool get isLowDataMode => _isLowDataMode;
+  bool get isSongLoading => _isSongLoading;
 
   Song? get currentSong =>
       _currentSongIndex != null ? _playlist[_currentSongIndex!] : null;
@@ -89,6 +98,7 @@ class SongProvider with ChangeNotifier {
     _loadSearchHistory();
     fetchCategories();
     fetchSongsFromApi();
+    _loadSettings();
   }
 
   /// AuthProvider'dan kullanıcı bilgisini günceller
@@ -211,24 +221,32 @@ class SongProvider with ChangeNotifier {
     _currentGenre = genre;
 
     _isLoading = true;
-    _currentOffset = 0; // Listeyi sıfırla
+    _trendsNextPageToken = null; // Token'ı sıfırla
     _errorMessage = null;
     // Yeni bir tür seçildiyse listeyi temizle ki kullanıcı yükleniyor görsün
     if (genre != null) _allSongs = [];
     notifyListeners();
 
     try {
-      await _initAudioService(); // Servisi başlat
-      // İlk 50 şarkıyı çek
-      _allSongs = await JamendoApiService.fetchSongs(
-        genre: genre,
-        limit: 50,
-        offset: 0,
-      );
-      _currentOffset = 50; // Offset'i güncelle
+      await _initAudioService();
+
+      YoutubeSearchResult result;
+
+      // Eğer "Hepsi" seçiliyse veya tür yoksa Trendleri çek
+      if (genre == null || genre == 'Hepsi') {
+        result = await YoutubeApiService.fetchPopularSongs();
+      } else {
+        // Bir tür seçildiyse (örn: Rock), YouTube'da arama yap
+        // "Rock music" şeklinde aratarak daha alakalı sonuçlar alabiliriz
+        result = await YoutubeApiService.searchVideos("$genre music");
+      }
+
+      _allSongs = result.songs;
+      _trendsNextPageToken = result.nextPageToken;
       _errorMessage = null;
     } catch (e) {
-      _errorMessage = e.toString().replaceFirst("Exception: ", "");
+      debugPrint("Şarkı çekme hatası: $e");
+      _errorMessage = "Şarkılar yüklenemedi. Lütfen tekrar deneyin.";
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -244,15 +262,24 @@ class SongProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final newSongs = await JamendoApiService.fetchSongs(
-        genre: _currentGenre,
-        limit: 50,
-        offset: _currentOffset,
-      );
+      YoutubeSearchResult result;
 
-      if (newSongs.isNotEmpty) {
-        _allSongs.addAll(newSongs); // Yeni şarkıları ekle
-        _currentOffset += 50; // Sayfayı ilerlet
+      if (_currentGenre == null || _currentGenre == 'Hepsi') {
+        // Trendlerin devamını yükle
+        result = await YoutubeApiService.fetchPopularSongs(
+          pageToken: _trendsNextPageToken,
+        );
+      } else {
+        // Kategori aramasının devamını yükle
+        result = await YoutubeApiService.searchVideos(
+          "$_currentGenre music",
+          pageToken: _trendsNextPageToken,
+        );
+      }
+
+      if (result.songs.isNotEmpty) {
+        _allSongs.addAll(result.songs);
+        _trendsNextPageToken = result.nextPageToken;
       }
     } catch (e) {
       debugPrint("Daha fazla şarkı yüklenirken hata: $e");
@@ -265,19 +292,9 @@ class SongProvider with ChangeNotifier {
 
   /// API'den popüler kategorileri (etiketleri) çeker
   Future<void> fetchCategories() async {
-    try {
-      final tags = await JamendoApiService.fetchTags();
-      if (tags.isNotEmpty) {
-        final formattedTags = tags.map((t) {
-          if (t.isEmpty) return t;
-          return t[0].toUpperCase() + t.substring(1);
-        }).toList();
-        _categories = ['Hepsi', ...formattedTags];
-        notifyListeners();
-      }
-    } catch (e) {
-      debugPrint("Kategoriler yüklenirken hata: $e");
-    }
+    // Jamendo API kaldırıldığı için statik listeyi kullanıyoruz.
+    // _categories listesi zaten sınıfın başında tanımlı.
+    notifyListeners();
   }
 
   /// AudioService ve Handler'ı başlatır
@@ -479,6 +496,12 @@ class SongProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Oynatma hatasını temizler
+  void clearPlaybackError() {
+    _playbackError = null;
+    notifyListeners();
+  }
+
   void updateSearchText(String text) {
     if (_searchDebounce?.isActive ?? false) _searchDebounce!.cancel();
     _searchText = text;
@@ -491,24 +514,26 @@ class SongProvider with ChangeNotifier {
     }
 
     _searchDebounce = Timer(const Duration(milliseconds: 500), () {
-      _performSearch(text);
+      // Jamendo yerine YouTube aramasını kullanıyoruz
+      searchYoutube(text);
     });
   }
 
-  Future<void> _performSearch(String query) async {
+  /// YouTube üzerinden arama yapar (Jamendo yerine bunu kullanabilirsiniz)
+  Future<void> searchYoutube(String query) async {
     _isSearchLoading = true;
-    _searchOffset = 0; // Yeni aramada offset'i sıfırla
+    _searchOffset = 0;
+    _youtubeNextPageToken = null; // Yeni aramada token'ı sıfırla
     notifyListeners();
 
     try {
-      _searchResults = await JamendoApiService.fetchSongs(
-        searchQuery: query,
-        limit: 20,
-        offset: 0,
-      );
-      _searchOffset = 20; // İlk 20 yüklendi, sonraki 20 için hazırla
+      final result = await YoutubeApiService.searchVideos(query);
+      _searchResults = result.songs;
+      _youtubeNextPageToken = result.nextPageToken;
     } catch (e) {
-      debugPrint("Arama hatası: $e");
+      debugPrint("YouTube Arama hatası: $e");
+      _searchResults = [];
+      _youtubeNextPageToken = null;
     } finally {
       _isSearchLoading = false;
       notifyListeners();
@@ -517,21 +542,25 @@ class SongProvider with ChangeNotifier {
 
   /// Arama sonuçlarının devamını yükler (Sonsuz Kaydırma)
   Future<void> loadMoreSearchResults() async {
-    if (_isSearchLoadingMore || _isSearchLoading || _searchText.isEmpty) return;
+    // Eğer yükleniyorsa, arama metni boşsa veya sonraki sayfa yoksa işlem yapma
+    if (_isSearchLoadingMore ||
+        _isSearchLoading ||
+        _searchText.isEmpty ||
+        _youtubeNextPageToken == null)
+      return;
 
     _isSearchLoadingMore = true;
     notifyListeners();
 
     try {
-      final newSongs = await JamendoApiService.fetchSongs(
-        searchQuery: _searchText,
-        limit: 20,
-        offset: _searchOffset,
+      final result = await YoutubeApiService.searchVideos(
+        _searchText,
+        pageToken: _youtubeNextPageToken,
       );
 
-      if (newSongs.isNotEmpty) {
-        _searchResults.addAll(newSongs);
-        _searchOffset += 20;
+      if (result.songs.isNotEmpty) {
+        _searchResults.addAll(result.songs);
+        _youtubeNextPageToken = result.nextPageToken;
       }
     } catch (e) {
       debugPrint("Daha fazla arama sonucu yüklenirken hata: $e");
@@ -583,6 +612,21 @@ class SongProvider with ChangeNotifier {
     await prefs.remove('search_history');
   }
 
+  /// Ayarları yükler
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    _isLowDataMode = prefs.getBool('low_data_mode') ?? false;
+    notifyListeners();
+  }
+
+  /// Düşük veri modunu değiştirir
+  Future<void> toggleLowDataMode(bool enable) async {
+    _isLowDataMode = enable;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('low_data_mode', enable);
+  }
+
   Future<void> _loadFolders() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -618,11 +662,53 @@ class SongProvider with ChangeNotifier {
   }
 
   Future<void> playSong(Song song, List<Song> playlist) async {
+    // Servis başlatılmadıysa başlatmayı dene (Örn: İlk açılışta hata olduysa)
+    if (!_isAudioServiceInitialized) {
+      try {
+        await _initAudioService();
+      } catch (e) {
+        debugPrint("AudioService başlatılamadı: $e");
+        return;
+      }
+    }
+
+    _isSongLoading = true;
+    _playbackError = null; // Yeni şarkıya başlarken hatayı sıfırla
+    notifyListeners();
+
     _playlist = playlist;
     _currentSongIndex = _playlist.indexWhere((s) => s.id == song.id);
     if (_currentSongIndex != -1) {
       try {
         String playUri = song.audioUrl;
+
+        // YouTube URL'si ise gerçek ses akışını (stream) çöz
+        if (playUri.contains('youtube.com') || playUri.contains('youtu.be')) {
+          try {
+            // Video ID'sini kullanarak manifest dosyasını al
+            var manifest = await _yt.videos.streamsClient
+                .getManifest(song.id)
+                .timeout(const Duration(seconds: 30)); // 30 saniye zaman aşımı
+
+            // Sadece MP4 (m4a) formatını seçiyoruz, WebM/Opus kullanmıyoruz.
+            var audioStreamInfo = manifest.audioOnly
+                .where((e) => e.container.name == 'mp4')
+                .withHighestBitrate();
+
+            playUri = audioStreamInfo.url.toString();
+            debugPrint("Oynatılacak URL: $playUri"); // Debug için URL'i yazdır
+          } catch (e) {
+            debugPrint("YouTube Stream Hatası: $e");
+            if (e is TimeoutException) {
+              _playbackError =
+                  "Bağlantı zaman aşımına uğradı. Lütfen tekrar deneyin.";
+            } else {
+              _playbackError =
+                  "Bu şarkı oynatılamıyor: ${e.toString().replaceAll('Exception:', '').trim()}";
+            }
+            return; // finally bloğu çalışacak ve loading kapanacak
+          }
+        }
 
         // Bildirimde görünecek veriyi hazırla
         final mediaItem = MediaItem(
@@ -638,8 +724,31 @@ class SongProvider with ChangeNotifier {
         await _audioHandler.playSong(mediaItem, playUri);
         notifyListeners();
       } catch (e) {
-        print("Ses çalınırken hata oluştu: $e");
+        debugPrint("Ses çalınırken hata oluştu: $e");
+        String errorStr = e.toString();
+        if (errorStr.contains('PlayerException') ||
+            errorStr.contains('Source error')) {
+          if (errorStr.contains('403')) {
+            _playbackError = "Erişim reddedildi (403). Lütfen tekrar deneyin.";
+          } else if (errorStr.contains('Source error') &&
+              errorStr.contains('0')) {
+            _playbackError =
+                "Kaynak hatası. Şarkı yüklenemedi, lütfen tekrar deneyin veya başka bir şarkı seçin.";
+          } else {
+            _playbackError =
+                "Şarkı kaynağına erişilemedi. Format desteklenmiyor veya ağ hatası.\n($errorStr)";
+          }
+        } else {
+          _playbackError =
+              "Hata: ${errorStr.replaceAll('Exception:', '').trim()}";
+        }
+      } finally {
+        _isSongLoading = false;
+        notifyListeners();
       }
+    } else {
+      _isSongLoading = false;
+      notifyListeners();
     }
   }
 
@@ -660,6 +769,7 @@ class SongProvider with ChangeNotifier {
 
   @override
   void dispose() {
+    _yt.close();
     _audioHandler.stop();
     super.dispose();
   }

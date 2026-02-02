@@ -100,6 +100,64 @@ class Song {
     );
   }
 
+  /// YouTube API'den gelen JSON verisini Song nesnesine dönüştüren fabrika metodu.
+  factory Song.fromYoutubeJson(Map<String, dynamic> json) {
+    final snippet = json['snippet'];
+    final videoId = json['id']['videoId'];
+
+    return Song(
+      id: videoId,
+      title: snippet['title'] ?? 'İsimsiz Video',
+      artist: snippet['channelTitle'] ?? 'YouTube Kanalı',
+      // Yüksek çözünürlüklü kapak resmi varsa al, yoksa varsayılanı kullan
+      coverUrl:
+          snippet['thumbnails']['high']?['url'] ??
+          snippet['thumbnails']['default']?['url'] ??
+          'https://via.placeholder.com/250',
+      // Not: Bu URL doğrudan oynatılamaz. youtube_explode_dart gibi bir paket ile stream URL'ine çevrilmelidir.
+      audioUrl: 'https://www.youtube.com/watch?v=$videoId',
+      duration: 0, // Search endpoint süre bilgisi döndürmez
+      lyrics: null,
+    );
+  }
+
+  /// YouTube Video Details API'den gelen (contentDetails içeren) JSON verisini işler.
+  factory Song.fromYoutubeVideoJson(Map<String, dynamic> json) {
+    final snippet = json['snippet'];
+    final contentDetails = json['contentDetails'];
+    final videoId = json['id']; // 'videos' endpointinde ID string olarak gelir.
+
+    return Song(
+      id: videoId,
+      title: snippet['title'] ?? 'İsimsiz Video',
+      artist: snippet['channelTitle'] ?? 'YouTube Kanalı',
+      coverUrl:
+          snippet['thumbnails']['high']?['url'] ??
+          snippet['thumbnails']['medium']?['url'] ??
+          snippet['thumbnails']['default']?['url'] ??
+          'https://via.placeholder.com/250',
+      audioUrl: 'https://www.youtube.com/watch?v=$videoId',
+      duration: _parseDuration(contentDetails['duration']),
+      lyrics: null,
+    );
+  }
+
+  /// ISO 8601 formatındaki süreyi (örn: PT1H15M30S) saniyeye çevirir.
+  static int _parseDuration(String? durationString) {
+    if (durationString == null || durationString.isEmpty) return 0;
+
+    final RegExp regex = RegExp(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?');
+    final Match? match = regex.firstMatch(durationString);
+
+    if (match == null) return 0;
+
+    final int hours = int.parse(match.group(1) ?? '0');
+    final int minutes = int.parse(match.group(2) ?? '0');
+    final int seconds = int.parse(match.group(3) ?? '0');
+
+    return (hours * 3600) + (minutes * 60) + seconds;
+  }
+
   /// Yerel depolama için JSON dönüşümü
   Map<String, dynamic> toJson() {
     return {

@@ -66,15 +66,21 @@ class MyAudioHandler extends BaseAudioHandler {
     // Kaynağı ayarla ve oynat
     try {
       Uri audioUri;
+      Map<String, String>? headers;
+
       if (uri.startsWith('http')) {
         audioUri = Uri.parse(uri);
+        // youtube_explode_dart ile alınan linklerde User-Agent belirtmek bazen "Source error" hatasına neden olabilir.
+        // Bu yüzden headers'ı null bırakıyoruz.
+        headers = null;
       } else {
         audioUri = Uri.file(uri);
       }
-      await _player.setAudioSource(AudioSource.uri(audioUri));
+      await _player.setAudioSource(AudioSource.uri(audioUri, headers: headers));
       play();
     } catch (e) {
       print("Oynatma hatası: $e");
+      rethrow; // Hatayı SongProvider'a ilet
     }
   }
 

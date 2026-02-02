@@ -52,4 +52,8 @@ build/
 android/.gradle/
 android/app/build/
 ios/Pods/
+git init
+
+# Environment files
+youtubeapi.env
 

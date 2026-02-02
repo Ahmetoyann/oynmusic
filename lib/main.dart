@@ -12,9 +12,15 @@ import 'package:muzik_app/providers/theme_provider.dart';
 import 'package:muzik_app/providers/auth_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await dotenv.load(fileName: "youtubeapi.env");
+  } catch (e) {
+    debugPrint("Env dosyası yüklenemedi: $e");
+  }
   await Firebase.initializeApp();
   final prefs = await SharedPreferences.getInstance();
 

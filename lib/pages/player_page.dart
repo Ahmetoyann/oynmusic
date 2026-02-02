@@ -8,8 +8,6 @@ import 'package:flutter/material.dart';
 import 'dart:ui'; // Blur efekti için gerekli
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:video_player/video_player.dart';
-import 'package:chewie/chewie.dart';
 import 'package:muzik_app/models/song_model.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:muzik_app/providers/song_provider.dart';
@@ -36,49 +34,34 @@ class PlayerPage extends StatefulWidget {
 }
 
 class _PlayerPageState extends State<PlayerPage> {
-  VideoPlayerController? _videoPlayerController;
-  ChewieController? _chewieController;
-  Song? _lastSong;
   bool _isDragging = false;
   double _dragValue = 0.0;
+  late SongProvider _songProvider;
+
+  @override
+  void initState() {
+    super.initState();
+    _songProvider = context.read<SongProvider>();
+    _songProvider.addListener(_onPlaybackError);
+  }
 
   @override
   void dispose() {
-    _disposeVideoControllers();
+    _songProvider.removeListener(_onPlaybackError);
     super.dispose();
   }
 
-  void _disposeVideoControllers() {
-    _videoPlayerController?.dispose();
-    _chewieController?.dispose();
-    _videoPlayerController = null;
-    _chewieController = null;
-  }
-
-  Future<void> _initializeVideoPlayer(String url) async {
-    _disposeVideoControllers();
-    _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(url));
-    try {
-      await _videoPlayerController!.initialize();
-      // just_audio sesi çaldığı için video oynatıcının sesini kapatıyoruz (yankı olmaması için)
-      await _videoPlayerController!.setVolume(0.0);
-
-      _chewieController = ChewieController(
-        videoPlayerController: _videoPlayerController!,
-        autoPlay: true,
-        looping: true,
-        showControls:
-            false, // Kendi kontrollerimizi kullandığımız için gizliyoruz
-        aspectRatio: _videoPlayerController!.value.aspectRatio,
-        deviceOrientationsOnEnterFullScreen: [
-          DeviceOrientation.landscapeLeft,
-          DeviceOrientation.landscapeRight,
-        ],
-        deviceOrientationsAfterFullScreen: [DeviceOrientation.portraitUp],
+  void _onPlaybackError() {
+    if (!mounted) return;
+    if (_songProvider.playbackError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_songProvider.playbackError!),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
       );
-      if (mounted) setState(() {});
-    } catch (e) {
-      debugPrint("Video yüklenirken hata: $e");
+      _songProvider.clearPlaybackError();
     }
   }
 
@@ -105,16 +88,6 @@ class _PlayerPageState extends State<PlayerPage> {
     final songProvider = context.watch<SongProvider>();
     final song = songProvider.currentSong;
 
-    // Şarkı değiştiğinde video kontrolünü yap
-    if (song != _lastSong) {
-      _lastSong = song;
-      if (song != null && song.audioUrl.endsWith('.mp4')) {
-        _initializeVideoPlayer(song.audioUrl);
-      } else {
-        _disposeVideoControllers();
-      }
-    }
-
     // Eğer bir şarkı seçilmemişse veya bir hata oluştuysa, sayfayı gösterme.
     if (song == null) {
       // Bu durum normalde yaşanmaz çünkü bu sayfaya şarkı seçilince geliyoruz.
@@ -135,6 +108,47 @@ class _PlayerPageState extends State<PlayerPage> {
         ),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                backgroundColor: Colors.grey.shade900,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                builder: (context) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SwitchListTile(
+                          title: const Text(
+                            'Düşük Veri Modu',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                          subtitle: const Text(
+                            'YouTube şarkılarını daha düşük kalitede çalarak internet kotasından tasarruf eder.',
+                            style: TextStyle(color: Colors.white70),
+                          ),
+                          value: context.watch<SongProvider>().isLowDataMode,
+                          onChanged: (value) {
+                            context.read<SongProvider>().toggleLowDataMode(
+                              value,
+                            );
+                          },
+                          activeColor: Theme.of(context).primaryColor,
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ],
       ),
       backgroundColor: Colors.black, // Yüklenirken veya hata durumunda görünür
       body: Stack(
@@ -192,31 +206,11 @@ class _PlayerPageState extends State<PlayerPage> {
                             spreadRadius: 5,
                           ),
                         ],
-                        // Video hazırsa resmi gösterme, değilse kapak resmini göster
-                        image:
-                            (_chewieController != null &&
-                                _chewieController!
-                                    .videoPlayerController
-                                    .value
-                                    .isInitialized)
-                            ? null
-                            : DecorationImage(
-                                image: NetworkImage(song.coverUrl),
-                                fit: BoxFit.cover,
-                              ),
+                        image: DecorationImage(
+                          image: NetworkImage(song.coverUrl),
+                          fit: BoxFit.cover,
+                        ),
                       ),
-                      // Video hazırsa Chewie oynatıcıyı göster
-                      child:
-                          (_chewieController != null &&
-                              _chewieController!
-                                  .videoPlayerController
-                                  .value
-                                  .isInitialized)
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: Chewie(controller: _chewieController!),
-                            )
-                          : null,
                     ),
                   ),
                   const SizedBox(height: 40),
@@ -404,7 +398,8 @@ class _PlayerPageState extends State<PlayerPage> {
                           final processingState = playerState?.processingState;
                           final playing = playerState?.playing;
 
-                          if (processingState == ProcessingState.loading ||
+                          if (songProvider.isSongLoading ||
+                              processingState == ProcessingState.loading ||
                               processingState == ProcessingState.buffering) {
                             return Container(
                               width: 64,
