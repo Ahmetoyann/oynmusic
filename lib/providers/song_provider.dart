@@ -131,7 +131,6 @@ class SongProvider with ChangeNotifier {
     _loadFavorites(); // Uygulama açılışında favorileri yükle
     _loadFolders();
     _loadSearchHistory();
-    _loadDownloadedSongs();
     fetchCategories();
     fetchSongsFromApi(); // Uygulama açılışında direkt çek
     _loadSettings();
@@ -141,9 +140,36 @@ class SongProvider with ChangeNotifier {
 
   /// AuthProvider'dan kullanıcı bilgisini günceller
   void updateUser(User? user) {
+    final bool wasGuest = _currentUser == null;
+    final bool isLoggingIn = user != null && wasGuest;
+
+    // Giriş yapılıyorsa mevcut (misafir) indirmelerini geçici olarak sakla
+    List<Song> guestDownloads = [];
+    if (isLoggingIn) {
+      guestDownloads = List.from(_downloadedSongs);
+    }
+
     final bool wasLoggedIn = _currentUser != null;
     _currentUser = user;
     final bool isLoggedIn = _currentUser != null;
+
+    // Yeni kullanıcı için indirmeleri yükle
+    _loadDownloadedSongs().then((_) {
+      // Eğer yeni giriş yapıldıysa ve misafir indirmeleri varsa bunları hesaba birleştir
+      if (isLoggingIn && guestDownloads.isNotEmpty) {
+        bool changed = false;
+        for (var song in guestDownloads) {
+          if (!_downloadedSongs.any((s) => s.id == song.id)) {
+            _downloadedSongs.add(song);
+            changed = true;
+          }
+        }
+        if (changed) {
+          _saveDownloadedSongs(); // Birleşmiş listeyi kullanıcının alanına kaydet
+          notifyListeners();
+        }
+      }
+    });
 
     // Oturum durumu değiştiyse (Giriş yapıldı veya uygulama açılışında oturum yüklendi)
     if (isLoggedIn && !wasLoggedIn) {
@@ -175,6 +201,12 @@ class SongProvider with ChangeNotifier {
     ) {
       _checkConnection(results);
     });
+  }
+
+  /// Manuel bağlantı kontrolü
+  Future<void> checkConnectionManually() async {
+    final results = await Connectivity().checkConnectivity();
+    _checkConnection(results);
   }
 
   /// Bildirim servisini başlatır
@@ -819,24 +851,36 @@ class SongProvider with ChangeNotifier {
     }
   }
 
+  // Kullanıcıya özel depolama anahtarı oluşturur
+  String _getDownloadsKey() {
+    if (_currentUser != null) {
+      return 'downloaded_songs_${_currentUser!.uid}';
+    }
+    return 'downloaded_songs'; // Misafir veya varsayılan anahtar
+  }
+
   /// İndirilen şarkıları yükler
   Future<void> _loadDownloadedSongs() async {
     final prefs = await SharedPreferences.getInstance();
-    final String? jsonString = prefs.getString('downloaded_songs');
+    final String key = _getDownloadsKey();
+    final String? jsonString = prefs.getString(key);
     if (jsonString != null) {
       final List<dynamic> jsonList = jsonDecode(jsonString);
       _downloadedSongs = jsonList.map((e) => Song.fromMap(e)).toList();
-      notifyListeners();
+    } else {
+      _downloadedSongs = []; // Kullanıcının verisi yoksa listeyi temizle
     }
+    notifyListeners();
   }
 
   /// İndirilen şarkıları kaydeder
   Future<void> _saveDownloadedSongs() async {
     final prefs = await SharedPreferences.getInstance();
+    final String key = _getDownloadsKey();
     final String jsonString = jsonEncode(
       _downloadedSongs.map((s) => s.toJson()).toList(),
     );
-    await prefs.setString('downloaded_songs', jsonString);
+    await prefs.setString(key, jsonString);
   }
 
   /// Şarkıyı indirmeyi başlatır

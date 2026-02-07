@@ -78,12 +78,6 @@ class _PlayerPageState extends State<PlayerPage> {
               );
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.more_vert, color: Colors.white),
-            onPressed: () {
-              // Ekstra seçenekler buraya eklenebilir
-            },
-          ),
         ],
       ),
       body: Stack(
@@ -541,16 +535,67 @@ class _PlayerPageState extends State<PlayerPage> {
             ),
           );
 
-          provider.downloadSong(song).catchError((e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text("İndirme başarısız: $e"),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          });
+          provider
+              .downloadSong(song)
+              .then((_) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          const Icon(
+                            Icons.check_circle_rounded,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text(
+                                  "İndirme Tamamlandı",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                Text(
+                                  song.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.white70,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: Colors.green.shade700,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      margin: const EdgeInsets.all(16),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+              })
+              .catchError((e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("İndirme başarısız: $e"),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              });
         },
       );
     }

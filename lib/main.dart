@@ -17,6 +17,9 @@ import 'package:muzik_app/pages/login_page.dart';
 import 'package:muzik_app/pages/player_page.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+// Global Navigator Key
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
@@ -56,6 +59,7 @@ class MyApp extends StatelessWidget {
 
     return MaterialApp(
       title: 'Müzik Çalar',
+      navigatorKey: navigatorKey, // Global key'i atıyoruz
       theme: ThemeData.dark().copyWith(
         textTheme: GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme),
         primaryColor: themeProvider.primaryColor,
@@ -81,12 +85,14 @@ class MyApp extends StatelessWidget {
       ),
       debugShowCheckedModeBanner: false,
       builder: (context, child) {
-        return CardTheme(
+        // ConnectionManager ile sarmalıyoruz
+        final wrappedChild = CardTheme(
           color: Colors.grey.shade900.withOpacity(0.5),
           elevation: 0,
           margin: const EdgeInsets.only(bottom: 12),
           child: child!,
         );
+        return ConnectionManager(child: wrappedChild);
       },
       home: const AuthWrapper(),
     );
@@ -100,6 +106,11 @@ class AuthWrapper extends StatelessWidget {
   Widget build(BuildContext context) {
     final songProvider = context.watch<SongProvider>();
 
+    // İnternet yoksa direkt İndirilenler sayfasına yönlendir
+    if (!songProvider.hasConnection) {
+      return const MainScreen(initialIndex: 3);
+    }
+
     // Oturum açılmışsa veya misafir ise Ana Ekrana git
     if (songProvider.isFirebaseLoggedIn || songProvider.isGuest) {
       return const MainScreen();
@@ -111,7 +122,8 @@ class AuthWrapper extends StatelessWidget {
 }
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  final int initialIndex;
+  const MainScreen({super.key, this.initialIndex = 0});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -119,6 +131,12 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIndex = widget.initialIndex;
+  }
 
   final List<Widget> _pages = <Widget>[
     TrendPage(),
@@ -196,5 +214,167 @@ class _MainScreenState extends State<MainScreen> {
         ],
       ),
     );
+  }
+}
+
+/// İnternet bağlantısını dinleyen ve BottomSheet gösteren widget
+class ConnectionManager extends StatefulWidget {
+  final Widget child;
+  const ConnectionManager({super.key, required this.child});
+
+  @override
+  State<ConnectionManager> createState() => _ConnectionManagerState();
+}
+
+class _ConnectionManagerState extends State<ConnectionManager> {
+  bool _isBottomSheetOpen = false;
+  bool _userWantsOfflineMode = false;
+
+  @override
+  Widget build(BuildContext context) {
+    // Provider'dan bağlantı durumunu dinle
+    final hasConnection = context.select<SongProvider, bool>(
+      (p) => p.hasConnection,
+    );
+
+    // Bağlantı yoksa ve sheet açık değilse ve kullanıcı offline modu seçmediyse aç
+    if (!hasConnection && !_isBottomSheetOpen && !_userWantsOfflineMode) {
+      _isBottomSheetOpen = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showNoConnectionSheet();
+      });
+    }
+    // Bağlantı geldiyse ve sheet açıksa kapat
+    else if (hasConnection && _isBottomSheetOpen) {
+      _userWantsOfflineMode = false;
+      _isBottomSheetOpen = false;
+      if (navigatorKey.currentState?.canPop() ?? false) {
+        navigatorKey.currentState?.pop();
+      }
+
+      // Bağlantı geri geldiğinde modern snackbar göster
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (navigatorKey.currentContext != null) {
+          ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.wifi, color: Colors.white),
+                  const SizedBox(width: 12),
+                  const Text(
+                    "Bağlantı sağlandı",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green.shade700,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              margin: const EdgeInsets.all(16),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      });
+    } else if (hasConnection) {
+      // Bağlantı varsa offline modu sıfırla
+      _userWantsOfflineMode = false;
+    }
+
+    return widget.child;
+  }
+
+  void _showNoConnectionSheet() {
+    showModalBottomSheet(
+      context: navigatorKey.currentContext!,
+      isDismissible: false, // Kullanıcı dışarı basarak kapatamasın
+      enableDrag: false,
+      backgroundColor: Colors.grey.shade900,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        // Geri tuşunu engellemek için PopScope
+        return PopScope(
+          canPop: false,
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.wifi_off_rounded,
+                  size: 60,
+                  color: Colors.redAccent,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  "İnternet Bağlantısı Yok",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "Müzik dinlemeye devam etmek için lütfen internet bağlantınızı kontrol edin.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey.shade400, fontSize: 16),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      // Manuel kontrol tetikle
+                      context.read<SongProvider>().checkConnectionManually();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      "Bağlantıyı Yeniden Dene",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _userWantsOfflineMode = true;
+                    });
+                    Navigator.pop(ctx);
+                    navigatorKey.currentState?.push(
+                      MaterialPageRoute(
+                        builder: (context) => const DownloadsPage(),
+                      ),
+                    );
+                  },
+                  child: Text(
+                    "İndirilenleri Dinle (Çevrimdışı)",
+                    style: TextStyle(color: Colors.grey.shade400),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    ).then((_) {
+      // Sheet kapandığında (örneğin bağlantı gelip pop yapıldığında)
+      _isBottomSheetOpen = false;
+    });
   }
 }

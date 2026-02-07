@@ -13,6 +13,14 @@ class FavoritesPage extends StatefulWidget {
 class _FavoritesPageState extends State<FavoritesPage> {
   bool _isSelectionMode = false;
   final Set<Song> _selectedSongs = {};
+  final TextEditingController _searchController = TextEditingController();
+  String _searchText = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   void _toggleSelection(Song song) {
     setState(() {
@@ -285,6 +293,13 @@ class _FavoritesPageState extends State<FavoritesPage> {
     final songProvider = context.watch<SongProvider>();
     final favoriteSongs = songProvider.favoriteSongs;
 
+    final filteredSongs = favoriteSongs.where((song) {
+      if (_searchText.isEmpty) return true;
+      final query = _searchText.toLowerCase();
+      return song.title.toLowerCase().contains(query) ||
+          song.artist.toLowerCase().contains(query);
+    }).toList();
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -342,108 +357,164 @@ class _FavoritesPageState extends State<FavoritesPage> {
         ],
       ),
       backgroundColor: Colors.black,
-      body: favoriteSongs.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.favorite_border,
-                    size: 80,
-                    color: Colors.grey.shade800,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Henüz favori şarkınız yok.',
-                    style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
-                  ),
-                ],
-              ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: favoriteSongs.length,
-              itemBuilder: (context, index) {
-                final song = favoriteSongs[index];
-                final isSelected = _selectedSongs.contains(song);
-
-                return Card(
-                  color: _isSelectionMode && isSelected
-                      ? Theme.of(context).primaryColor.withOpacity(0.2)
-                      : Colors.grey.shade900,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(
+      body: Column(
+        children: [
+          if (favoriteSongs.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: TextField(
+                controller: _searchController,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Favorilerde ara...',
+                  hintStyle: TextStyle(color: Colors.grey.shade400),
+                  prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                  filled: true,
+                  fillColor: Colors.grey.shade900,
+                  border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    side: _isSelectionMode && isSelected
-                        ? BorderSide(
-                            color: Theme.of(context).primaryColor,
-                            width: 2,
-                          )
-                        : BorderSide.none,
+                    borderSide: BorderSide.none,
                   ),
-                  child: ListTile(
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: Image.network(
-                        song.coverUrl,
-                        width: 50,
-                        height: 50,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    title: Tooltip(
-                      message: song.title,
-                      child: Text(
-                        song.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ),
-                    subtitle: Text(
-                      song.artist,
-                      style: TextStyle(color: Colors.grey.shade400),
-                    ),
-                    trailing: _isSelectionMode
-                        ? Icon(
-                            isSelected
-                                ? Icons.check_circle
-                                : Icons.circle_outlined,
-                            color: isSelected
-                                ? Theme.of(context).primaryColor
-                                : Colors.grey,
-                          )
-                        : IconButton(
-                            icon: const Icon(Icons.favorite, color: Colors.red),
-                            onPressed: () => songProvider.toggleFavorite(song),
-                          ),
-                    onTap: () {
-                      if (_isSelectionMode) {
-                        _toggleSelection(song);
-                      } else {
-                        final isCurrentSong =
-                            songProvider.currentSong?.id == song.id;
-                        if (isCurrentSong && songProvider.audioPlayer.playing) {
-                          songProvider.audioPlayer.pause();
-                        } else if (isCurrentSong) {
-                          songProvider.audioPlayer.play();
-                        } else {
-                          songProvider.playSong(song, favoriteSongs);
-                        }
-                      }
-                    },
-                    onLongPress: () {
-                      if (!_isSelectionMode) {
-                        setState(() {
-                          _isSelectionMode = true;
-                          _selectedSongs.add(song);
-                        });
-                      }
-                    },
-                  ),
-                );
-              },
+                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                  suffixIcon: _searchText.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: Colors.grey),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _searchText = '');
+                            FocusScope.of(context).unfocus();
+                          },
+                        )
+                      : null,
+                ),
+                onChanged: (value) => setState(() => _searchText = value),
+              ),
             ),
+          Expanded(
+            child: favoriteSongs.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.favorite_border,
+                          size: 80,
+                          color: Colors.grey.shade800,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Henüz favori şarkınız yok.',
+                          style: TextStyle(
+                            color: Colors.grey.shade500,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : filteredSongs.isEmpty
+                ? const Center(
+                    child: Text(
+                      'Sonuç bulunamadı.',
+                      style: TextStyle(color: Colors.grey, fontSize: 16),
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    itemCount: filteredSongs.length,
+                    itemBuilder: (context, index) {
+                      final song = filteredSongs[index];
+                      final isSelected = _selectedSongs.contains(song);
+
+                      return Card(
+                        color: _isSelectionMode && isSelected
+                            ? Theme.of(context).primaryColor.withOpacity(0.2)
+                            : Colors.grey.shade900,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: _isSelectionMode && isSelected
+                              ? BorderSide(
+                                  color: Theme.of(context).primaryColor,
+                                  width: 2,
+                                )
+                              : BorderSide.none,
+                        ),
+                        child: ListTile(
+                          leading: ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: Image.network(
+                              song.coverUrl,
+                              width: 50,
+                              height: 50,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          title: Tooltip(
+                            message: song.title,
+                            child: Text(
+                              song.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ),
+                          subtitle: Text(
+                            song.artist,
+                            style: TextStyle(color: Colors.grey.shade400),
+                          ),
+                          trailing: _isSelectionMode
+                              ? Icon(
+                                  isSelected
+                                      ? Icons.check_circle
+                                      : Icons.circle_outlined,
+                                  color: isSelected
+                                      ? Theme.of(context).primaryColor
+                                      : Colors.grey,
+                                )
+                              : IconButton(
+                                  icon: const Icon(
+                                    Icons.favorite,
+                                    color: Colors.red,
+                                  ),
+                                  onPressed: () =>
+                                      songProvider.toggleFavorite(song),
+                                ),
+                          onTap: () {
+                            if (_isSelectionMode) {
+                              _toggleSelection(song);
+                            } else {
+                              final isCurrentSong =
+                                  songProvider.currentSong?.id == song.id;
+                              if (isCurrentSong &&
+                                  songProvider.audioPlayer.playing) {
+                                songProvider.audioPlayer.pause();
+                              } else if (isCurrentSong) {
+                                songProvider.audioPlayer.play();
+                              } else {
+                                songProvider.playSong(song, favoriteSongs);
+                              }
+                            }
+                          },
+                          onLongPress: () {
+                            if (!_isSelectionMode) {
+                              setState(() {
+                                _isSelectionMode = true;
+                                _selectedSongs.add(song);
+                              });
+                            } else {
+                              _toggleSelection(song);
+                            }
+                          },
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }
