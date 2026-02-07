@@ -70,9 +70,11 @@ class MyAudioHandler extends BaseAudioHandler {
 
       if (uri.startsWith('http')) {
         audioUri = Uri.parse(uri);
-        // youtube_explode_dart ile alınan linklerde User-Agent belirtmek bazen "Source error" hatasına neden olabilir.
-        // Bu yüzden headers'ı null bırakıyoruz.
-        headers = null;
+        // 403 (Forbidden) hatasını çözmek için tarayıcı benzeri bir User-Agent ekliyoruz.
+        headers = {
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+        };
       } else {
         audioUri = Uri.file(uri);
       }

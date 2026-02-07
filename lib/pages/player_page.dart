@@ -1,31 +1,13 @@
-// lib/pages/player_page.dart
-//
-// Bu sayfa, tam ekran müzik çalar arayüzünü içerir.
-// Şarkının kapak resmi, başlık, sanatçı bilgisi, ilerleme çubuğu ve
-// kontrol butonlarını (önceki, oynat/durdur, sonraki) gösterir.
-
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'dart:ui'; // Blur efekti için gerekli
-import 'package:flutter/services.dart';
-import 'package:just_audio/just_audio.dart';
-import 'package:muzik_app/models/song_model.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:muzik_app/providers/song_provider.dart';
+import 'package:muzik_app/models/song_model.dart';
 import 'package:provider/provider.dart';
-import 'package:rxdart/rxdart.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:palette_generator/palette_generator.dart';
+import 'package:muzik_app/pages/login_page.dart';
+import 'package:share_plus/share_plus.dart';
 
-// Şarkının pozisyon, tampon ve toplam süresini birleştiren yardımcı bir sınıf
-/// Şarkının çalma pozisyonu, tampon durumu ve toplam süresini tutan yardımcı sınıf
-class PositionData {
-  final Duration position;
-  final Duration bufferedPosition;
-  final Duration duration;
-
-  PositionData(this.position, this.bufferedPosition, this.duration);
-}
-
-/// Tam ekran müzik çalar sayfası
-/// Şarkı detaylarını ve kontrol arayüzünü gösterir
 class PlayerPage extends StatefulWidget {
   const PlayerPage({super.key});
 
@@ -34,321 +16,256 @@ class PlayerPage extends StatefulWidget {
 }
 
 class _PlayerPageState extends State<PlayerPage> {
-  bool _isDragging = false;
-  double _dragValue = 0.0;
-  late SongProvider _songProvider;
+  Color? _dominantColor;
+  String? _currentSongId;
 
-  @override
-  void initState() {
-    super.initState();
-    _songProvider = context.read<SongProvider>();
-    _songProvider.addListener(_onPlaybackError);
-  }
-
-  @override
-  void dispose() {
-    _songProvider.removeListener(_onPlaybackError);
-    super.dispose();
-  }
-
-  void _onPlaybackError() {
-    if (!mounted) return;
-    if (_songProvider.playbackError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_songProvider.playbackError!),
-          backgroundColor: Colors.redAccent,
-          behavior: SnackBarBehavior.floating,
-        ),
+  Future<void> _extractColor(String url) async {
+    try {
+      final generator = await PaletteGenerator.fromImageProvider(
+        NetworkImage(url),
+        size: const Size(100, 100), // Performans için küçük boyut
+        maximumColorCount: 20,
       );
-      _songProvider.clearPlaybackError();
+      if (mounted) {
+        setState(() {
+          _dominantColor =
+              generator.dominantColor?.color ??
+              generator.darkVibrantColor?.color ??
+              generator.vibrantColor?.color;
+        });
+      }
+    } catch (e) {
+      debugPrint("Renk çekme hatası: $e");
     }
-  }
-
-  // `just_audio`'dan gelen farklı stream'leri tek bir stream'de birleştiriyoruz.
-  // Bu, arayüzdeki slider'ı ve süreleri tek bir yerden yönetmemizi sağlar.
-  Stream<PositionData> get _positionDataStream {
-    // `read` kullanıyoruz çünkü bu stream'in kendisi build içinde değişmeyecek.
-    final songProvider = context.read<SongProvider>();
-    return Rx.combineLatest3<Duration, Duration, Duration?, PositionData>(
-      songProvider.positionStream, // Şarkının o anki saniyesi
-      songProvider
-          .audioPlayer
-          .bufferedPositionStream, // Ne kadarının yüklendiği
-      songProvider.durationStream, // Şarkının toplam süresi
-      (position, bufferedPosition, duration) =>
-          PositionData(position, bufferedPosition, duration ?? Duration.zero),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // `watch` kullanarak provider'daki değişiklikleri dinliyoruz.
-    // Özellikle `currentSong` değiştiğinde bu sayfanın yeniden çizilmesi için gerekli.
     final songProvider = context.watch<SongProvider>();
-    final song = songProvider.currentSong;
+    final currentSong = songProvider.currentSong;
 
-    // Eğer bir şarkı seçilmemişse veya bir hata oluştuysa, sayfayı gösterme.
-    if (song == null) {
-      // Bu durum normalde yaşanmaz çünkü bu sayfaya şarkı seçilince geliyoruz.
-      return Scaffold(
-        appBar: AppBar(),
-        body: const Center(child: Text("Çalınacak şarkı bulunamadı.")),
-      );
+    // Eğer şarkı seçili değilse boş ekran dön
+    if (currentSong == null) {
+      return const Scaffold(body: Center(child: Text("Şarkı seçilmedi")));
+    }
+
+    // Şarkı değiştiyse rengi güncelle
+    if (_currentSongId != currentSong.id) {
+      _currentSongId = currentSong.id;
+      _dominantColor = null; // Yüklenirken varsayılan rengi kullan (siyah)
+      _extractColor(currentSong.coverUrl);
     }
 
     return Scaffold(
-      extendBodyBehindAppBar: true, // İçeriğin AppBar arkasına taşmasını sağlar
+      extendBodyBehindAppBar: true, // AppBar'ın arkasına içerik taşsın
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Text(
-          "Şimdi Oynatılıyor",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        leading: IconButton(
+          icon: const Icon(
+            Icons.keyboard_arrow_down,
+            color: Colors.white,
+            size: 30,
+          ),
+          onPressed: () => Navigator.pop(context),
         ),
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings),
+            icon: const Icon(Icons.share, color: Colors.white),
             onPressed: () {
-              showModalBottomSheet(
-                context: context,
-                backgroundColor: Colors.grey.shade900,
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                ),
-                builder: (context) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SwitchListTile(
-                          title: const Text(
-                            'Düşük Veri Modu',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                          subtitle: const Text(
-                            'YouTube şarkılarını daha düşük kalitede çalarak internet kotasından tasarruf eder.',
-                            style: TextStyle(color: Colors.white70),
-                          ),
-                          value: context.watch<SongProvider>().isLowDataMode,
-                          onChanged: (value) {
-                            context.read<SongProvider>().toggleLowDataMode(
-                              value,
-                            );
-                          },
-                          activeColor: Theme.of(context).primaryColor,
-                        ),
-                      ],
-                    ),
-                  );
-                },
+              Share.share(
+                'Bu şarkıyı OYN Music\'te keşfettim!\n\n🎵 ${currentSong.title}\n👤 ${currentSong.artist}\n\nDinlemek için: ${currentSong.audioUrl}',
               );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.more_vert, color: Colors.white),
+            onPressed: () {
+              // Ekstra seçenekler buraya eklenebilir
             },
           ),
         ],
       ),
-      backgroundColor: Colors.black, // Yüklenirken veya hata durumunda görünür
       body: Stack(
+        fit: StackFit.expand,
         children: [
-          // 1. KATMAN: Arka Plan Resmi (Bulanık)
-          Positioned.fill(
-            child: Image.network(song.coverUrl, fit: BoxFit.cover),
+          // 1. KATMAN: Arka Plan Resmi
+          Image.network(
+            currentSong.coverUrl,
+            fit: BoxFit.cover,
+            errorBuilder: (ctx, err, stack) => Container(color: Colors.black),
           ),
-          // 2. KATMAN: Bulanıklık ve Karartma Efekti
-          Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 30.0, sigmaY: 30.0),
-              child: Container(
-                color: Colors.black.withOpacity(
-                  0.5,
-                ), // Okunabilirlik için karartma
+
+          // 2. KATMAN: Bulanıklık Efekti (Glassmorphism)
+          BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    (_dominantColor ?? Colors.black).withOpacity(0.6),
+                    Colors.black.withOpacity(0.9),
+                  ],
+                ),
               ),
             ),
           ),
-          // 3. KATMAN: Asıl İçerik
+
+          // 3. KATMAN: İçerik
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Spacer(),
-                  // Albüm Kapağı
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 500),
-                    transitionBuilder:
-                        (Widget child, Animation<double> animation) {
-                          return FadeTransition(
-                            opacity: animation,
-                            child: ScaleTransition(
-                              scale: animation.drive(
-                                Tween(begin: 0.9, end: 1.0),
-                              ),
-                              child: child,
-                            ),
-                          );
-                        },
+
+                  // Büyük Kapak Resmi
+                  Center(
                     child: Container(
-                      key: ValueKey(song.id),
-                      width: 300,
-                      height: 300,
+                      width: MediaQuery.of(context).size.width * 0.85,
+                      height: MediaQuery.of(context).size.width * 0.85,
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: Theme.of(
-                              context,
-                            ).primaryColor.withOpacity(0.4),
+                            color: Colors.black.withOpacity(0.5),
                             blurRadius: 30,
-                            spreadRadius: 5,
+                            offset: const Offset(0, 15),
                           ),
                         ],
-                        image: DecorationImage(
-                          image: NetworkImage(song.coverUrl),
+                        color: Colors.grey.shade900,
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: Image.network(
+                          currentSong.coverUrl,
                           fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Center(
+                              child: Icon(
+                                Icons.music_note,
+                                size: 120,
+                                color: Colors.white12,
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ),
                   ),
                   const SizedBox(height: 40),
-                  // Şarkı ve Sanatçı Adı
-                  Text(
-                    song.title,
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 30,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
+
+                  // Şarkı Başlığı ve Sanatçı
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Flexible(
-                        child: Text(
-                          song.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.white.withOpacity(0.7),
-                          ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              currentSong.title,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              currentSong.artist,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.7),
+                                fontSize: 18,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      GestureDetector(
-                        onTap: () {
-                          songProvider.toggleFavorite(song);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(24),
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                song.isFavorite
-                                    ? Icons.favorite
-                                    : Icons.favorite_border,
-                                color: song.isFavorite
-                                    ? Colors.red
-                                    : Colors.white,
-                                size: 24,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                song.isFavorite
-                                    ? "Favorilerde"
-                                    : "Favorilere Ekle",
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                      // İndirme Butonu
+                      _buildDownloadButton(context, songProvider, currentSong),
                       IconButton(
-                        icon: const Icon(Icons.share, color: Colors.white70),
-                        onPressed: () {
-                          Share.share(
-                            'Dinle: ${song.title} - ${song.artist}\n${song.audioUrl}',
-                          );
-                        },
+                        icon: Icon(
+                          currentSong.isFavorite
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                          color: currentSong.isFavorite
+                              ? Colors.redAccent
+                              : Colors.white,
+                          size: 32,
+                        ),
+                        onPressed: () =>
+                            songProvider.toggleFavorite(currentSong),
                       ),
                     ],
                   ),
-                  const Spacer(),
-                  // Süre Çubuğu (Slider)
-                  StreamBuilder<PositionData>(
-                    stream: _positionDataStream,
+                  const SizedBox(height: 20),
+
+                  // İlerleme Çubuğu (Slider)
+                  StreamBuilder<Duration>(
+                    stream: songProvider.positionStream,
                     builder: (context, snapshot) {
-                      final positionData = snapshot.data;
-                      // Eğer oynatıcıdan süre bilgisi henüz gelmediyse veya 0 ise,
-                      // API'den gelen statik süreyi kullan.
+                      final position = snapshot.data ?? Duration.zero;
                       final duration =
-                          (positionData?.duration != null &&
-                              positionData!.duration.inSeconds > 0)
-                          ? positionData!.duration
-                          : Duration(seconds: song.duration ?? 0);
-                      final position = positionData?.position ?? Duration.zero;
-                      final double maxDuration = duration.inMilliseconds
-                          .toDouble();
-                      final double sliderValue = _isDragging
-                          ? _dragValue
-                          : position.inMilliseconds.toDouble();
+                          songProvider.audioPlayer.duration ?? Duration.zero;
 
                       return Column(
                         children: [
-                          Slider(
-                            min: 0.0,
-                            max: maxDuration + 1.0,
-                            value: sliderValue.clamp(0.0, maxDuration),
-                            onChangeStart: (value) {
-                              setState(() {
-                                _isDragging = true;
-                                _dragValue = value;
-                              });
-                            },
-                            onChanged: (value) {
-                              setState(() => _dragValue = value);
-                            },
-                            onChangeEnd: (value) {
-                              context.read<SongProvider>().audioPlayer.seek(
-                                Duration(milliseconds: value.round()),
-                              );
-                              setState(() => _isDragging = false);
-                            },
-                            activeColor: Theme.of(context).primaryColor,
-                            inactiveColor: Colors.grey.shade800,
+                          SliderTheme(
+                            data: SliderTheme.of(context).copyWith(
+                              thumbShape: const RoundSliderThumbShape(
+                                enabledThumbRadius: 6,
+                              ),
+                              trackHeight: 4,
+                              activeTrackColor: Colors.white,
+                              inactiveTrackColor: Colors.white.withOpacity(0.3),
+                              thumbColor: Colors.white,
+                              overlayColor: Colors.white.withOpacity(0.2),
+                            ),
+                            child: Slider(
+                              value: position.inSeconds.toDouble().clamp(
+                                0,
+                                duration.inSeconds.toDouble(),
+                              ),
+                              min: 0,
+                              max: duration.inSeconds.toDouble() > 0
+                                  ? duration.inSeconds.toDouble()
+                                  : 1,
+                              onChanged: (value) {
+                                songProvider.audioPlayer.seek(
+                                  Duration(seconds: value.toInt()),
+                                );
+                              },
+                            ),
                           ),
                           Padding(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 16.0,
+                              horizontal: 8.0,
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
                                   _formatDuration(position),
-                                  style: const TextStyle(color: Colors.white70),
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.7),
+                                    fontSize: 12,
+                                  ),
                                 ),
                                 Text(
                                   _formatDuration(duration),
-                                  style: const TextStyle(color: Colors.white70),
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.7),
+                                    fontSize: 12,
+                                  ),
                                 ),
                               ],
                             ),
@@ -358,129 +275,94 @@ class _PlayerPageState extends State<PlayerPage> {
                     },
                   ),
                   const SizedBox(height: 20),
-                  // Çalma Kontrol Butonları
+
+                  // Kontrol Butonları
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      // Karışık Çal (Shuffle) Butonu
-                      StreamBuilder<bool>(
-                        stream:
-                            songProvider.audioPlayer.shuffleModeEnabledStream,
-                        builder: (context, snapshot) {
-                          final shuffleModeEnabled = snapshot.data ?? false;
-                          return IconButton(
-                            icon: const Icon(Icons.shuffle),
-                            color: shuffleModeEnabled
-                                ? Theme.of(context).primaryColor
-                                : Colors.white,
-                            onPressed: () async {
-                              final enable = !shuffleModeEnabled;
-                              if (enable) {
-                                await songProvider.audioPlayer.shuffle();
-                              }
-                              await songProvider.audioPlayer
-                                  .setShuffleModeEnabled(enable);
-                            },
-                          );
-                        },
+                      IconButton(
+                        icon: Icon(
+                          Icons.shuffle,
+                          color: songProvider.isShuffleEnabled
+                              ? Theme.of(context).primaryColor
+                              : Colors.white,
+                        ),
+                        onPressed: songProvider.toggleShuffle,
                       ),
                       IconButton(
-                        icon: const Icon(Icons.skip_previous_rounded, size: 40),
-                        onPressed:
-                            songProvider.playPrevious, // Önceki şarkıya geç
-                        color: Colors.white,
+                        icon: const Icon(
+                          Icons.skip_previous_rounded,
+                          color: Colors.white,
+                          size: 45,
+                        ),
+                        onPressed: () => songProvider.playPrevious(),
                       ),
-                      // Oynat/Durdur butonu
-                      StreamBuilder<PlayerState>(
-                        stream: songProvider.playerStateStream,
-                        builder: (context, snapshot) {
-                          final playerState = snapshot.data;
-                          final processingState = playerState?.processingState;
-                          final playing = playerState?.playing;
+                      Container(
+                        width: 75,
+                        height: 75,
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: StreamBuilder<PlayerState>(
+                          stream: songProvider.playerStateStream,
+                          builder: (context, snapshot) {
+                            final playerState = snapshot.data;
+                            final processingState =
+                                playerState?.processingState;
+                            final playing = playerState?.playing;
 
-                          if (songProvider.isSongLoading ||
-                              processingState == ProcessingState.loading ||
-                              processingState == ProcessingState.buffering) {
-                            return Container(
-                              width: 64,
-                              height: 64,
-                              child: const CircularProgressIndicator(
-                                color: Colors.white,
-                              ),
-                            );
-                          } else if (playing != true) {
-                            return IconButton(
-                              icon: const Icon(
-                                Icons.play_arrow_rounded,
-                                size: 64,
-                              ),
-                              onPressed: songProvider
-                                  .audioPlayer
-                                  .play, // Çalmaya başla/devam et
-                              color: Colors.white,
-                            );
-                          } else if (processingState !=
-                              ProcessingState.completed) {
-                            return IconButton(
-                              icon: const Icon(Icons.pause_rounded, size: 64),
-                              onPressed:
-                                  songProvider.audioPlayer.pause, // Duraklat
-                              color: Colors.white,
-                            );
-                          } else {
-                            // Şarkı tamamlandığında otomatik olarak sonraki şarkıya geç
-                            songProvider.playNext();
-                            return const SizedBox(
-                              width: 64,
-                              height: 64,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                              ),
-                            );
-                          }
-                        },
+                            if (processingState == ProcessingState.loading ||
+                                processingState == ProcessingState.buffering) {
+                              return const Center(
+                                child: CircularProgressIndicator(
+                                  color: Colors.black,
+                                ),
+                              );
+                            } else if (playing != true) {
+                              return IconButton(
+                                icon: const Icon(
+                                  Icons.play_arrow_rounded,
+                                  color: Colors.black,
+                                  size: 45,
+                                ),
+                                onPressed: songProvider.audioPlayer.play,
+                              );
+                            } else {
+                              return IconButton(
+                                icon: const Icon(
+                                  Icons.pause_rounded,
+                                  color: Colors.black,
+                                  size: 45,
+                                ),
+                                onPressed: songProvider.audioPlayer.pause,
+                              );
+                            }
+                          },
+                        ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.skip_next_rounded, size: 40),
-                        onPressed: songProvider.playNext, // Sonraki şarkıya geç
-                        color: Colors.white,
+                        icon: const Icon(
+                          Icons.skip_next_rounded,
+                          color: Colors.white,
+                          size: 45,
+                        ),
+                        onPressed: () => songProvider.playNext(),
                       ),
-                      // Tekrarla (Repeat) Butonu
-                      StreamBuilder<LoopMode>(
-                        stream: songProvider.audioPlayer.loopModeStream,
-                        builder: (context, snapshot) {
-                          final loopMode = snapshot.data ?? LoopMode.off;
-                          final icons = [
-                            Icon(Icons.repeat, color: Colors.white),
-                            Icon(
-                              Icons.repeat,
-                              color: Theme.of(context).primaryColor,
-                            ),
-                            Icon(
-                              Icons.repeat_one,
-                              color: Theme.of(context).primaryColor,
-                            ),
-                          ];
-                          const cycleModes = [
-                            LoopMode.off,
-                            LoopMode.all,
-                            LoopMode.one,
-                          ];
-                          final index = cycleModes.indexOf(loopMode);
-                          return IconButton(
-                            icon: icons[index],
-                            onPressed: () {
-                              songProvider.audioPlayer.setLoopMode(
-                                cycleModes[(cycleModes.indexOf(loopMode) + 1) %
-                                    cycleModes.length],
-                              );
-                            },
-                          );
-                        },
+                      IconButton(
+                        icon: Icon(
+                          songProvider.loopMode == LoopMode.one
+                              ? Icons.repeat_one
+                              : Icons.repeat,
+                          color: songProvider.loopMode == LoopMode.off
+                              ? Colors.white
+                              : Theme.of(context).primaryColor,
+                        ),
+                        onPressed: songProvider.cycleLoopMode,
                       ),
                     ],
                   ),
-                  const Spacer(),
+                  const SizedBox(height: 50),
                 ],
               ),
             ),
@@ -490,10 +372,187 @@ class _PlayerPageState extends State<PlayerPage> {
     );
   }
 
-  // Süreyi "01:23" formatında göstermek için yardımcı metot
-  String _formatDuration(Duration d) {
-    final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return "$minutes:$seconds";
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
+    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
+    return "${twoDigits(duration.inHours)}:$twoDigitMinutes:$twoDigitSeconds"
+        .replaceFirst("00:", "");
+  }
+
+  void _showLoginBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey.shade900,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.cloud_download_rounded,
+                size: 60,
+                color: Colors.white70,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                "İndirmek için Giriş Yapın",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Şarkıları cihazınıza indirmek ve çevrimdışı dinlemek için lütfen giriş yapın.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 16),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(ctx); // BottomSheet'i kapat
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const LoginPage(),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    "Giriş Yap",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(
+                  "İptal",
+                  style: TextStyle(color: Colors.grey.shade500),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDownloadButton(
+    BuildContext context,
+    SongProvider provider,
+    Song song,
+  ) {
+    final isDownloaded = provider.isSongDownloaded(song.id);
+    final progress = provider.downloadProgress[song.id];
+
+    if (progress != null) {
+      return Stack(
+        alignment: Alignment.center,
+        children: [
+          CircularProgressIndicator(
+            value: progress,
+            strokeWidth: 3,
+            color: Colors.white,
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 20, color: Colors.white),
+            onPressed: () => provider.cancelDownload(song.id),
+          ),
+        ],
+      );
+    } else if (isDownloaded) {
+      return IconButton(
+        icon: const Icon(Icons.check_circle, color: Colors.green),
+        onPressed: () {
+          // İndirildi durumu
+        },
+      );
+    } else {
+      return IconButton(
+        icon: const Icon(Icons.download_rounded, color: Colors.white),
+        onPressed: () {
+          if (!provider.isFirebaseLoggedIn) {
+            _showLoginBottomSheet(context);
+            return;
+          }
+
+          // İndirme başladığına dair belirgin bir bildirim (SnackBar)
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(
+                    Icons.downloading_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          "İndirme Başlatıldı",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Text(
+                          song.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green.shade700,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              margin: const EdgeInsets.all(16),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+
+          provider.downloadSong(song).catchError((e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text("İndirme başarısız: $e"),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          });
+        },
+      );
+    }
   }
 }

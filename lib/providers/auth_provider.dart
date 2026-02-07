@@ -3,22 +3,28 @@ import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthProvider with ChangeNotifier {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  FirebaseAuth? _auth;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   User? _user;
   User? get user => _user;
 
   AuthProvider() {
-    // Uygulama açıldığında mevcut oturumu dinle
-    _auth.authStateChanges().listen((User? user) {
-      _user = user;
-      notifyListeners();
-    });
+    try {
+      _auth = FirebaseAuth.instance;
+      // Uygulama açıldığında mevcut oturumu dinle
+      _auth?.authStateChanges().listen((User? user) {
+        _user = user;
+        notifyListeners();
+      });
+    } catch (e) {
+      debugPrint("FirebaseAuth başlatılamadı: $e");
+    }
   }
 
   /// Google ile Giriş Yap
   Future<User?> signInWithGoogle() async {
+    if (_auth == null) return null;
     try {
       // 1. Google Sign In akışını başlat
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
@@ -35,7 +41,7 @@ class AuthProvider with ChangeNotifier {
       );
 
       // 4. Firebase'e giriş yap
-      final UserCredential userCredential = await _auth.signInWithCredential(
+      final UserCredential userCredential = await _auth!.signInWithCredential(
         credential,
       );
 
@@ -50,7 +56,7 @@ class AuthProvider with ChangeNotifier {
   Future<void> signOut() async {
     try {
       await _googleSignIn.signOut();
-      await _auth.signOut();
+      await _auth?.signOut();
     } catch (e) {
       debugPrint("Çıkış Hatası: $e");
     }
@@ -62,7 +68,7 @@ class AuthProvider with ChangeNotifier {
     try {
       await _user!.updateDisplayName(name);
       await _user!.reload();
-      _user = _auth.currentUser;
+      _user = _auth?.currentUser;
       notifyListeners();
     } catch (e) {
       debugPrint("İsim güncelleme hatası: $e");

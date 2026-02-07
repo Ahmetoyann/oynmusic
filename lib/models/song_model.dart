@@ -15,6 +15,7 @@ class Song {
   final String audioUrl;
   int? duration; // Şarkı süresi (saniye cinsinden)
   final String? lyrics;
+  String? localPath; // İndirilen dosyanın yerel yolu
 
   Song({
     required this.id,
@@ -24,6 +25,7 @@ class Song {
     required this.audioUrl,
     this.duration,
     this.lyrics,
+    this.localPath,
   });
 
   /// Deezer API'den gelen JSON verisini bir Song nesnesine dönüştüren fabrika metodu.
@@ -142,6 +144,26 @@ class Song {
     );
   }
 
+  /// Audius API'den gelen JSON verisini Song nesnesine dönüştüren fabrika metodu.
+  factory Song.fromAudiusJson(Map<String, dynamic> json) {
+    final user = json['user'] ?? {};
+    final artwork = json['artwork'] ?? {};
+    final trackId = json['id'];
+
+    return Song(
+      id: trackId.toString(),
+      title: json['title'] ?? 'İsimsiz Şarkı',
+      artist: user['name'] ?? 'Bilinmeyen Sanatçı',
+      coverUrl:
+          artwork['480x480'] ??
+          artwork['150x150'] ??
+          'https://via.placeholder.com/250',
+      audioUrl: 'https://discoveryprovider.audius.co/v1/tracks/$trackId/stream',
+      duration: json['duration'] ?? 0,
+      lyrics: null,
+    );
+  }
+
   /// ISO 8601 formatındaki süreyi (örn: PT1H15M30S) saniyeye çevirir.
   static int _parseDuration(String? durationString) {
     if (durationString == null || durationString.isEmpty) return 0;
@@ -168,6 +190,7 @@ class Song {
       'audioUrl': audioUrl,
       'duration': duration,
       'lyrics': lyrics,
+      'localPath': localPath,
     };
   }
 
@@ -181,6 +204,7 @@ class Song {
       audioUrl: map['audioUrl'],
       duration: map['duration'],
       lyrics: map['lyrics'],
+      localPath: map['localPath'],
     );
   }
 }
@@ -189,12 +213,18 @@ class Song {
 class MusicFolder {
   String name;
   final List<Song> songs;
+  bool isFromDownloads; // Klasörün indirilenlerden mi oluşturulduğunu belirtir
 
-  MusicFolder({required this.name, required this.songs});
+  MusicFolder({
+    required this.name,
+    required this.songs,
+    this.isFromDownloads = false,
+  });
 
   Map<String, dynamic> toJson() => {
     'name': name,
     'songs': songs.map((s) => s.toJson()).toList(),
+    'isFromDownloads': isFromDownloads,
   };
 
   factory MusicFolder.fromJson(Map<String, dynamic> json) {
@@ -203,6 +233,7 @@ class MusicFolder {
       songs: (json['songs'] as List)
           .map((s) => Song.fromMap(s as Map<String, dynamic>))
           .toList(),
+      isFromDownloads: json['isFromDownloads'] ?? false,
     );
   }
 }
@@ -258,5 +289,17 @@ extension SongFavoriteStatus on Song {
   /// Favori listesi önbelleğini temizler.
   static void clear() {
     _favorites.clear();
+  }
+}
+
+/// Şarkı süresini biçimlendirmek için eklenti.
+extension SongDurationFormatter on Song {
+  /// Süreyi "DK:SN" (örn: 04:20) formatında döndürür.
+  String get formattedDuration {
+    final totalSeconds = duration ?? 0;
+    if (totalSeconds <= 0) return "00:00";
+    final minutes = (totalSeconds ~/ 60).toString().padLeft(2, '0');
+    final seconds = (totalSeconds % 60).toString().padLeft(2, '0');
+    return "$minutes:$seconds";
   }
 }

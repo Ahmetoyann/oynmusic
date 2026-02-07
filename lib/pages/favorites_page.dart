@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:muzik_app/providers/song_provider.dart';
-import 'package:muzik_app/pages/player_page.dart';
 import 'package:muzik_app/models/song_model.dart';
 
 class FavoritesPage extends StatefulWidget {
@@ -28,69 +27,109 @@ class _FavoritesPageState extends State<FavoritesPage> {
     });
   }
 
-  void _showCreatePlaylistDialog(BuildContext context) {
+  void _showCreatePlaylistBottomSheet(BuildContext context) {
     if (_selectedSongs.isEmpty) return;
 
     final TextEditingController controller = TextEditingController();
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.grey.shade900,
-        title: const Text(
-          'Çalma Listesi Oluştur',
-          style: TextStyle(color: Colors.white),
+      isScrollControlled: true,
+      backgroundColor: Colors.grey.shade900,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          left: 24,
+          right: 24,
+          top: 24,
         ),
-        content: TextField(
-          controller: controller,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: 'Liste Adı',
-            hintStyle: TextStyle(color: Colors.grey),
-            enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: Colors.grey),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade700,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
             ),
-            focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: Colors.green),
+            const SizedBox(height: 20),
+            const Text(
+              'Çalma Listesi Oluştur',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('İptal', style: TextStyle(color: Colors.grey)),
-          ),
-          TextButton(
-            onPressed: () {
-              if (controller.text.isNotEmpty) {
-                final provider = context.read<SongProvider>();
-                provider.createFolder(
-                  name: controller.text,
-                  songs: _selectedSongs.toList(),
-                );
-                // Listeye eklenenleri favorilerden çıkar
-                for (var song in _selectedSongs) {
-                  provider.toggleFavorite(song);
-                }
-                Navigator.pop(context);
-                setState(() {
-                  _isSelectionMode = false;
-                  _selectedSongs.clear();
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('${controller.text} oluşturuldu.'),
-                    backgroundColor: Colors.green,
+            const SizedBox(height: 20),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Liste Adı',
+                hintStyle: TextStyle(color: Colors.grey.shade500),
+                filled: true,
+                fillColor: Colors.grey.shade800,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  if (controller.text.isNotEmpty) {
+                    final provider = context.read<SongProvider>();
+                    provider.createFolder(
+                      name: controller.text,
+                      songs: _selectedSongs.toList(),
+                    );
+                    // Listeye eklenenleri favorilerden çıkar
+                    for (var song in _selectedSongs) {
+                      provider.toggleFavorite(song);
+                    }
+                    Navigator.pop(ctx);
+                    setState(() {
+                      _isSelectionMode = false;
+                      _selectedSongs.clear();
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('${controller.text} oluşturuldu.'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                );
-              }
-            },
-            child: Text(
-              'Oluştur',
-              style: TextStyle(color: Theme.of(context).primaryColor),
+                ),
+                child: const Text(
+                  'Oluştur',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
     );
   }
@@ -106,7 +145,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
       ),
       builder: (ctx) {
         return Consumer<SongProvider>(
-          builder: (context, songProvider, child) {
+          builder: (innerContext, songProvider, child) {
             final folders = songProvider.folders;
             return Column(
               mainAxisSize: MainAxisSize.min,
@@ -136,8 +175,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     style: TextStyle(color: Colors.white),
                   ),
                   onTap: () {
-                    Navigator.pop(context);
-                    _showCreatePlaylistDialog(context);
+                    Navigator.pop(innerContext);
+                    _showCreatePlaylistBottomSheet(context);
                   },
                 ),
                 const Divider(color: Colors.grey),
@@ -178,7 +217,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                             for (var song in _selectedSongs) {
                               songProvider.toggleFavorite(song);
                             }
-                            Navigator.pop(context);
+                            Navigator.pop(innerContext);
                             setState(() {
                               _isSelectionMode = false;
                               _selectedSongs.clear();
@@ -202,6 +241,42 @@ class _FavoritesPageState extends State<FavoritesPage> {
           },
         );
       },
+    );
+  }
+
+  void _showClearFavoritesDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.grey.shade900,
+        title: const Text(
+          'Tümünü Temizle',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'Tüm favori şarkılarınız silinecek. Emin misiniz?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('İptal', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () {
+              context.read<SongProvider>().clearAllFavorites();
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Favoriler temizlendi.'),
+                  backgroundColor: Colors.redAccent,
+                ),
+              );
+            },
+            child: const Text('Temizle', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -249,7 +324,12 @@ class _FavoritesPageState extends State<FavoritesPage> {
               icon: const Icon(Icons.playlist_add),
               onPressed: () => _showAddToPlaylistBottomSheet(context),
             ),
-          ] else if (favoriteSongs.isNotEmpty)
+          ] else if (favoriteSongs.isNotEmpty) ...[
+            IconButton(
+              icon: const Icon(Icons.delete_sweep_outlined),
+              tooltip: "Tümünü Temizle",
+              onPressed: () => _showClearFavoritesDialog(context),
+            ),
             IconButton(
               icon: const Icon(Icons.checklist),
               onPressed: () {
@@ -258,6 +338,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                 });
               },
             ),
+          ],
         ],
       ),
       backgroundColor: Colors.black,
@@ -310,11 +391,14 @@ class _FavoritesPageState extends State<FavoritesPage> {
                         fit: BoxFit.cover,
                       ),
                     ),
-                    title: Text(
-                      song.title,
-                      style: const TextStyle(color: Colors.white),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    title: Tooltip(
+                      message: song.title,
+                      child: Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white),
+                      ),
                     ),
                     subtitle: Text(
                       song.artist,
@@ -331,25 +415,21 @@ class _FavoritesPageState extends State<FavoritesPage> {
                           )
                         : IconButton(
                             icon: const Icon(Icons.favorite, color: Colors.red),
-                            onPressed: () {
-                              songProvider.toggleFavorite(song);
-                            },
+                            onPressed: () => songProvider.toggleFavorite(song),
                           ),
                     onTap: () {
                       if (_isSelectionMode) {
                         _toggleSelection(song);
                       } else {
-                        final sp = Provider.of<SongProvider>(
-                          context,
-                          listen: false,
-                        );
-                        sp.playSong(song, favoriteSongs);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const PlayerPage(),
-                          ),
-                        );
+                        final isCurrentSong =
+                            songProvider.currentSong?.id == song.id;
+                        if (isCurrentSong && songProvider.audioPlayer.playing) {
+                          songProvider.audioPlayer.pause();
+                        } else if (isCurrentSong) {
+                          songProvider.audioPlayer.play();
+                        } else {
+                          songProvider.playSong(song, favoriteSongs);
+                        }
                       }
                     },
                     onLongPress: () {

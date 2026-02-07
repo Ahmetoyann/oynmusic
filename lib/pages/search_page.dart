@@ -1,9 +1,9 @@
 // lib/pages/search_page.dart
 import 'package:flutter/material.dart';
-import 'package:muzik_app/pages/player_page.dart';
 import 'package:muzik_app/providers/song_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:muzik_app/models/song_model.dart';
+import 'package:muzik_app/pages/player_page.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -23,8 +23,22 @@ class _SearchPageState extends State<SearchPage> {
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=
           _scrollController.position.maxScrollExtent - 200) {
-        context.read<SongProvider>().loadMoreSearchResults();
+        context.read<SongProvider>().loadMoreSearchResults().catchError((e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text("Sonuçlar yüklenirken hata: $e"),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        });
       }
+    });
+
+    // Sayfa açıldığında önerilen şarkıları yükle
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<SongProvider>().fetchSuggestedSongs();
     });
   }
 
@@ -92,6 +106,7 @@ class _SearchPageState extends State<SearchPage> {
                 if (value.isNotEmpty) {
                   songProvider.addToSearchHistory(value);
                 }
+                FocusScope.of(context).unfocus();
               },
             ),
             const SizedBox(height: 20),
@@ -120,12 +135,16 @@ class _SearchPageState extends State<SearchPage> {
 
     // Arama kutusu boşsa, bir "keşfet" mesajı göster.
     if (aramaMetni.isEmpty) {
-      if (songProvider.searchHistory.isNotEmpty) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      return ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        children: [
+          // 1. Arama Geçmişi Bölümü
+          if (songProvider.searchHistory.isNotEmpty) ...[
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 8,
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -146,54 +165,94 @@ class _SearchPageState extends State<SearchPage> {
                 ],
               ),
             ),
-            Expanded(
-              child: ListView.builder(
-                itemCount: songProvider.searchHistory.length,
-                itemBuilder: (context, index) {
-                  final historyItem = songProvider.searchHistory[index];
-                  return ListTile(
-                    leading: const Icon(Icons.history, color: Colors.grey),
-                    title: Text(
-                      historyItem,
-                      style: const TextStyle(color: Colors.white70),
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(
-                        Icons.close,
-                        size: 18,
-                        color: Colors.grey,
-                      ),
-                      onPressed: () =>
-                          songProvider.removeFromSearchHistory(historyItem),
-                    ),
-                    onTap: () {
-                      _searchController.text = historyItem;
-                      _searchController.selection = TextSelection.fromPosition(
-                        TextPosition(offset: historyItem.length),
-                      );
-                      songProvider.updateSearchText(historyItem);
-                      songProvider.addToSearchHistory(historyItem);
-                    },
+            ...songProvider.searchHistory.map((historyItem) {
+              return ListTile(
+                leading: const Icon(Icons.history, color: Colors.grey),
+                title: Text(
+                  historyItem,
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                trailing: IconButton(
+                  icon: const Icon(Icons.close, size: 18, color: Colors.grey),
+                  onPressed: () =>
+                      songProvider.removeFromSearchHistory(historyItem),
+                ),
+                onTap: () {
+                  _searchController.text = historyItem;
+                  _searchController.selection = TextSelection.fromPosition(
+                    TextPosition(offset: historyItem.length),
                   );
+                  songProvider.updateSearchText(historyItem);
+                  songProvider.addToSearchHistory(historyItem);
                 },
+              );
+            }),
+            const Divider(color: Colors.grey),
+          ],
+
+          // 2. Önerilen Şarkılar Bölümü
+          if (songProvider.isSuggestionsLoading)
+            const Padding(
+              padding: EdgeInsets.all(32.0),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (songProvider.suggestedSongs.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                'Sizin İçin Önerilenler',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
               ),
             ),
+            ...songProvider.suggestedSongs.map((song) {
+              return Card(
+                child: ListTile(
+                  leading: ClipRRect(
+                    borderRadius: BorderRadius.circular(4.0),
+                    child: Image.network(
+                      song.coverUrl,
+                      width: 50,
+                      height: 50,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        width: 50,
+                        height: 50,
+                        color: Colors.grey.shade800,
+                        child: const Icon(
+                          Icons.music_note,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ),
+                  ),
+                  title: Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  subtitle: Text(
+                    song.artist,
+                    style: TextStyle(color: Colors.grey.shade400),
+                  ),
+                  onTap: () {
+                    songProvider.playSong(song, songProvider.suggestedSongs);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const PlayerPage(),
+                      ),
+                    );
+                  },
+                ),
+              );
+            }),
           ],
-        );
-      }
-
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.manage_search, size: 80, color: Colors.grey),
-            SizedBox(height: 16),
-            Text(
-              'Favori şarkılarını veya sanatçılarını keşfet.',
-              style: TextStyle(color: Colors.grey, fontSize: 16),
-            ),
-          ],
-        ),
+        ],
       );
     }
     // Arama yapıldı ama sonuç bulunamadıysa, bilgi ver.
@@ -209,6 +268,7 @@ class _SearchPageState extends State<SearchPage> {
     else {
       return ListView.builder(
         controller: _scrollController,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         // Yükleniyor göstergesi için +1 ekliyoruz
         itemCount: sonuclar.length + (songProvider.isSearchLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
@@ -223,8 +283,20 @@ class _SearchPageState extends State<SearchPage> {
           }
 
           final song = sonuclar[index];
+          final isCurrentSong = songProvider.currentSong?.id == song.id;
+
           return Card(
             child: ListTile(
+              onTap: () {
+                final isCurrentSong = songProvider.currentSong?.id == song.id;
+                if (!isCurrentSong) {
+                  songProvider.playSong(song, sonuclar);
+                }
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PlayerPage()),
+                );
+              },
               leading: ClipRRect(
                 borderRadius: BorderRadius.circular(4.0),
                 child: Image.network(
@@ -232,47 +304,32 @@ class _SearchPageState extends State<SearchPage> {
                   width: 50,
                   height: 50,
                   fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      width: 50,
+                      height: 50,
+                      color: Colors.grey.shade800,
+                      child: const Icon(
+                        Icons.music_note,
+                        color: Colors.white70,
+                      ),
+                    );
+                  },
                 ),
               ),
-              title: Text(
-                song.title,
-                style: const TextStyle(color: Colors.white),
+              title: Tooltip(
+                message: song.title,
+                child: Text(
+                  song.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white),
+                ),
               ),
               subtitle: Text(
                 song.artist,
                 style: TextStyle(color: Colors.grey.shade400),
               ),
-              // İNDİRME BUTONU
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _formatDuration(song.duration),
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      song.isFavorite ? Icons.favorite : Icons.favorite_border,
-                      color: song.isFavorite ? Colors.red : Colors.grey,
-                    ),
-                    onPressed: () {
-                      songProvider.toggleFavorite(song);
-                    },
-                  ),
-                ],
-              ),
-              onTap: () {
-                final songProvider = context.read<SongProvider>();
-                if (aramaMetni.isNotEmpty) {
-                  songProvider.addToSearchHistory(aramaMetni);
-                }
-                // Çalma listesi olarak arama sonuçlarını kullan.
-                songProvider.playSong(song, sonuclar);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const PlayerPage()),
-                );
-              },
             ),
           );
         },

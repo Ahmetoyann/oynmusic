@@ -3,7 +3,8 @@ import 'package:muzik_app/providers/auth_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:muzik_app/providers/song_provider.dart';
 import 'package:muzik_app/pages/folder_detail_page.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:muzik_app/pages/settings_page.dart';
+import 'package:muzik_app/widgets/google_logo_painter.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -21,7 +22,20 @@ class _ProfilePageState extends State<ProfilePage> {
     final user = authProvider.user;
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Profil")),
+      appBar: AppBar(
+        title: const Text("Profil"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsPage()),
+              );
+            },
+          ),
+        ],
+      ),
       body: user == null
           ? Center(child: _buildLoginButton(context, authProvider))
           : _buildUserProfile(context, authProvider, user),
@@ -68,7 +82,42 @@ class _ProfilePageState extends State<ProfilePage> {
                     Navigator.pop(context); // Başarılı olursa sayfayı kapat
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text("Hoş geldin, ${user.displayName}!"),
+                        content: Row(
+                          children: [
+                            const Icon(Icons.waving_hand, color: Colors.white),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text(
+                                    "Hoş Geldin!",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  Text(
+                                    "${user.displayName ?? 'Kullanıcı'}",
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.white70,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        backgroundColor: Colors.green.shade700,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        margin: const EdgeInsets.all(16),
+                        duration: const Duration(seconds: 3),
                       ),
                     );
                   }
@@ -88,7 +137,10 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SvgPicture.asset('assets/icon/google_logo.svg', height: 20),
+                CustomPaint(
+                  size: const Size(20, 20),
+                  painter: GoogleLogoPainter(),
+                ),
                 const SizedBox(width: 12),
                 const Text(
                   'Google ile Giriş Yap',
@@ -135,8 +187,11 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               IconButton(
                 icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
-                onPressed: () =>
-                    _showEditNameDialog(context, provider, user.displayName),
+                onPressed: () => _showEditNameBottomSheet(
+                  context,
+                  provider,
+                  user.displayName,
+                ),
               ),
             ],
           ),
@@ -198,7 +253,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ],
 
           ElevatedButton.icon(
-            onPressed: () => provider.signOut(),
+            onPressed: () => _showSignOutBottomSheet(context, provider),
             icon: const Icon(Icons.logout),
             label: const Text("Çıkış Yap"),
             style: ElevatedButton.styleFrom(
@@ -213,7 +268,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  void _showEditNameDialog(
+  void _showEditNameBottomSheet(
     BuildContext context,
     AuthProvider provider,
     String? currentName,
@@ -221,44 +276,169 @@ class _ProfilePageState extends State<ProfilePage> {
     final TextEditingController controller = TextEditingController(
       text: currentName,
     );
-    showDialog(
+
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.grey.shade900,
-        title: const Text(
-          "İsmi Düzenle",
-          style: TextStyle(color: Colors.white),
-        ),
-        content: TextField(
-          controller: controller,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: "Yeni isim",
-            hintStyle: TextStyle(color: Colors.grey),
-            enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: Colors.grey),
-            ),
-            focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: Colors.blue),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("İptal", style: TextStyle(color: Colors.grey)),
-          ),
-          TextButton(
-            onPressed: () async {
-              if (controller.text.trim().isNotEmpty) {
-                await provider.updateDisplayName(controller.text.trim());
-                if (context.mounted) Navigator.pop(context);
-              }
-            },
-            child: const Text("Kaydet", style: TextStyle(color: Colors.blue)),
-          ),
-        ],
+      isScrollControlled: true,
+      backgroundColor: Colors.grey.shade900,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          left: 24,
+          right: 24,
+          top: 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade700,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'İsmi Düzenle',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Yeni isim',
+                hintStyle: TextStyle(color: Colors.grey.shade500),
+                filled: true,
+                fillColor: Colors.grey.shade800,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () async {
+                  if (controller.text.trim().isNotEmpty) {
+                    await provider.updateDisplayName(controller.text.trim());
+                    if (ctx.mounted) Navigator.pop(ctx);
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Kaydet',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSignOutBottomSheet(BuildContext context, AuthProvider provider) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey.shade900,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade700,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Çıkış Yap',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Hesabınızdan çıkış yapmak istediğinize emin misiniz?',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 16),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    provider.signOut();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Çıkış yapıldı.'),
+                        backgroundColor: Colors.redAccent,
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Çıkış Yap',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(
+                  'İptal',
+                  style: TextStyle(color: Colors.grey.shade500),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

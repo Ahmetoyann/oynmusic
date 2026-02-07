@@ -1,10 +1,11 @@
 // lib/pages/folder_detail_page.dart
 
 import 'package:flutter/material.dart';
-import 'package:muzik_app/pages/player_page.dart';
 import 'package:muzik_app/providers/song_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:muzik_app/models/song_model.dart';
+import 'package:muzik_app/widgets/mini_player.dart';
+import 'package:muzik_app/pages/player_page.dart';
 
 class FolderDetailPage extends StatelessWidget {
   // Bu sayfa, hangi klasörün gösterileceğini bilmek için bir MusicFolder nesnesi alır.
@@ -66,11 +67,16 @@ class FolderDetailPage extends StatelessWidget {
                         },
                       ),
                     ),
-                    title: Text(
-                      song.title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
+                    title: Tooltip(
+                      message: song.title,
+                      child: Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                     subtitle: Text(
@@ -100,26 +106,35 @@ class FolderDetailPage extends StatelessWidget {
                     ),
                     // Bu sayfadaki bir şarkıya tıklandığında ne olacağı:
                     onTap: () {
-                      final songProvider = Provider.of<SongProvider>(
-                        context,
-                        listen: false,
-                      );
+                      final songProvider = context.read<SongProvider>();
+                      final isCurrent = songProvider.currentSong?.id == song.id;
 
-                      // Çalma listesi olarak bu KLASÖRÜN ŞARKI LİSTESİNİ kullanıyoruz.
-                      songProvider.playSong(song, folder.songs);
-
-                      // Tam ekran müzik çaları açıyoruz.
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const PlayerPage(),
-                        ),
-                      );
+                      if (isCurrent) {
+                        if (songProvider.audioPlayer.playing) {
+                          songProvider.audioPlayer.pause();
+                        } else {
+                          songProvider.audioPlayer.play();
+                        }
+                      } else {
+                        // Çalma listesi olarak bu KLASÖRÜN ŞARKI LİSTESİNİ kullanıyoruz.
+                        songProvider.playSong(song, folder.songs);
+                      }
                     },
                   ),
                 );
               },
             ),
+      bottomNavigationBar: songProvider.currentSong != null
+          ? GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PlayerPage()),
+                );
+              },
+              child: const MiniPlayer(),
+            )
+          : null,
     );
   }
 

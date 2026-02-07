@@ -11,9 +11,8 @@ class SettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
     final authProvider = context.watch<AuthProvider>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black87;
-    final subTextColor = isDark ? Colors.grey.shade600 : Colors.grey.shade600;
+    const textColor = Colors.white;
+    final subTextColor = Colors.grey.shade600;
 
     return Scaffold(
       appBar: AppBar(
@@ -23,19 +22,6 @@ class SettingsPage extends StatelessWidget {
       // Arka plan rengi artık temadan geliyor
       body: ListView(
         children: [
-          // Tema Modu Değiştirme
-          SwitchListTile(
-            title: Text('Karanlık Mod', style: TextStyle(color: textColor)),
-            value: themeProvider.isDarkMode,
-            onChanged: (val) {
-              themeProvider.toggleTheme(val);
-            },
-            secondary: Icon(
-              Icons.dark_mode,
-              color: Theme.of(context).iconTheme.color,
-            ),
-          ),
-          const Divider(),
           // Renk Seçimi
           ListTile(
             title: Text('Tema Rengi', style: TextStyle(color: textColor)),
@@ -136,19 +122,17 @@ class SettingsPage extends StatelessWidget {
   }
 
   void _showClearCacheDialog(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? Colors.grey.shade900 : Colors.white,
-        title: Text(
+        backgroundColor: Colors.grey.shade900,
+        title: const Text(
           'Emin misiniz?',
-          style: TextStyle(color: isDark ? Colors.white : Colors.black),
+          style: TextStyle(color: Colors.white),
         ),
-        content: Text(
+        content: const Text(
           'Tüm indirilen şarkılar ve favoriler silinecek. Bu işlem geri alınamaz.',
-          style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+          style: TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
@@ -184,19 +168,14 @@ class SettingsPage extends StatelessWidget {
   }
 
   void _showSignOutDialog(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? Colors.grey.shade900 : Colors.white,
-        title: Text(
-          'Çıkış Yap',
-          style: TextStyle(color: isDark ? Colors.white : Colors.black),
-        ),
-        content: Text(
+        backgroundColor: Colors.grey.shade900,
+        title: const Text('Çıkış Yap', style: TextStyle(color: Colors.white)),
+        content: const Text(
           'Hesabınızdan çıkış yapmak istediğinize emin misiniz?',
-          style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+          style: TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(

@@ -35,11 +35,17 @@ class ListelerPage extends StatelessWidget {
               itemCount: folders.length,
               itemBuilder: (context, index) {
                 final folder = folders[index];
+
+                // İndirilenlerden oluşturulan klasörler için farklı renk
+                final cardColor = folder.isFromDownloads
+                    ? Colors.teal.shade900.withOpacity(0.6)
+                    : Colors.grey.shade800;
+
                 return Card(
-                  color: Colors.grey.shade800,
+                  color: cardColor,
                   margin: const EdgeInsets.only(bottom: 12),
                   child: ListTile(
-                    leading: _buildPlaylistCover(folder.songs),
+                    leading: _buildPlaylistCover(folder),
                     title: Text(
                       folder.name,
                       style: const TextStyle(
@@ -57,7 +63,7 @@ class ListelerPage extends StatelessWidget {
                         IconButton(
                           icon: const Icon(Icons.edit, color: Colors.white70),
                           onPressed: () {
-                            _showRenameDialog(context, folder);
+                            _showRenameBottomSheet(context, folder);
                           },
                         ),
                         IconButton(
@@ -136,8 +142,17 @@ class ListelerPage extends StatelessWidget {
     );
   }
 
-  Widget _buildPlaylistCover(List<Song> songs) {
+  Widget _buildPlaylistCover(MusicFolder folder) {
+    final songs = folder.songs;
     const double size = 56;
+    // Klasör türüne göre ikon ve renk seçimi
+    final IconData icon = folder.isFromDownloads
+        ? Icons.download_rounded
+        : Icons.star;
+    final Color iconColor = folder.isFromDownloads
+        ? Colors.white
+        : Colors.orange;
+
     if (songs.isEmpty) {
       return Container(
         width: size,
@@ -147,7 +162,7 @@ class ListelerPage extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: Colors.grey.shade800),
         ),
-        child: const Icon(Icons.music_note, color: Colors.grey),
+        child: Icon(icon, color: iconColor),
       );
     }
 
@@ -213,47 +228,94 @@ class ListelerPage extends StatelessWidget {
     );
   }
 
-  void _showRenameDialog(BuildContext context, MusicFolder folder) {
+  void _showRenameBottomSheet(BuildContext context, MusicFolder folder) {
     final TextEditingController controller = TextEditingController(
       text: folder.name,
     );
-    showDialog(
+
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.grey.shade900,
-        title: const Text(
-          'Listeyi Yeniden Adlandır',
-          style: TextStyle(color: Colors.white),
+      isScrollControlled: true,
+      backgroundColor: Colors.grey.shade900,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          left: 24,
+          right: 24,
+          top: 24,
         ),
-        content: TextField(
-          controller: controller,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: 'Yeni isim girin',
-            hintStyle: TextStyle(color: Colors.grey),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('İptal', style: TextStyle(color: Colors.white)),
-          ),
-          TextButton(
-            onPressed: () {
-              if (controller.text.isNotEmpty) {
-                context.read<SongProvider>().renameFolder(
-                  folder,
-                  controller.text,
-                );
-                Navigator.pop(context);
-              }
-            },
-            child: Text(
-              'Kaydet',
-              style: TextStyle(color: Theme.of(context).primaryColor),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade700,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 20),
+            const Text(
+              'Listeyi Yeniden Adlandır',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Yeni isim girin',
+                hintStyle: TextStyle(color: Colors.grey.shade500),
+                filled: true,
+                fillColor: Colors.grey.shade800,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  if (controller.text.isNotEmpty) {
+                    context.read<SongProvider>().renameFolder(
+                      folder,
+                      controller.text,
+                    );
+                    Navigator.pop(ctx);
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Kaydet',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
     );
   }
