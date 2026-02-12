@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:muzik_app/main.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_service/audio_service.dart';
@@ -15,6 +16,7 @@ import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:muzik_app/custom_icons.dart';
 
 class SongProvider with ChangeNotifier {
   List<Song> _allSongs = [];
@@ -33,12 +35,15 @@ class SongProvider with ChangeNotifier {
   int? _currentSongIndex;
   String _searchText = '';
   String? _currentGenre; // Şu anki kategoriyi tutar
+  String?
+  _currentTimeRange; // Şu anki zaman aralığını tutar (week, month, year, allTime)
   List<Song> _searchResults = [];
   bool _isSearchLoading = false;
   int _searchOffset = 0; // Arama sonuçları için sayfa takibi
   bool _isSearchLoadingMore = false; // Arama sonuçlarını yükleme durumu
   Timer? _searchDebounce;
   bool _isLoadingMore = false; // Ekstra yükleme yapılıyor mu?
+  List<Song> _recentlyPlayed = []; // Son dinlenenler listesi
   List<String> _searchHistory = [];
   String? _nextPageToken; // Sayfalama token'ı
   bool _isLowDataMode = false; // Düşük veri modu (Düşük kalite ses)
@@ -48,12 +53,16 @@ class SongProvider with ChangeNotifier {
   bool _hasConnection = true; // İnternet bağlantısı var mı?
   bool _isGuest = false; // Misafir girişi yapıldı mı?
   int _initialOffset = 0; // Trendler için rastgele başlangıç noktası
-  Song? _dailySong; // Günün şarkısı
+  List<Song> _dailySongs = []; // Günün şarkıları
   bool _isShuffleEnabled = false; // Karışık çalma durumu
   LoopMode _loopMode = LoopMode.off; // Tekrar modu (Kapalı, Tümü, Tek)
   List<int> _shuffledIndices = []; // Karışık çalma sırası
   List<Song> _suggestedSongs = []; // Arama sayfası için önerilen şarkılar
   bool _isSuggestionsLoading = false; // Önerilerin yüklenme durumu
+
+  // Uyku Zamanlayıcısı
+  Timer? _sleepTimer;
+  DateTime? _sleepTimerEndTime;
 
   // Bildirim Plugin'i
   final FlutterLocalNotificationsPlugin _notificationsPlugin =
@@ -93,16 +102,25 @@ class SongProvider with ChangeNotifier {
   bool get isLoadingMore => _isLoadingMore;
   List<String> get categories => _categories;
   List<String> get searchHistory => _searchHistory;
+  List<Song> get recentlyPlayed => _recentlyPlayed;
   bool get isLowDataMode => _isLowDataMode;
   bool get isSongLoading => _isSongLoading;
   bool get hasConnection => _hasConnection;
   bool get isGuest => _isGuest;
   bool get isFirebaseLoggedIn => _currentUser != null;
-  Song? get dailySong => _dailySong;
+  List<Song> get dailySongs => _dailySongs;
   bool get isShuffleEnabled => _isShuffleEnabled;
   LoopMode get loopMode => _loopMode;
   List<Song> get suggestedSongs => _suggestedSongs;
   bool get isSuggestionsLoading => _isSuggestionsLoading;
+  List<Song> get playlist => _playlist;
+  int? get currentSongIndex => _currentSongIndex;
+
+  bool get isSleepTimerActive => _sleepTimer != null && _sleepTimer!.isActive;
+  DateTime? get sleepTimerEndTime => _sleepTimerEndTime;
+
+  // Durum kaydetme zamanlayıcısı
+  Timer? _saveStateTimer;
 
   Song? get currentSong =>
       _currentSongIndex != null ? _playlist[_currentSongIndex!] : null;
@@ -131,10 +149,12 @@ class SongProvider with ChangeNotifier {
     _loadFavorites(); // Uygulama açılışında favorileri yükle
     _loadFolders();
     _loadSearchHistory();
+    _loadRecentlyPlayed();
     fetchCategories();
     fetchSongsFromApi(); // Uygulama açılışında direkt çek
     _loadSettings();
     _initConnectivity();
+    _loadLastPlaybackState(); // Son kalınan yeri yükle
     _initNotifications(); // Bildirim servisini başlat
   }
 
@@ -235,16 +255,61 @@ class SongProvider with ChangeNotifier {
       _hasConnection = isConnected;
 
       if (!_hasConnection) {
-        // İnternet gitti: Çalıyorsa durdur (Buffer çalmasın, anlık kesilsin)
-        if (_isAudioServiceInitialized && audioPlayer.playing) {
+        // İnternet gitti.
+        // Çalan şarkı yerel mi (indirilenlerde var mı) kontrol et
+        bool isLocal = false;
+        if (currentSong != null) {
+          final downloadedSong = _downloadedSongs.firstWhere(
+            (s) => s.id == currentSong!.id,
+            orElse: () =>
+                Song(id: '', title: '', artist: '', coverUrl: '', audioUrl: ''),
+          );
+
+          if (downloadedSong.id.isNotEmpty &&
+              downloadedSong.localPath != null) {
+            if (File(downloadedSong.localPath!).existsSync()) {
+              isLocal = true;
+            }
+          }
+        }
+
+        // Eğer yerel değilse ve çalıyorsa durdur
+        if (!isLocal && _isAudioServiceInitialized && audioPlayer.playing) {
           _wasPlayingBeforeInterruption = true;
           audioPlayer.pause();
+
+          if (navigatorKey.currentContext != null) {
+            ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(
+              SnackBar(
+                content: const Text(
+                  "İnternet kesildiği için oynatma duraklatıldı.",
+                ),
+                backgroundColor: Colors.orange.shade800,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
         }
       } else {
         // İnternet geldi: Kesintiden önce çalıyorsa devam et
         if (_isAudioServiceInitialized && _wasPlayingBeforeInterruption) {
           audioPlayer.play();
           _wasPlayingBeforeInterruption = false;
+
+          if (navigatorKey.currentContext != null) {
+            ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(
+              SnackBar(
+                content: const Text("Bağlantı sağlandı, oynatma devam ediyor."),
+                backgroundColor: Colors.green.shade700,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+
+        // İnternet geldiğinde verileri yenile (Eğer liste boşsa veya hata varsa)
+        if (_allSongs.isEmpty || _errorMessage != null) {
+          fetchSongsFromApi(genre: _currentGenre);
         }
       }
       notifyListeners();
@@ -358,8 +423,9 @@ class SongProvider with ChangeNotifier {
     }
   }
 
-  Future<void> fetchSongsFromApi({String? genre}) async {
+  Future<void> fetchSongsFromApi({String? genre, String? timeRange}) async {
     _currentGenre = genre;
+    _currentTimeRange = timeRange;
 
     _isLoading = true;
     _nextPageToken = null; // Token'ı sıfırla
@@ -383,21 +449,30 @@ class SongProvider with ChangeNotifier {
         // Kategori seçildiyse o türdeki trendleri getir
         final results = await AudiusService.getTrendingSongs(
           genre: apiGenre,
+          timeRange: _currentTimeRange,
           offset: _initialOffset,
         );
-        _allSongs = results;
+        // Resmi olmayan (placeholder olan) şarkıları filtrele
+        _allSongs = results
+            .where((s) => !s.coverUrl.contains('via.placeholder.com'))
+            .toList();
       } else {
         // Hepsi seçiliyse Trendleri getir
         final results = await AudiusService.getTrendingSongs(
+          timeRange: _currentTimeRange,
           offset: _initialOffset,
         );
-        _allSongs = results;
+        // Resmi olmayan (placeholder olan) şarkıları filtrele
+        _allSongs = results
+            .where((s) => !s.coverUrl.contains('via.placeholder.com'))
+            .toList();
       }
       _nextPageToken = null; // Audius basit endpoint'te sayfalama şimdilik yok
 
-      // Günün şarkısını belirle (Eğer liste boş değilse)
+      // Günün şarkılarını belirle (Eğer liste boş değilse)
       if (_allSongs.isNotEmpty) {
-        _dailySong = _allSongs[Random().nextInt(_allSongs.length)];
+        _dailySongs = List<Song>.from(_allSongs)..shuffle();
+        _dailySongs = _dailySongs.take(10).toList();
       }
     } catch (e) {
       debugPrint("Şarkı çekme hatası: $e");
@@ -428,14 +503,22 @@ class SongProvider with ChangeNotifier {
 
         newSongs = await AudiusService.getTrendingSongs(
           genre: apiGenre,
+          timeRange: _currentTimeRange,
           offset: currentOffset,
         );
       } else {
-        newSongs = await AudiusService.getTrendingSongs(offset: currentOffset);
+        newSongs = await AudiusService.getTrendingSongs(
+          timeRange: _currentTimeRange,
+          offset: currentOffset,
+        );
       }
 
       if (newSongs.isNotEmpty) {
-        _allSongs.addAll(newSongs);
+        // Resmi olmayan (placeholder olan) şarkıları filtrele
+        final validSongs = newSongs
+            .where((s) => !s.coverUrl.contains('via.placeholder.com'))
+            .toList();
+        _allSongs.addAll(validSongs);
       }
     } catch (e) {
       debugPrint("Daha fazla şarkı yüklenirken hata: $e");
@@ -466,6 +549,7 @@ class SongProvider with ChangeNotifier {
           androidNotificationChannelName: 'Müzik Çalar',
           androidNotificationOngoing: true,
           androidStopForegroundOnPause: true,
+          androidNotificationIcon: 'mipmap/ic_launcher',
         ),
       );
 
@@ -473,6 +557,17 @@ class SongProvider with ChangeNotifier {
       _audioHandler.audioPlayer.playerStateStream.listen((state) {
         if (state.processingState == ProcessingState.completed) {
           playNext(userInitiated: false);
+        }
+        // Duraklatıldığında durumu kaydet
+        if (!state.playing) {
+          _savePlaybackState();
+        }
+      });
+
+      // Pozisyon değiştiğinde periyodik kaydet (Debounce ile)
+      _audioHandler.audioPlayer.positionStream.listen((position) {
+        if (_audioHandler.audioPlayer.playing) {
+          _scheduleSaveState();
         }
       });
 
@@ -482,6 +577,83 @@ class SongProvider with ChangeNotifier {
     } catch (e) {
       _isAudioServiceInitialized = false;
       rethrow;
+    }
+  }
+
+  void _scheduleSaveState() {
+    if (_saveStateTimer?.isActive ?? false) return;
+    _saveStateTimer = Timer(const Duration(seconds: 5), () {
+      _savePlaybackState();
+    });
+  }
+
+  Future<void> _savePlaybackState() async {
+    if (currentSong == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String songJson = jsonEncode(currentSong!.toJson());
+      final int position = audioPlayer.position.inSeconds;
+
+      await prefs.setString('last_played_song', songJson);
+      await prefs.setInt('last_played_position', position);
+    } catch (e) {
+      debugPrint("Durum kaydedilemedi: $e");
+    }
+  }
+
+  Future<void> _loadLastPlaybackState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? songJson = prefs.getString('last_played_song');
+      final int position = prefs.getInt('last_played_position') ?? 0;
+
+      if (songJson != null) {
+        final song = Song.fromMap(jsonDecode(songJson));
+
+        // UI'ı güncelle (MiniPlayer görünsün)
+        _playlist = [song];
+        _currentSongIndex = 0;
+        notifyListeners();
+
+        // Servisi başlat ve şarkıyı hazırla (Çalmadan)
+        await _initAudioService();
+
+        final mediaItem = MediaItem(
+          id: song.id,
+          album: "OYN Music",
+          title: song.title,
+          artist: song.artist,
+          artUri: Uri.parse(song.coverUrl),
+          duration: Duration(seconds: song.duration ?? 0),
+        );
+
+        // Yerel dosya kontrolü
+        String playUrl = song.audioUrl;
+        bool isLocal = false;
+
+        // İndirilenler listesinde var mı kontrol et (Daha güncel path için)
+        // _downloadedSongs henüz yüklenmemiş olabilir, bu yüzden song.localPath'e bakıyoruz
+        // Ancak _loadDownloadedSongs constructor'da çağrılmıyor, updateUser'da çağrılıyor.
+        // Bu yüzden song nesnesindeki path'i kullanacağız.
+
+        if (song.localPath != null) {
+          final file = File(song.localPath!);
+          if (await file.exists()) {
+            playUrl = song.localPath!;
+            isLocal = true;
+          }
+        }
+
+        // Şarkıyı hazırla
+        await _audioHandler.prepareSong(mediaItem, playUrl);
+
+        // Kaldığı yere sar
+        if (position > 0) {
+          await _audioHandler.seek(Duration(seconds: position));
+        }
+      }
+    } catch (e) {
+      debugPrint("Son durum yüklenirken hata: $e");
     }
   }
 
@@ -506,6 +678,9 @@ class SongProvider with ChangeNotifier {
 
     _isLocalFavoritesLoaded = true;
     notifyListeners();
+
+    // Eksik kapak resimlerini kontrol et ve indir
+    _downloadMissingFavoriteImages();
   }
 
   void toggleFavorite(Song song) async {
@@ -516,7 +691,9 @@ class SongProvider with ChangeNotifier {
     if (song.isFavorite) {
       // Eğer listede yoksa ekle
       if (!_favoriteSongs.any((s) => s.id == song.id)) {
+        song.dateAdded = DateTime.now();
         _favoriteSongs.add(song);
+        _downloadCoverImage(song);
       }
     } else {
       // Listeden çıkar
@@ -542,6 +719,61 @@ class SongProvider with ChangeNotifier {
     await _saveFavoritesToLocal();
     if (_currentUser != null) {
       _updateFirestoreFavorites();
+    }
+  }
+
+  /// Tek bir favori şarkının kapak resmini indirir
+  Future<void> _downloadCoverImage(Song song) async {
+    if (song.localImagePath != null &&
+        File(song.localImagePath!).existsSync()) {
+      return;
+    }
+
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final imagePath = '${dir.path}/${song.id}.jpg';
+      final file = File(imagePath);
+
+      if (await file.exists()) {
+        song.localImagePath = imagePath;
+      } else {
+        final dio = Dio();
+        await dio.download(song.coverUrl, imagePath);
+        song.localImagePath = imagePath;
+      }
+
+      await _saveFavoritesToLocal();
+      notifyListeners();
+    } catch (e) {
+      debugPrint("Kapak resmi indirme hatası: $e");
+    }
+  }
+
+  /// Favorilerdeki eksik resimleri toplu indirir
+  Future<void> _downloadMissingFavoriteImages() async {
+    final dir = await getApplicationDocumentsDirectory();
+    final dio = Dio();
+    bool changed = false;
+
+    for (var song in _favoriteSongs) {
+      if (song.localImagePath == null ||
+          !File(song.localImagePath!).existsSync()) {
+        try {
+          final imagePath = '${dir.path}/${song.id}.jpg';
+          if (!File(imagePath).existsSync()) {
+            await dio.download(song.coverUrl, imagePath);
+          }
+          song.localImagePath = imagePath;
+          changed = true;
+        } catch (e) {
+          // Hata olursa geç
+        }
+      }
+    }
+
+    if (changed) {
+      await _saveFavoritesToLocal();
+      notifyListeners();
     }
   }
 
@@ -616,12 +848,14 @@ class SongProvider with ChangeNotifier {
     required String name,
     required List<Song> songs,
     bool isFromDownloads = false,
+    String? customImagePath,
   }) {
-    if (name.isNotEmpty && songs.isNotEmpty) {
+    if (name.isNotEmpty) {
       final newFolder = MusicFolder(
         name: name,
         songs: List.from(songs),
         isFromDownloads: isFromDownloads,
+        customImagePath: customImagePath,
       );
       _folders.add(newFolder);
       _saveFolders();
@@ -635,6 +869,12 @@ class SongProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  void updateFolderImage(MusicFolder folder, String? imagePath) {
+    folder.customImagePath = imagePath;
+    _saveFolders();
+    notifyListeners();
+  }
+
   void deleteFolder(MusicFolder folder) {
     _folders.remove(folder);
     _saveFolders();
@@ -643,6 +883,12 @@ class SongProvider with ChangeNotifier {
 
   void removeSongFromFolder(MusicFolder folder, Song song) {
     folder.songs.remove(song);
+    _saveFolders();
+    notifyListeners();
+  }
+
+  void removeSongsFromFolder(MusicFolder folder, List<String> songIds) {
+    folder.songs.removeWhere((s) => songIds.contains(s.id));
     _saveFolders();
     notifyListeners();
   }
@@ -671,22 +917,78 @@ class SongProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Klasördeki şarkıları belirli bir kurala göre sıralar
+  void sortFolderSongs(
+    MusicFolder folder,
+    int Function(Song a, Song b) compare,
+  ) {
+    folder.songs.sort(compare);
+    _saveFolders();
+    notifyListeners();
+  }
+
   /// Oynatma hatasını temizler
   void clearPlaybackError() {
     _playbackError = null;
     notifyListeners();
   }
 
+  /// Son dinlenenleri yükler
+  Future<void> _loadRecentlyPlayed() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? jsonString = prefs.getString('recently_played');
+    if (jsonString != null) {
+      try {
+        final List<dynamic> jsonList = jsonDecode(jsonString);
+        _recentlyPlayed = jsonList.map((e) => Song.fromMap(e)).toList();
+        notifyListeners();
+      } catch (e) {
+        debugPrint("Geçmiş yüklenirken hata: $e");
+      }
+    }
+  }
+
+  /// Şarkıyı son dinlenenlere ekler
+  Future<void> _addToRecentlyPlayed(Song song) async {
+    // Listede varsa çıkarıp başa ekle
+    _recentlyPlayed.removeWhere((s) => s.id == song.id);
+    song.lastPlayed = DateTime.now();
+    _recentlyPlayed.insert(0, song);
+
+    // Maksimum 20 şarkı tut
+    if (_recentlyPlayed.length > 20) {
+      _recentlyPlayed = _recentlyPlayed.sublist(0, 20);
+    }
+    notifyListeners();
+
+    final prefs = await SharedPreferences.getInstance();
+    final String jsonString = jsonEncode(
+      _recentlyPlayed.map((s) => s.toJson()).toList(),
+    );
+    await prefs.setString('recently_played', jsonString);
+  }
+
+  /// Son dinlenenler geçmişini temizler
+  Future<void> clearRecentlyPlayed() async {
+    _recentlyPlayed.clear();
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('recently_played');
+  }
+
   void updateSearchText(String text) {
     if (_searchDebounce?.isActive ?? false) _searchDebounce!.cancel();
     _searchText = text;
-    notifyListeners();
 
     if (text.isEmpty) {
       _searchResults = [];
+      _isSearchLoading = false;
       notifyListeners();
       return;
     }
+
+    _isSearchLoading = true;
+    notifyListeners();
 
     _searchDebounce = Timer(const Duration(milliseconds: 500), () {
       // Arama yap
@@ -900,6 +1202,8 @@ class SongProvider with ChangeNotifier {
       // Dosya yolunu hazırla
       final dir = await getApplicationDocumentsDirectory();
       final savePath = '${dir.path}/${song.id}.m4a';
+      // Resim için dosya yolu
+      final imagePath = '${dir.path}/${song.id}.jpg';
 
       // Bildirim güncelleme fonksiyonu
       Future<void> updateNotification(int received, int total) async {
@@ -939,10 +1243,69 @@ class SongProvider with ChangeNotifier {
         },
       );
 
+      // Resmi de indir
+      try {
+        await dio.download(song.coverUrl, imagePath);
+        song.localImagePath = imagePath;
+      } catch (e) {
+        debugPrint("Resim indirme hatası: $e");
+      }
+
       // Başarılı ise listeye ekle
       song.localPath = savePath;
+      song.dateAdded = DateTime.now();
       _downloadedSongs.add(song);
       await _saveDownloadedSongs();
+
+      // İndirme tamamlandığında global snackbar göster
+      if (navigatorKey.currentContext != null) {
+        ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                CustomIcons.svgIcon(
+                  CustomIcons.check,
+                  color: Colors.white,
+                  size: 28,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        "İndirme Tamamlandı",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green.shade700,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            margin: const EdgeInsets.all(16),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+
       try {
         _showDownloadNotification(song); // İndirme bitince bildirim göster
       } catch (e) {
@@ -1048,10 +1411,8 @@ class SongProvider with ChangeNotifier {
   void cancelDownload(String songId) {
     if (_downloadCancelTokens.containsKey(songId)) {
       _downloadCancelTokens[songId]!.cancel();
-      _downloadProgress.remove(songId);
-      _downloadCancelTokens.remove(songId);
       _cancelNotification(songId); // Bildirimi iptal et
-      notifyListeners();
+      // State temizliği ve UI güncellemesi downloadSong metodunun finally bloğunda yapılacak
     }
   }
 
@@ -1061,6 +1422,12 @@ class SongProvider with ChangeNotifier {
       final file = File(song.localPath!);
       if (await file.exists()) {
         await file.delete();
+      }
+    }
+    if (song.localImagePath != null) {
+      final imgFile = File(song.localImagePath!);
+      if (await imgFile.exists()) {
+        await imgFile.delete();
       }
     }
     _downloadedSongs.removeWhere((s) => s.id == song.id);
@@ -1077,6 +1444,12 @@ class SongProvider with ChangeNotifier {
           await file.delete();
         }
       }
+      if (song.localImagePath != null) {
+        final imgFile = File(song.localImagePath!);
+        if (await imgFile.exists()) {
+          await imgFile.delete();
+        }
+      }
     }
     _downloadedSongs.clear();
     await _saveDownloadedSongs();
@@ -1087,7 +1460,115 @@ class SongProvider with ChangeNotifier {
     return _downloadedSongs.any((s) => s.id == id);
   }
 
+  /// Şarkıyı sıradaki çalınacak olarak ekler
+  void addSongToNext(Song song) {
+    if (_playlist.isEmpty || _currentSongIndex == null) {
+      playSong(song, [song]);
+      return;
+    }
+
+    final int insertIndex = _currentSongIndex! + 1;
+    _playlist.insert(insertIndex, song);
+
+    if (_isShuffleEnabled) {
+      for (int i = 0; i < _shuffledIndices.length; i++) {
+        if (_shuffledIndices[i] >= insertIndex) {
+          _shuffledIndices[i]++;
+        }
+      }
+      int currentShuffledIndex = _shuffledIndices.indexOf(_currentSongIndex!);
+      if (currentShuffledIndex != -1) {
+        _shuffledIndices.insert(currentShuffledIndex + 1, insertIndex);
+      } else {
+        _shuffledIndices.add(insertIndex);
+      }
+    }
+
+    notifyListeners();
+
+    if (navigatorKey.currentContext != null) {
+      ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.playlist_play, color: Colors.white),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  "${song.title} sıraya eklendi",
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.green.shade700,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          margin: const EdgeInsets.all(16),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  /// Çoklu şarkıyı sıradaki çalınacaklar olarak ekler
+  void addSongsToNext(List<Song> songs) {
+    if (songs.isEmpty) return;
+
+    if (_playlist.isEmpty || _currentSongIndex == null) {
+      playSong(songs.first, songs);
+      return;
+    }
+
+    final int insertIndex = _currentSongIndex! + 1;
+    _playlist.insertAll(insertIndex, songs);
+
+    if (_isShuffleEnabled) {
+      // Mevcut indeksleri kaydır
+      for (int i = 0; i < _shuffledIndices.length; i++) {
+        if (_shuffledIndices[i] >= insertIndex) {
+          _shuffledIndices[i] += songs.length;
+        }
+      }
+
+      // Yeni şarkıların indekslerini shuffle listesine ekle
+      int currentShuffledIndex = _shuffledIndices.indexOf(_currentSongIndex!);
+      List<int> newIndices = List.generate(
+        songs.length,
+        (i) => insertIndex + i,
+      );
+
+      if (currentShuffledIndex != -1) {
+        _shuffledIndices.insertAll(currentShuffledIndex + 1, newIndices);
+      } else {
+        _shuffledIndices.addAll(newIndices);
+      }
+    }
+
+    notifyListeners();
+
+    if (navigatorKey.currentContext != null) {
+      ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(
+        SnackBar(
+          content: Text("${songs.length} şarkı sıraya eklendi"),
+          backgroundColor: Colors.green.shade700,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          margin: const EdgeInsets.all(16),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   Future<void> playSong(Song song, List<Song> playlist) async {
+    _addToRecentlyPlayed(song);
+
     // Servis başlatılmadıysa başlatmayı dene (Örn: İlk açılışta hata olduysa)
     if (!_isAudioServiceInitialized) {
       try {
@@ -1118,7 +1599,7 @@ class SongProvider with ChangeNotifier {
         // Bildirimde görünecek veriyi hazırla
         final mediaItem = MediaItem(
           id: song.id,
-          album: "Müzik App",
+          album: "OYN Music",
           title: song.title,
           artist: song.artist,
           artUri: Uri.parse(song.coverUrl),
@@ -1266,6 +1747,35 @@ class SongProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Uyku zamanlayıcısını ayarlar
+  void setSleepTimer(int minutes) {
+    cancelSleepTimer(notify: false); // Varsa öncekini sessizce iptal et
+
+    if (minutes <= 0) return;
+
+    _sleepTimerEndTime = DateTime.now().add(Duration(minutes: minutes));
+    notifyListeners();
+
+    _sleepTimer = Timer(Duration(minutes: minutes), () {
+      if (_isAudioServiceInitialized && _audioHandler.audioPlayer.playing) {
+        _audioHandler.pause();
+      }
+      cancelSleepTimer();
+    });
+  }
+
+  /// Uyku zamanlayıcısını iptal eder
+  void cancelSleepTimer({bool notify = true}) {
+    if (_sleepTimer != null) {
+      _sleepTimer!.cancel();
+      _sleepTimer = null;
+    }
+    _sleepTimerEndTime = null;
+    if (notify) {
+      notifyListeners();
+    }
+  }
+
   void _generateShuffledIndices() {
     if (_playlist.isNotEmpty) {
       _shuffledIndices = List.generate(_playlist.length, (i) => i)..shuffle();
@@ -1286,6 +1796,7 @@ class SongProvider with ChangeNotifier {
   @override
   void dispose() {
     _audioHandler.stop();
+    _saveStateTimer?.cancel();
     super.dispose();
   }
 }

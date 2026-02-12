@@ -16,6 +16,9 @@ class Song {
   int? duration; // Şarkı süresi (saniye cinsinden)
   final String? lyrics;
   String? localPath; // İndirilen dosyanın yerel yolu
+  String? localImagePath; // İndirilen kapak resminin yerel yolu
+  DateTime? lastPlayed; // Son oynatılma zamanı
+  DateTime? dateAdded; // Eklenme tarihi (Favori veya İndirme)
 
   Song({
     required this.id,
@@ -26,6 +29,9 @@ class Song {
     this.duration,
     this.lyrics,
     this.localPath,
+    this.localImagePath,
+    this.lastPlayed,
+    this.dateAdded,
   });
 
   /// Deezer API'den gelen JSON verisini bir Song nesnesine dönüştüren fabrika metodu.
@@ -191,6 +197,9 @@ class Song {
       'duration': duration,
       'lyrics': lyrics,
       'localPath': localPath,
+      'localImagePath': localImagePath,
+      'lastPlayed': lastPlayed?.toIso8601String(),
+      'dateAdded': dateAdded?.toIso8601String(),
     };
   }
 
@@ -205,6 +214,13 @@ class Song {
       duration: map['duration'],
       lyrics: map['lyrics'],
       localPath: map['localPath'],
+      localImagePath: map['localImagePath'],
+      lastPlayed: map['lastPlayed'] != null
+          ? DateTime.parse(map['lastPlayed'])
+          : null,
+      dateAdded: map['dateAdded'] != null
+          ? DateTime.parse(map['dateAdded'])
+          : null,
     );
   }
 }
@@ -214,17 +230,20 @@ class MusicFolder {
   String name;
   final List<Song> songs;
   bool isFromDownloads; // Klasörün indirilenlerden mi oluşturulduğunu belirtir
+  String? customImagePath; // Klasör için özel kapak resmi yolu
 
   MusicFolder({
     required this.name,
     required this.songs,
     this.isFromDownloads = false,
+    this.customImagePath,
   });
 
   Map<String, dynamic> toJson() => {
     'name': name,
     'songs': songs.map((s) => s.toJson()).toList(),
     'isFromDownloads': isFromDownloads,
+    'customImagePath': customImagePath,
   };
 
   factory MusicFolder.fromJson(Map<String, dynamic> json) {
@@ -234,6 +253,7 @@ class MusicFolder {
           .map((s) => Song.fromMap(s as Map<String, dynamic>))
           .toList(),
       isFromDownloads: json['isFromDownloads'] ?? false,
+      customImagePath: json['customImagePath'],
     );
   }
 }

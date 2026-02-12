@@ -29,7 +29,7 @@ class MyAudioHandler extends BaseAudioHandler {
         MediaControl.skipToPrevious,
         if (_player.playing) MediaControl.pause else MediaControl.play,
         MediaControl.skipToNext,
-        MediaControl.stop, // Durdur butonunu ekledik
+        MediaControl.stop,
       ],
       systemActions: const {
         MediaAction.seek,
@@ -37,7 +37,7 @@ class MyAudioHandler extends BaseAudioHandler {
         MediaAction.seekBackward,
         MediaAction.skipToNext,
         MediaAction.skipToPrevious,
-        MediaAction.stop, // Sistem eylemlerine de ekledik
+        MediaAction.stop,
       },
       // Kompakt görünümde (küçük bildirim) hangi butonların görüneceği.
       // [0, 1, 2] -> Önceki, Oynat/Duraklat, Sonraki butonlarını gösterir.
@@ -58,12 +58,8 @@ class MyAudioHandler extends BaseAudioHandler {
     );
   }
 
-  /// Yeni bir şarkı çalmak için çağrılır
-  Future<void> playSong(MediaItem item, String uri) async {
-    // Bildirimdeki bilgileri güncelle
+  Future<void> _setSource(MediaItem item, String uri) async {
     mediaItem.add(item);
-
-    // Kaynağı ayarla ve oynat
     try {
       Uri audioUri;
       Map<String, String>? headers;
@@ -79,11 +75,21 @@ class MyAudioHandler extends BaseAudioHandler {
         audioUri = Uri.file(uri);
       }
       await _player.setAudioSource(AudioSource.uri(audioUri, headers: headers));
-      play();
     } catch (e) {
       print("Oynatma hatası: $e");
       rethrow; // Hatayı SongProvider'a ilet
     }
+  }
+
+  /// Yeni bir şarkı çalmak için çağrılır
+  Future<void> playSong(MediaItem item, String uri) async {
+    await _setSource(item, uri);
+    play();
+  }
+
+  /// Şarkıyı çalmadan hazırlar (Uygulama açılışında devam etmek için)
+  Future<void> prepareSong(MediaItem item, String uri) async {
+    await _setSource(item, uri);
   }
 
   @override
@@ -96,7 +102,15 @@ class MyAudioHandler extends BaseAudioHandler {
   Future<void> seek(Duration position) => _player.seek(position);
 
   @override
-  Future<void> stop() => _player.stop();
+  Future<void> stop() async {
+    await _player.stop();
+    await super.stop();
+  }
+
+  @override
+  Future<void> onTaskRemoved() async {
+    await stop();
+  }
 
   @override
   Future<void> skipToNext() async {

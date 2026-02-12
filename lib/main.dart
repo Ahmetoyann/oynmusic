@@ -16,9 +16,13 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:muzik_app/pages/login_page.dart';
 import 'package:muzik_app/pages/player_page.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:muzik_app/pages/splash_screen.dart';
+import 'package:muzik_app/custom_icons.dart';
 
 // Global Navigator Key
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+final GlobalKey<MainScreenState> mainScreenKey = GlobalKey<MainScreenState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,10 +62,10 @@ class MyApp extends StatelessWidget {
     final themeProvider = context.watch<ThemeProvider>();
 
     return MaterialApp(
-      title: 'Müzik Çalar',
+      title: 'OYN',
       navigatorKey: navigatorKey, // Global key'i atıyoruz
       theme: ThemeData.dark().copyWith(
-        textTheme: GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme),
+        textTheme: GoogleFonts.montserratTextTheme(ThemeData.dark().textTheme),
         primaryColor: themeProvider.primaryColor,
         scaffoldBackgroundColor: Colors.black,
         colorScheme: ColorScheme.dark(
@@ -69,9 +73,15 @@ class MyApp extends StatelessWidget {
           secondary: themeProvider.primaryColor,
           surface: Colors.grey.shade900,
         ),
-        appBarTheme: const AppBarTheme(
+        appBarTheme: AppBarTheme(
           backgroundColor: Colors.black,
           elevation: 0,
+          titleTextStyle: GoogleFonts.montserrat(
+            color: themeProvider.primaryColor,
+            fontSize: 24,
+            fontWeight: FontWeight.w900,
+          ),
+          iconTheme: IconThemeData(color: themeProvider.primaryColor),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
@@ -87,14 +97,18 @@ class MyApp extends StatelessWidget {
       builder: (context, child) {
         // ConnectionManager ile sarmalıyoruz
         final wrappedChild = CardTheme(
-          color: Colors.grey.shade900.withOpacity(0.5),
+          color: Colors.transparent,
           elevation: 0,
           margin: const EdgeInsets.only(bottom: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide.none,
+          ),
           child: child!,
         );
         return ConnectionManager(child: wrappedChild);
       },
-      home: const AuthWrapper(),
+      home: const SplashScreen(),
     );
   }
 }
@@ -108,12 +122,12 @@ class AuthWrapper extends StatelessWidget {
 
     // İnternet yoksa direkt İndirilenler sayfasına yönlendir
     if (!songProvider.hasConnection) {
-      return const MainScreen(initialIndex: 3);
+      return const DownloadsPage();
     }
 
     // Oturum açılmışsa veya misafir ise Ana Ekrana git
     if (songProvider.isFirebaseLoggedIn || songProvider.isGuest) {
-      return const MainScreen();
+      return MainScreen(key: mainScreenKey);
     }
 
     // Aksi halde Giriş Sayfasına git
@@ -126,10 +140,10 @@ class MainScreen extends StatefulWidget {
   const MainScreen({super.key, this.initialIndex = 0});
 
   @override
-  State<MainScreen> createState() => _MainScreenState();
+  State<MainScreen> createState() => MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
   @override
@@ -142,20 +156,60 @@ class _MainScreenState extends State<MainScreen> {
     TrendPage(),
     SearchPage(),
     FavoritesPage(),
-    DownloadsPage(), // İndirilenler sayfası eklendi
     ListelerPage(),
   ];
+
+  void switchToTab(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
 
   void _onItemTapped(int index) {
     debugPrint('BottomNav tapped: $index');
     setState(() => _selectedIndex = index);
   }
 
+  Widget _buildActiveIcon(String svgIcon, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white),
+      ),
+      child: CustomIcons.svgIcon(
+        svgIcon,
+        color: color, // Active color
+        size: 24,
+      ),
+    );
+  }
+
+  Widget _buildActiveMaterialIcon(IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white),
+      ),
+      child: Icon(icon, color: color, size: 24),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).primaryColor;
+    final hasConnection = context.select<SongProvider, bool>(
+      (p) => p.hasConnection,
+    );
+
     return Scaffold(
       extendBody: true,
-      body: IndexedStack(index: _selectedIndex, children: _pages),
+      body: (!hasConnection && _selectedIndex != 3)
+          ? _buildNoConnectionView()
+          : IndexedStack(index: _selectedIndex, children: _pages),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -169,45 +223,138 @@ class _MainScreenState extends State<MainScreen> {
             child: const MiniPlayer(),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            padding: const EdgeInsets.fromLTRB(48, 8, 48, 7),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(20),
               child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                 child: BottomNavigationBar(
                   type: BottomNavigationBarType.fixed,
-                  items: const <BottomNavigationBarItem>[
+                  items: <BottomNavigationBarItem>[
                     BottomNavigationBarItem(
-                      icon: Icon(Icons.trending_up),
+                      icon: CustomIcons.svgIcon(
+                        CustomIcons.trending,
+                        size: 24,
+                        color: Colors.grey,
+                      ),
+                      activeIcon: _buildActiveIcon(
+                        CustomIcons.trending,
+                        primaryColor,
+                      ),
                       label: 'Trendler',
                     ),
                     BottomNavigationBarItem(
-                      icon: Icon(Icons.search),
+                      icon: CustomIcons.svgIcon(
+                        CustomIcons.search,
+                        size: 24,
+                        color: Colors.grey,
+                      ),
+                      activeIcon: _buildActiveIcon(
+                        CustomIcons.search,
+                        primaryColor,
+                      ),
                       label: 'Ara',
                     ),
                     BottomNavigationBarItem(
-                      icon: Icon(Icons.favorite),
+                      icon: Icon(
+                        Icons.favorite_border,
+                        color: Colors.grey,
+                        size: 24,
+                      ),
+                      activeIcon: _buildActiveMaterialIcon(
+                        Icons.favorite,
+                        primaryColor,
+                      ),
                       label: 'Favoriler',
                     ),
                     BottomNavigationBarItem(
-                      icon: Icon(Icons.download_done),
-                      label: 'İndirilenler',
-                    ),
-                    BottomNavigationBarItem(
-                      icon: Icon(Icons.list_alt_rounded),
-                      label: 'Listeler',
+                      icon: CustomIcons.svgIcon(
+                        CustomIcons.library,
+                        size: 24,
+                        color: Colors.grey,
+                      ),
+                      activeIcon: _buildActiveIcon(
+                        CustomIcons.library,
+                        primaryColor,
+                      ),
+                      label: 'Kitaplığım',
                     ),
                   ],
                   currentIndex: _selectedIndex,
                   onTap: _onItemTapped,
-                  backgroundColor: Colors.grey.shade900.withOpacity(0.6),
-                  selectedItemColor: Theme.of(context).primaryColor,
+                  backgroundColor: Colors.black.withValues(alpha: 0.3),
+                  selectedItemColor: primaryColor,
                   unselectedItemColor: Colors.grey,
-                  selectedIconTheme: const IconThemeData(size: 32),
+                  selectedIconTheme: const IconThemeData(size: 24),
                   unselectedIconTheme: const IconThemeData(size: 24),
+                  selectedFontSize: 1,
+                  unselectedFontSize: 1,
                   showUnselectedLabels: false,
+                  showSelectedLabels: false,
                   elevation: 0,
                 ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoConnectionView() {
+    return Container(
+      width: double.infinity,
+      color: Colors.black,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade900,
+              shape: BoxShape.circle,
+            ),
+            child: CustomIcons.svgIcon(
+              CustomIcons.wifiOff,
+              size: 60,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            "İnternet Bağlantısı Yok",
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            "Bu sayfaya erişmek için internet\nbağlantısı gereklidir.",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
+          ),
+          const SizedBox(height: 32),
+          ElevatedButton.icon(
+            onPressed: () {
+              // Kitaplığım sekmesine geçiş yap
+              setState(() {
+                _selectedIndex = 3;
+              });
+            },
+            icon: CustomIcons.svgIcon(
+              CustomIcons.offline,
+              size: 24,
+              color: Colors.white,
+            ),
+            label: const Text("Kitaplığıma Git"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).primaryColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
           ),
@@ -259,7 +406,11 @@ class _ConnectionManagerState extends State<ConnectionManager> {
             SnackBar(
               content: Row(
                 children: [
-                  const Icon(Icons.wifi, color: Colors.white),
+                  CustomIcons.svgIcon(
+                    CustomIcons.wifi,
+                    color: Colors.white,
+                    size: 24,
+                  ),
                   const SizedBox(width: 12),
                   const Text(
                     "Bağlantı sağlandı",
@@ -291,7 +442,7 @@ class _ConnectionManagerState extends State<ConnectionManager> {
       context: navigatorKey.currentContext!,
       isDismissible: false, // Kullanıcı dışarı basarak kapatamasın
       enableDrag: false,
-      backgroundColor: Colors.grey.shade900,
+      backgroundColor: Colors.grey.shade900.withOpacity(0.6),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -304,8 +455,8 @@ class _ConnectionManagerState extends State<ConnectionManager> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.wifi_off_rounded,
+                CustomIcons.svgIcon(
+                  CustomIcons.wifiOff,
                   size: 60,
                   color: Colors.redAccent,
                 ),
@@ -320,7 +471,7 @@ class _ConnectionManagerState extends State<ConnectionManager> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  "Müzik dinlemeye devam etmek için lütfen internet bağlantınızı kontrol edin.",
+                  "Çevrimdışı modda kitaplığınızdaki şarkıları dinleyebilirsiniz.",
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey.shade400, fontSize: 16),
                 ),
@@ -329,42 +480,26 @@ class _ConnectionManagerState extends State<ConnectionManager> {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
-                      // Manuel kontrol tetikle
-                      context.read<SongProvider>().checkConnectionManually();
+                      setState(() {
+                        _userWantsOfflineMode = true;
+                      });
+                      Navigator.pop(ctx);
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
+                      backgroundColor: Theme.of(context).primaryColor,
+                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                     child: const Text(
-                      "Bağlantıyı Yeniden Dene",
+                      "Çevrimdışı Dinle",
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: () {
-                    setState(() {
-                      _userWantsOfflineMode = true;
-                    });
-                    Navigator.pop(ctx);
-                    navigatorKey.currentState?.push(
-                      MaterialPageRoute(
-                        builder: (context) => const DownloadsPage(),
-                      ),
-                    );
-                  },
-                  child: Text(
-                    "İndirilenleri Dinle (Çevrimdışı)",
-                    style: TextStyle(color: Colors.grey.shade400),
                   ),
                 ),
               ],

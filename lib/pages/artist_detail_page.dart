@@ -5,6 +5,9 @@ import 'package:muzik_app/providers/song_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:muzik_app/services/audius_service.dart';
 import 'package:muzik_app/pages/player_page.dart';
+import 'package:muzik_app/widgets/mini_player.dart';
+import 'package:muzik_app/custom_icons.dart';
+import 'package:muzik_app/widgets/song_card.dart';
 
 class ArtistDetailPage extends StatefulWidget {
   final String artistName;
@@ -107,6 +110,17 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
     }).toList();
 
     return Scaffold(
+      bottomNavigationBar: songProvider.currentSong != null
+          ? GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PlayerPage()),
+                );
+              },
+              child: const MiniPlayer(),
+            )
+          : null,
       body: CustomScrollView(
         controller: _scrollController,
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -133,8 +147,15 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
                     Image.network(
                       coverUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          Container(color: Colors.black),
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.grey.shade900, Colors.black],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
+                        ),
+                      ),
                     ),
                   if (coverUrl.isNotEmpty)
                     BackdropFilter(
@@ -163,11 +184,22 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) =>
                                 Container(
-                                  color: Colors.grey.shade800,
-                                  child: const Icon(
-                                    Icons.music_note,
-                                    size: 60,
-                                    color: Colors.white54,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        Colors.grey.shade800,
+                                        Colors.black,
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: CustomIcons.svgIcon(
+                                      CustomIcons.person,
+                                      size: 60,
+                                      color: Colors.white24,
+                                    ),
                                   ),
                                 ),
                           ),
@@ -187,7 +219,14 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
                 decoration: InputDecoration(
                   hintText: '${widget.artistName} içinde ara...',
                   hintStyle: TextStyle(color: Colors.grey.shade400),
-                  prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                  prefixIcon: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: CustomIcons.svgIcon(
+                      CustomIcons.search,
+                      color: Colors.grey,
+                      size: 24,
+                    ),
+                  ),
                   filled: true,
                   fillColor: Colors.grey.shade900,
                   border: OutlineInputBorder(
@@ -197,7 +236,11 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
                   contentPadding: const EdgeInsets.symmetric(vertical: 0),
                   suffixIcon: _searchText.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear, color: Colors.grey),
+                          icon: CustomIcons.svgIcon(
+                            CustomIcons.clear,
+                            color: Colors.grey,
+                            size: 24,
+                          ),
                           onPressed: () {
                             _searchController.clear();
                             setState(() => _searchText = '');
@@ -224,7 +267,11 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
                       );
                     }
                   },
-                  icon: const Icon(Icons.play_arrow_rounded, size: 28),
+                  icon: CustomIcons.svgIcon(
+                    CustomIcons.playerPlay,
+                    size: 28,
+                    color: Colors.white,
+                  ),
                   label: const Text(
                     "Tümünü Çal",
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -244,69 +291,32 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
           if (displayedSongs.isEmpty && _searchText.isNotEmpty)
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.all(32.0),
-                child: Center(
-                  child: Text(
-                    "Sonuç bulunamadı",
-                    style: TextStyle(color: Colors.grey.shade400),
-                  ),
-                ),
+                padding: const EdgeInsets.only(top: 50.0),
+                child: _buildEmptyState(context),
               ),
             ),
           SliverList(
             delegate: SliverChildBuilderDelegate((context, index) {
               final song = displayedSongs[index];
+              final isCurrentSong = songProvider.currentSong?.id == song.id;
+
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Card(
-                  color: Colors.grey.shade900.withOpacity(0.5),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: ListTile(
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(4.0),
-                      child: Image.network(
-                        song.coverUrl,
-                        width: 50,
-                        height: 50,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          width: 50,
-                          height: 50,
-                          color: Colors.grey.shade800,
-                          child: const Icon(
-                            Icons.music_note,
-                            color: Colors.white70,
-                          ),
-                        ),
+                child: SongCard(
+                  song: song,
+                  isPlaying: isCurrentSong,
+                  showOptions: true,
+                  onTap: () {
+                    if (!isCurrentSong) {
+                      songProvider.playSong(song, displayedSongs);
+                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const PlayerPage(),
                       ),
-                    ),
-                    title: Tooltip(
-                      message: song.title,
-                      child: Text(
-                        song.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ),
-                    subtitle: Text(
-                      song.artist,
-                      style: TextStyle(color: Colors.grey.shade400),
-                    ),
-                    onTap: () {
-                      final isCurrentSong =
-                          songProvider.currentSong?.id == song.id;
-                      if (!isCurrentSong) {
-                        songProvider.playSong(song, displayedSongs);
-                      }
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const PlayerPage(),
-                        ),
-                      );
-                    },
-                  ),
+                    );
+                  },
                 ),
               );
             }, childCount: displayedSongs.length),
@@ -323,6 +333,43 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
               ),
             ),
           const SliverPadding(padding: EdgeInsets.only(bottom: 20)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade900,
+              shape: BoxShape.circle,
+            ),
+            child: CustomIcons.svgIcon(
+              CustomIcons.searchOff,
+              size: 64,
+              color: Theme.of(context).primaryColor.withOpacity(0.5),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Sonuç Bulunamadı',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Aradığınız kriterlere uygun şarkı bulunamadı.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
+          ),
         ],
       ),
     );

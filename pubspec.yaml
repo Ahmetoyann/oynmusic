@@ -60,18 +60,23 @@ dependencies:
   app_links: ^6.3.1
   palette_generator: ^0.3.3
   google_fonts: ^6.2.1
+  flutter_launcher_icons: ^0.14.4
+  image_picker: ^1.0.7
   
 
 
 dev_dependencies:
-  flutter_launcher_icons: ^0.13.1
   flutter_test:
     sdk: flutter
 
-flutter_icons:
+flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/icon/oyn_music_asset.png"
+  android_icon_background: "#000000"
+  android_icon_foreground: "#assets/icon/oyn_yenii_ikon.png"
+  image_path: "assets/icon/oyn_yenii_ikon.png"
+  remove_alpha_ios: true
+  
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -88,8 +93,8 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/icon/oyn_music_asset.png
-    - assets/icon/google-g-logo-icon-11609362962anodywxeaz.png
+    - assets/icon/oyn_yenii_ikon.png
+    - assets/icon/google-g-logo-icon-11609362962anodywxeaz.png 
     - youtubeapi.env
   # https://flutter.dev/to/resolution-aware-images
 

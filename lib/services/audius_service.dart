@@ -9,8 +9,10 @@ class AudiusService {
   /// Trend şarkıları çeker
   static Future<List<Song>> getTrendingSongs({
     String? genre,
+    String? timeRange, // 'week', 'month', 'year', 'allTime'
     int limit = 20,
     int offset = 0,
+    String? regionCode,
   }) async {
     final dio = Dio();
     try {
@@ -22,6 +24,14 @@ class AudiusService {
 
       if (genre != null) {
         queryParams['genre'] = genre;
+      }
+
+      if (timeRange != null) {
+        queryParams['time'] = timeRange;
+      }
+
+      if (regionCode != null) {
+        queryParams['region'] = regionCode;
       }
 
       final response = await dio.get(

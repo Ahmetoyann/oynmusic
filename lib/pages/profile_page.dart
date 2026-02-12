@@ -1,4 +1,6 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:muzik_app/providers/auth_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:muzik_app/providers/song_provider.dart';
@@ -13,8 +15,25 @@ class ProfilePage extends StatefulWidget {
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> {
+class _ProfilePageState extends State<ProfilePage>
+    with SingleTickerProviderStateMixin {
   bool _isLoading = false;
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(seconds: 3),
+      vsync: this,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -168,10 +187,49 @@ class _ProfilePageState extends State<ProfilePage> {
       child: Column(
         children: [
           const SizedBox(height: 20),
-          CircleAvatar(
-            radius: 50,
-            backgroundImage: NetworkImage(user.photoURL ?? ''),
-            backgroundColor: Colors.grey.shade800,
+          StreamBuilder<PlayerState>(
+            stream: songProvider.playerStateStream,
+            builder: (context, snapshot) {
+              final playerState = snapshot.data;
+              final playing = playerState?.playing ?? false;
+
+              if (playing && !_controller.isAnimating) {
+                _controller.repeat();
+              } else if (!playing && _controller.isAnimating) {
+                _controller.stop();
+              }
+
+              return AnimatedBuilder(
+                animation: _controller,
+                builder: (context, child) {
+                  return Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: playing
+                          ? SweepGradient(
+                              colors: [
+                                Colors.transparent,
+                                Theme.of(context).primaryColor,
+                                Colors.transparent,
+                              ],
+                              stops: const [0.0, 0.5, 1.0],
+                              transform: GradientRotation(
+                                _controller.value * 2 * math.pi,
+                              ),
+                            )
+                          : null,
+                    ),
+                    child: child,
+                  );
+                },
+                child: CircleAvatar(
+                  radius: 50,
+                  backgroundImage: NetworkImage(user.photoURL ?? ''),
+                  backgroundColor: Colors.grey.shade800,
+                ),
+              );
+            },
           ),
           const SizedBox(height: 16),
           Row(
@@ -204,10 +262,10 @@ class _ProfilePageState extends State<ProfilePage> {
               alignment: Alignment.centerLeft,
               child: Text(
                 "Çalma Listelerim (${folders.length})",
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: Theme.of(context).primaryColor,
                 ),
               ),
             ),
@@ -219,8 +277,12 @@ class _ProfilePageState extends State<ProfilePage> {
               itemBuilder: (context, index) {
                 final folder = folders[index];
                 return Card(
-                  color: Colors.grey.shade900,
+                  color: Colors.transparent,
                   margin: const EdgeInsets.only(bottom: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide.none,
+                  ),
                   child: ListTile(
                     leading: const Icon(Icons.music_note, color: Colors.grey),
                     title: Text(
@@ -280,7 +342,7 @@ class _ProfilePageState extends State<ProfilePage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.grey.shade900,
+      backgroundColor: Colors.grey.shade900.withOpacity(0.4),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -306,10 +368,10 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'İsmi Düzenle',
               style: TextStyle(
-                color: Colors.white,
+                color: Theme.of(context).primaryColor,
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
               ),
@@ -364,7 +426,7 @@ class _ProfilePageState extends State<ProfilePage> {
   void _showSignOutBottomSheet(BuildContext context, AuthProvider provider) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.grey.shade900,
+      backgroundColor: Colors.grey.shade900.withOpacity(0.4),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -385,11 +447,11 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
+              Text(
                 'Çıkış Yap',
                 style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
+                  color: Colors.grey.shade400,
+                  fontSize: 27,
                   fontWeight: FontWeight.bold,
                 ),
               ),

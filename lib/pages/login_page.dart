@@ -19,7 +19,7 @@ class _LoginPageState extends State<LoginPage> {
     final provider = context.watch<SongProvider>();
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFFB4B4B4), // veya ikonun baskın rengi
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 30.0),
@@ -29,17 +29,10 @@ class _LoginPageState extends State<LoginPage> {
               const Spacer(),
 
               // Logo veya İkon
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-                child: Image.asset(
-                  'assets/icon/oyn_music_asset.png',
-                  height: 130,
-                  width: 130,
-                ),
+              Image.asset(
+                'assets/icon/oyn_yenii_ikon.png',
+                height: 130,
+                width: 130,
               ),
               const SizedBox(height: 20),
 
@@ -47,14 +40,14 @@ class _LoginPageState extends State<LoginPage> {
                 "OYN Music",
                 style: TextStyle(
                   fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFF333333),
                   letterSpacing: 1.5,
                   shadows: [
                     Shadow(
                       blurRadius: 10.0,
-                      color: Colors.white.withValues(alpha: 0.5),
-                      offset: const Offset(0, 0),
+                      color: Colors.black.withValues(alpha: 0.1),
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
@@ -62,72 +55,93 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 10),
               Text(
                 "Müziğin ritmini keşfet",
-                style: TextStyle(fontSize: 16, color: Colors.grey),
+                style: TextStyle(fontSize: 16, color: Colors.black54),
               ),
 
               const Spacer(),
 
               // Google Giriş Butonu
-              ElevatedButton(
-                onPressed: _isLoading
-                    ? null
-                    : () async {
-                        setState(() {
-                          _isLoading = true;
-                        });
-                        try {
-                          await context.read<AuthProvider>().signInWithGoogle();
-                          // Google girişi başarılı olduğunda, müzik verilerini çekmek için
-                          // verileri yeniliyoruz
-                          if (mounted) {
-                            context.read<SongProvider>().fetchSongsFromApi();
-                          }
-                        } catch (e) {
-                          debugPrint("Google Sign-In Error: $e");
-                        } finally {
-                          if (mounted) {
-                            setState(() {
-                              _isLoading = false;
-                            });
-                          }
-                        }
-                      },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.black,
-                  minimumSize: const Size(double.infinity, 55),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 5,
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 24,
-                        width: 24,
-                        child: CircularProgressIndicator(
-                          color: Colors.black,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          CustomPaint(
-                            size: const Size(24, 24),
-                            painter: GoogleLogoPainter(),
-                          ),
-                          const SizedBox(width: 12),
-                          const Text(
-                            "Google ile Bağlan",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
+              Center(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 400),
+                  curve: Curves.easeInOut,
+                  width: _isLoading
+                      ? 55
+                      : MediaQuery.of(context).size.width - 60,
+                  height: 55,
+                  decoration: BoxDecoration(
+                    color: _isLoading ? Colors.grey.shade800 : Colors.white,
+                    borderRadius: BorderRadius.circular(_isLoading ? 50 : 12),
+                    boxShadow: _isLoading
+                        ? []
+                        : [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.15),
+                              blurRadius: 10,
+                              offset: const Offset(0, 5),
                             ),
-                          ),
-                        ],
+                          ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(_isLoading ? 50 : 12),
+                      onTap: _isLoading
+                          ? null
+                          : () async {
+                              setState(() => _isLoading = true);
+                              try {
+                                await context
+                                    .read<AuthProvider>()
+                                    .signInWithGoogle();
+                                if (mounted) {
+                                  context
+                                      .read<SongProvider>()
+                                      .fetchSongsFromApi();
+                                }
+                              } catch (e) {
+                                debugPrint("Google Sign-In Error: $e");
+                              } finally {
+                                if (mounted) {
+                                  setState(() => _isLoading = false);
+                                }
+                              }
+                            },
+                      child: Center(
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2.5,
+                                  ),
+                                )
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    CustomPaint(
+                                      size: const Size(24, 24),
+                                      painter: GoogleLogoPainter(),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    const Text(
+                                      "Google ile Bağlan",
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
                       ),
+                    ),
+                  ),
+                ),
               ),
 
               const SizedBox(height: 16),
@@ -139,7 +153,7 @@ class _LoginPageState extends State<LoginPage> {
                 },
                 child: Text(
                   "Giriş yapmadan devam et",
-                  style: TextStyle(color: Colors.white70),
+                  style: TextStyle(color: Colors.black54),
                 ),
               ),
               const SizedBox(height: 40),

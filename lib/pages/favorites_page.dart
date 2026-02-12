@@ -1,7 +1,14 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:muzik_app/providers/song_provider.dart';
 import 'package:muzik_app/models/song_model.dart';
+import 'package:muzik_app/custom_icons.dart';
+import 'package:muzik_app/widgets/song_card.dart';
+import 'package:muzik_app/providers/auth_provider.dart';
+import 'package:muzik_app/pages/profile_page.dart';
+
+enum SortOption { dateNewest, dateOldest, nameAZ, nameZA }
 
 class FavoritesPage extends StatefulWidget {
   const FavoritesPage({super.key});
@@ -15,11 +22,17 @@ class _FavoritesPageState extends State<FavoritesPage> {
   final Set<Song> _selectedSongs = {};
   final TextEditingController _searchController = TextEditingController();
   String _searchText = '';
+  SortOption _sortOption = SortOption.dateNewest;
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  String _formatDate(DateTime? date) {
+    if (date == null) return '';
+    return "${date.day}.${date.month}.${date.year}";
   }
 
   void _toggleSelection(Song song) {
@@ -43,7 +56,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.grey.shade900,
+      backgroundColor: Colors.grey.shade900.withOpacity(0.4),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -69,10 +82,10 @@ class _FavoritesPageState extends State<FavoritesPage> {
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'Çalma Listesi Oluştur',
               style: TextStyle(
-                color: Colors.white,
+                color: Theme.of(context).primaryColor,
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
               ),
@@ -115,8 +128,29 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     });
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('${controller.text} oluşturuldu.'),
-                        backgroundColor: Colors.green,
+                        content: Row(
+                          children: [
+                            CustomIcons.svgIcon(
+                              CustomIcons.check,
+                              color: Colors.white,
+                              size: 24,
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              '${controller.text} oluşturuldu.',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        backgroundColor: Colors.green.shade700,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        margin: const EdgeInsets.all(16),
+                        duration: const Duration(seconds: 2),
                       ),
                     );
                   }
@@ -147,7 +181,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.grey.shade900,
+      backgroundColor: Colors.grey.shade900.withOpacity(0.9),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -158,12 +192,12 @@ class _FavoritesPageState extends State<FavoritesPage> {
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Padding(
+                Padding(
                   padding: EdgeInsets.all(16.0),
                   child: Text(
                     'Çalma Listesine Ekle',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: Theme.of(innerContext).primaryColor,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -256,7 +290,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.grey.shade900,
+        backgroundColor: Colors.grey.shade900.withOpacity(0.4),
         title: const Text(
           'Tümünü Temizle',
           style: TextStyle(color: Colors.white),
@@ -275,9 +309,29 @@ class _FavoritesPageState extends State<FavoritesPage> {
               context.read<SongProvider>().clearAllFavorites();
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Favoriler temizlendi.'),
+                SnackBar(
+                  content: Row(
+                    children: [
+                      CustomIcons.svgIcon(
+                        CustomIcons
+                            .delete, // Using delete as sweep replacement or standard
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Favoriler temizlendi.',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
                   backgroundColor: Colors.redAccent,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  margin: const EdgeInsets.all(16),
+                  duration: const Duration(seconds: 2),
                 ),
               );
             },
@@ -291,20 +345,38 @@ class _FavoritesPageState extends State<FavoritesPage> {
   @override
   Widget build(BuildContext context) {
     final songProvider = context.watch<SongProvider>();
+    final authProvider = context.watch<AuthProvider>();
     final favoriteSongs = songProvider.favoriteSongs;
 
-    final filteredSongs = favoriteSongs.where((song) {
+    var filteredSongs = favoriteSongs.where((song) {
       if (_searchText.isEmpty) return true;
       final query = _searchText.toLowerCase();
       return song.title.toLowerCase().contains(query) ||
           song.artist.toLowerCase().contains(query);
     }).toList();
 
+    // Sıralama işlemi
+    switch (_sortOption) {
+      case SortOption.nameAZ:
+        filteredSongs.sort((a, b) => a.title.compareTo(b.title));
+        break;
+      case SortOption.nameZA:
+        filteredSongs.sort((a, b) => b.title.compareTo(a.title));
+        break;
+      case SortOption.dateNewest:
+        filteredSongs = filteredSongs.reversed.toList();
+        break;
+      case SortOption.dateOldest:
+        // Varsayılan sıralama (eklenme sırası)
+        break;
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isSelectionMode ? '${_selectedSongs.length} Seçildi' : 'Favorilerim',
+          _isSelectionMode ? '${_selectedSongs.length} Seçildi' : 'Favoriler',
         ),
+        centerTitle: false,
         backgroundColor: Colors.black,
         leading: _isSelectionMode
             ? IconButton(
@@ -316,7 +388,32 @@ class _FavoritesPageState extends State<FavoritesPage> {
                   });
                 },
               )
-            : null,
+            : GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ProfilePage(),
+                    ),
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: CircleAvatar(
+                    backgroundColor: Colors.grey.shade800,
+                    backgroundImage: authProvider.user?.photoURL != null
+                        ? NetworkImage(authProvider.user!.photoURL!)
+                        : null,
+                    child: authProvider.user?.photoURL == null
+                        ? CustomIcons.svgIcon(
+                            CustomIcons.person,
+                            color: Colors.white,
+                            size: 20,
+                          )
+                        : null,
+                  ),
+                ),
+              ),
         actions: [
           if (_isSelectionMode) ...[
             IconButton(
@@ -340,18 +437,122 @@ class _FavoritesPageState extends State<FavoritesPage> {
               onPressed: () => _showAddToPlaylistBottomSheet(context),
             ),
           ] else if (favoriteSongs.isNotEmpty) ...[
-            IconButton(
-              icon: const Icon(Icons.delete_sweep_outlined),
-              tooltip: "Tümünü Temizle",
-              onPressed: () => _showClearFavoritesDialog(context),
-            ),
-            IconButton(
-              icon: const Icon(Icons.checklist),
-              onPressed: () {
+            PopupMenuButton<SortOption>(
+              icon: const Icon(Icons.sort),
+              tooltip: "Sırala",
+              onSelected: (SortOption result) {
                 setState(() {
-                  _isSelectionMode = true;
+                  _sortOption = result;
                 });
               },
+              itemBuilder: (BuildContext context) =>
+                  <PopupMenuEntry<SortOption>>[
+                    const PopupMenuItem<SortOption>(
+                      value: SortOption.dateNewest,
+                      child: Text('Tarihe Göre (En Yeni)'),
+                    ),
+                    const PopupMenuItem<SortOption>(
+                      value: SortOption.dateOldest,
+                      child: Text('Tarihe Göre (En Eski)'),
+                    ),
+                    const PopupMenuItem<SortOption>(
+                      value: SortOption.nameAZ,
+                      child: Text('İsme Göre (A-Z)'),
+                    ),
+                    const PopupMenuItem<SortOption>(
+                      value: SortOption.nameZA,
+                      child: Text('İsme Göre (Z-A)'),
+                    ),
+                  ],
+            ),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              tooltip: "Seçenekler",
+              onSelected: (value) {
+                switch (value) {
+                  case 'shuffle_play':
+                    if (filteredSongs.isNotEmpty) {
+                      if (!songProvider.isShuffleEnabled) {
+                        songProvider.toggleShuffle();
+                      }
+                      final random = Random();
+                      final randomSong =
+                          filteredSongs[random.nextInt(filteredSongs.length)];
+                      songProvider.playSong(randomSong, filteredSongs);
+                    }
+                    break;
+                  case 'play_all':
+                    if (filteredSongs.isNotEmpty) {
+                      if (songProvider.isShuffleEnabled) {
+                        songProvider.toggleShuffle();
+                      }
+                      songProvider.playSong(filteredSongs.first, filteredSongs);
+                    }
+                    break;
+                  case 'select':
+                    setState(() {
+                      _isSelectionMode = true;
+                    });
+                    break;
+                  case 'clear_all':
+                    _showClearFavoritesDialog(context);
+                    break;
+                }
+              },
+              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                const PopupMenuItem<String>(
+                  value: 'shuffle_play',
+                  child: Row(
+                    children: [
+                      Icon(Icons.shuffle_rounded, color: Colors.white),
+                      SizedBox(width: 12),
+                      Text(
+                        'Karışık Çal',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'play_all',
+                  child: Row(
+                    children: [
+                      Icon(Icons.play_arrow_rounded, color: Colors.white),
+                      SizedBox(width: 12),
+                      Text(
+                        'Tümünü Oynat',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'select',
+                  child: Row(
+                    children: [
+                      Icon(Icons.checklist, color: Colors.white),
+                      SizedBox(width: 12),
+                      Text('Seç', style: TextStyle(color: Colors.white)),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'clear_all',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.delete_sweep_outlined,
+                        color: Colors.redAccent,
+                      ),
+                      SizedBox(width: 12),
+                      Text(
+                        'Tümünü Temizle',
+                        style: TextStyle(color: Colors.redAccent),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ],
@@ -368,7 +569,14 @@ class _FavoritesPageState extends State<FavoritesPage> {
                 decoration: InputDecoration(
                   hintText: 'Favorilerde ara...',
                   hintStyle: TextStyle(color: Colors.grey.shade400),
-                  prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                  prefixIcon: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: CustomIcons.svgIcon(
+                      CustomIcons.search,
+                      color: Colors.grey,
+                      size: 24,
+                    ),
+                  ),
                   filled: true,
                   fillColor: Colors.grey.shade900,
                   border: OutlineInputBorder(
@@ -378,7 +586,11 @@ class _FavoritesPageState extends State<FavoritesPage> {
                   contentPadding: const EdgeInsets.symmetric(vertical: 0),
                   suffixIcon: _searchText.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear, color: Colors.grey),
+                          icon: CustomIcons.svgIcon(
+                            CustomIcons.clear,
+                            color: Colors.grey,
+                            size: 24,
+                          ),
                           onPressed: () {
                             _searchController.clear();
                             setState(() => _searchText = '');
@@ -398,8 +610,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
                       children: [
                         Icon(
                           Icons.favorite_border,
-                          size: 80,
-                          color: Colors.grey.shade800,
+                          size: 64,
+                          color: Colors.grey.shade600,
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -420,7 +632,12 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     ),
                   )
                 : ListView.builder(
-                    padding: const EdgeInsets.all(12),
+                    padding: EdgeInsets.fromLTRB(
+                      12,
+                      12,
+                      12,
+                      songProvider.currentSong != null ? 160 : 100,
+                    ),
                     keyboardDismissBehavior:
                         ScrollViewKeyboardDismissBehavior.onDrag,
                     itemCount: filteredSongs.length,
@@ -428,87 +645,68 @@ class _FavoritesPageState extends State<FavoritesPage> {
                       final song = filteredSongs[index];
                       final isSelected = _selectedSongs.contains(song);
 
-                      return Card(
-                        color: _isSelectionMode && isSelected
-                            ? Theme.of(context).primaryColor.withOpacity(0.2)
-                            : Colors.grey.shade900,
-                        margin: const EdgeInsets.only(bottom: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: _isSelectionMode && isSelected
-                              ? BorderSide(
+                      // Tarihi göstermek için geçici bir Song nesnesi oluşturuyoruz
+                      final displaySong = Song(
+                        id: song.id,
+                        title: song.title,
+                        artist:
+                            "${song.artist} • ${_formatDate(song.dateAdded)}",
+                        coverUrl: song.coverUrl,
+                        audioUrl: song.audioUrl,
+                        duration: song.duration,
+                        localPath: song.localPath,
+                        localImagePath: song.localImagePath,
+                        dateAdded: song.dateAdded,
+                      );
+
+                      return SongCard(
+                        song: displaySong,
+                        isSelected: isSelected,
+                        showBorder: _isSelectionMode,
+                        trailing: _isSelectionMode
+                            ? Icon(
+                                isSelected
+                                    ? Icons.check_circle
+                                    : Icons.circle_outlined,
+                                color: isSelected
+                                    ? Theme.of(context).primaryColor
+                                    : Colors.grey,
+                              )
+                            : IconButton(
+                                icon: Icon(
+                                  Icons.favorite,
                                   color: Theme.of(context).primaryColor,
-                                  width: 2,
-                                )
-                              : BorderSide.none,
-                        ),
-                        child: ListTile(
-                          leading: ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: Image.network(
-                              song.coverUrl,
-                              width: 50,
-                              height: 50,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                          title: Tooltip(
-                            message: song.title,
-                            child: Text(
-                              song.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ),
-                          subtitle: Text(
-                            song.artist,
-                            style: TextStyle(color: Colors.grey.shade400),
-                          ),
-                          trailing: _isSelectionMode
-                              ? Icon(
-                                  isSelected
-                                      ? Icons.check_circle
-                                      : Icons.circle_outlined,
-                                  color: isSelected
-                                      ? Theme.of(context).primaryColor
-                                      : Colors.grey,
-                                )
-                              : IconButton(
-                                  icon: const Icon(
-                                    Icons.favorite,
-                                    color: Colors.red,
-                                  ),
-                                  onPressed: () =>
-                                      songProvider.toggleFavorite(song),
+                                  size: 24,
                                 ),
-                          onTap: () {
-                            if (_isSelectionMode) {
-                              _toggleSelection(song);
+                                onPressed: () =>
+                                    songProvider.toggleFavorite(song),
+                              ),
+                        onTap: () {
+                          if (_isSelectionMode) {
+                            _toggleSelection(song);
+                          } else {
+                            final isCurrentSong =
+                                songProvider.currentSong?.id == song.id;
+                            if (isCurrentSong &&
+                                songProvider.audioPlayer.playing) {
+                              songProvider.audioPlayer.pause();
+                            } else if (isCurrentSong) {
+                              songProvider.audioPlayer.play();
                             } else {
-                              final isCurrentSong =
-                                  songProvider.currentSong?.id == song.id;
-                              if (isCurrentSong &&
-                                  songProvider.audioPlayer.playing) {
-                                songProvider.audioPlayer.pause();
-                              } else if (isCurrentSong) {
-                                songProvider.audioPlayer.play();
-                              } else {
-                                songProvider.playSong(song, favoriteSongs);
-                              }
+                              songProvider.playSong(song, favoriteSongs);
                             }
-                          },
-                          onLongPress: () {
-                            if (!_isSelectionMode) {
-                              setState(() {
-                                _isSelectionMode = true;
-                                _selectedSongs.add(song);
-                              });
-                            } else {
-                              _toggleSelection(song);
-                            }
-                          },
-                        ),
+                          }
+                        },
+                        onLongPress: () {
+                          if (!_isSelectionMode) {
+                            setState(() {
+                              _isSelectionMode = true;
+                              _selectedSongs.add(song);
+                            });
+                          } else {
+                            _toggleSelection(song);
+                          }
+                        },
                       );
                     },
                   ),

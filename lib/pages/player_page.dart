@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:muzik_app/providers/song_provider.dart';
 import 'package:muzik_app/models/song_model.dart';
@@ -7,6 +8,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:palette_generator/palette_generator.dart';
 import 'package:muzik_app/pages/login_page.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:muzik_app/custom_icons.dart';
 
 class PlayerPage extends StatefulWidget {
   const PlayerPage({super.key});
@@ -15,14 +17,39 @@ class PlayerPage extends StatefulWidget {
   State<PlayerPage> createState() => _PlayerPageState();
 }
 
-class _PlayerPageState extends State<PlayerPage> {
+class _PlayerPageState extends State<PlayerPage>
+    with SingleTickerProviderStateMixin {
   Color? _dominantColor;
   String? _currentSongId;
+  late AnimationController _animationController;
 
-  Future<void> _extractColor(String url) async {
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(seconds: 10),
+      vsync: this,
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _extractColor(Song song) async {
     try {
+      ImageProvider imageProvider;
+      if (song.localImagePath != null &&
+          File(song.localImagePath!).existsSync()) {
+        imageProvider = FileImage(File(song.localImagePath!));
+      } else {
+        imageProvider = NetworkImage(song.coverUrl);
+      }
+
       final generator = await PaletteGenerator.fromImageProvider(
-        NetworkImage(url),
+        imageProvider,
         size: const Size(100, 100), // Performans için küçük boyut
         maximumColorCount: 20,
       );
@@ -43,6 +70,7 @@ class _PlayerPageState extends State<PlayerPage> {
   Widget build(BuildContext context) {
     final songProvider = context.watch<SongProvider>();
     final currentSong = songProvider.currentSong;
+    final primaryColor = Theme.of(context).primaryColor;
 
     // Eğer şarkı seçili değilse boş ekran dön
     if (currentSong == null) {
@@ -53,7 +81,7 @@ class _PlayerPageState extends State<PlayerPage> {
     if (_currentSongId != currentSong.id) {
       _currentSongId = currentSong.id;
       _dominantColor = null; // Yüklenirken varsayılan rengi kullan (siyah)
-      _extractColor(currentSong.coverUrl);
+      _extractColor(currentSong);
     }
 
     return Scaffold(
@@ -71,7 +99,30 @@ class _PlayerPageState extends State<PlayerPage> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.share, color: Colors.white),
+            icon: Icon(
+              songProvider.isSleepTimerActive
+                  ? Icons.timer
+                  : Icons.timer_outlined,
+              color: songProvider.isSleepTimerActive
+                  ? Theme.of(context).primaryColor
+                  : Colors.white,
+            ),
+            tooltip: "Uyku Zamanlayıcısı",
+            onPressed: () => _showSleepTimerDialog(context),
+          ),
+          IconButton(
+            icon: const Icon(Icons.queue_music_rounded, color: Colors.white),
+            tooltip: "Sıradaki Şarkılar",
+            onPressed: () {
+              _showQueueBottomSheet(context, songProvider);
+            },
+          ),
+          IconButton(
+            icon: CustomIcons.svgIcon(
+              CustomIcons.share,
+              color: Colors.white,
+              size: 24,
+            ),
             onPressed: () {
               Share.share(
                 'Bu şarkıyı OYN Music\'te keşfettim!\n\n🎵 ${currentSong.title}\n👤 ${currentSong.artist}\n\nDinlemek için: ${currentSong.audioUrl}',
@@ -84,26 +135,62 @@ class _PlayerPageState extends State<PlayerPage> {
         fit: StackFit.expand,
         children: [
           // 1. KATMAN: Arka Plan Resmi
-          Image.network(
-            currentSong.coverUrl,
-            fit: BoxFit.cover,
-            errorBuilder: (ctx, err, stack) => Container(color: Colors.black),
-          ),
+          (currentSong.localImagePath != null &&
+                  File(currentSong.localImagePath!).existsSync())
+              ? Image.file(
+                  File(currentSong.localImagePath!),
+                  fit: BoxFit.cover,
+                  errorBuilder: (ctx, err, stack) => Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.grey.shade800, Colors.black],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                  ),
+                )
+              : Image.network(
+                  currentSong.coverUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (ctx, err, stack) => Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.grey.shade800, Colors.black],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                  ),
+                ),
 
           // 2. KATMAN: Bulanıklık Efekti (Glassmorphism)
           BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    (_dominantColor ?? Colors.black).withOpacity(0.6),
-                    Colors.black.withOpacity(0.9),
-                  ],
-                ),
-              ),
+            child: AnimatedBuilder(
+              animation: _animationController,
+              builder: (context, child) {
+                return Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.lerp(
+                        Alignment.topLeft,
+                        Alignment.topRight,
+                        _animationController.value,
+                      )!,
+                      end: Alignment.lerp(
+                        Alignment.bottomRight,
+                        Alignment.bottomLeft,
+                        _animationController.value,
+                      )!,
+                      colors: [
+                        (_dominantColor ?? primaryColor).withOpacity(0.6),
+                        Colors.black.withOpacity(0.9),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           ),
 
@@ -135,19 +222,58 @@ class _PlayerPageState extends State<PlayerPage> {
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(20),
-                        child: Image.network(
-                          currentSong.coverUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Center(
-                              child: Icon(
-                                Icons.music_note,
-                                size: 120,
-                                color: Colors.white12,
+                        child:
+                            (currentSong.localImagePath != null &&
+                                File(currentSong.localImagePath!).existsSync())
+                            ? Image.file(
+                                File(currentSong.localImagePath!),
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            Colors.grey.shade800,
+                                            Colors.black,
+                                          ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: CustomIcons.svgIcon(
+                                          CustomIcons.musicNote,
+                                          color: Colors.white24,
+                                          size: 120,
+                                        ),
+                                      ),
+                                    ),
+                              )
+                            : Image.network(
+                                currentSong.coverUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Colors.grey.shade800,
+                                          Colors.black,
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: CustomIcons.svgIcon(
+                                        CustomIcons.musicNote,
+                                        color: Colors.white24,
+                                        size: 120,
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
-                            );
-                          },
-                        ),
                       ),
                     ),
                   ),
@@ -192,7 +318,7 @@ class _PlayerPageState extends State<PlayerPage> {
                               ? Icons.favorite
                               : Icons.favorite_border,
                           color: currentSong.isFavorite
-                              ? Colors.redAccent
+                              ? Theme.of(context).primaryColor
                               : Colors.white,
                           size: 32,
                         ),
@@ -219,10 +345,10 @@ class _PlayerPageState extends State<PlayerPage> {
                                 enabledThumbRadius: 6,
                               ),
                               trackHeight: 4,
-                              activeTrackColor: Colors.white,
+                              activeTrackColor: primaryColor,
                               inactiveTrackColor: Colors.white.withOpacity(0.3),
-                              thumbColor: Colors.white,
-                              overlayColor: Colors.white.withOpacity(0.2),
+                              thumbColor: primaryColor,
+                              overlayColor: primaryColor.withOpacity(0.2),
                             ),
                             child: Slider(
                               value: position.inSeconds.toDouble().clamp(
@@ -284,8 +410,8 @@ class _PlayerPageState extends State<PlayerPage> {
                         onPressed: songProvider.toggleShuffle,
                       ),
                       IconButton(
-                        icon: const Icon(
-                          Icons.skip_previous_rounded,
+                        icon: CustomIcons.svgIcon(
+                          CustomIcons.playerPrev,
                           color: Colors.white,
                           size: 45,
                         ),
@@ -294,9 +420,16 @@ class _PlayerPageState extends State<PlayerPage> {
                       Container(
                         width: 75,
                         height: 75,
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
+                        decoration: BoxDecoration(
+                          color: primaryColor,
                           shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: primaryColor.withOpacity(0.4),
+                              blurRadius: 15,
+                              offset: const Offset(0, 5),
+                            ),
+                          ],
                         ),
                         child: StreamBuilder<PlayerState>(
                           stream: songProvider.playerStateStream,
@@ -310,14 +443,14 @@ class _PlayerPageState extends State<PlayerPage> {
                                 processingState == ProcessingState.buffering) {
                               return const Center(
                                 child: CircularProgressIndicator(
-                                  color: Colors.black,
+                                  color: Colors.white,
                                 ),
                               );
                             } else if (playing != true) {
                               return IconButton(
-                                icon: const Icon(
-                                  Icons.play_arrow_rounded,
-                                  color: Colors.black,
+                                icon: CustomIcons.svgIcon(
+                                  CustomIcons.playerPlay,
+                                  color: Colors.white,
                                   size: 45,
                                 ),
                                 onPressed: songProvider.audioPlayer.play,
@@ -326,7 +459,7 @@ class _PlayerPageState extends State<PlayerPage> {
                               return IconButton(
                                 icon: const Icon(
                                   Icons.pause_rounded,
-                                  color: Colors.black,
+                                  color: Colors.white,
                                   size: 45,
                                 ),
                                 onPressed: songProvider.audioPlayer.pause,
@@ -336,8 +469,8 @@ class _PlayerPageState extends State<PlayerPage> {
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(
-                          Icons.skip_next_rounded,
+                        icon: CustomIcons.svgIcon(
+                          CustomIcons.playerNext,
                           color: Colors.white,
                           size: 45,
                         ),
@@ -363,6 +496,203 @@ class _PlayerPageState extends State<PlayerPage> {
           ),
         ],
       ),
+    );
+  }
+
+  void _showSleepTimerDialog(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey.shade900,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 16),
+            const Text(
+              'Zamanlayıcı Ayarla',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildTimerOption(context, 15),
+            _buildTimerOption(context, 30),
+            _buildTimerOption(context, 45),
+            _buildTimerOption(context, 60),
+            if (context.read<SongProvider>().isSleepTimerActive)
+              ListTile(
+                leading: const Icon(Icons.timer_off, color: Colors.redAccent),
+                title: const Text(
+                  'Zamanlayıcıyı Kapat',
+                  style: TextStyle(color: Colors.redAccent),
+                ),
+                onTap: () {
+                  context.read<SongProvider>().cancelSleepTimer();
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Zamanlayıcı kapatıldı.')),
+                  );
+                },
+              ),
+            const SizedBox(height: 20),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTimerOption(BuildContext context, int minutes) {
+    return ListTile(
+      title: Text(
+        '$minutes Dakika',
+        style: const TextStyle(color: Colors.white),
+      ),
+      onTap: () {
+        context.read<SongProvider>().setSleepTimer(minutes);
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Müzik $minutes dakika sonra duracak.')),
+        );
+      },
+    );
+  }
+
+  void _showQueueBottomSheet(BuildContext context, SongProvider songProvider) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          minChildSize: 0.3,
+          maxChildSize: 0.9,
+          builder: (context, scrollController) {
+            // Listeyi o anki şarkıya kaydırmak için
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (scrollController.hasClients &&
+                  songProvider.currentSongIndex != null) {
+                final offset = songProvider.currentSongIndex! * 72.0;
+                // Çok uzun listelerde hata vermemesi için clamp
+                if (offset < scrollController.position.maxScrollExtent) {
+                  scrollController.jumpTo(offset);
+                }
+              }
+            });
+
+            return Container(
+              decoration: BoxDecoration(
+                color: Colors.grey.shade900.withOpacity(0.95),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.5),
+                    blurRadius: 20,
+                    offset: const Offset(0, -5),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
+                  // Tutamaç Çubuğu
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade600,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: Text(
+                      "Sıradaki Şarkılar",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const Divider(color: Colors.white10, height: 1),
+                  Expanded(
+                    child: ListView.builder(
+                      controller: scrollController,
+                      itemCount: songProvider.playlist.length,
+                      itemBuilder: (context, index) {
+                        final song = songProvider.playlist[index];
+                        final isCurrent =
+                            song.id == songProvider.currentSong?.id;
+
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 4,
+                          ),
+                          leading: isCurrent
+                              ? Icon(
+                                  Icons.bar_chart_rounded,
+                                  color: Theme.of(context).primaryColor,
+                                )
+                              : Text(
+                                  "${index + 1}",
+                                  style: TextStyle(color: Colors.grey.shade500),
+                                ),
+                          title: Text(
+                            song.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: isCurrent
+                                  ? Theme.of(context).primaryColor
+                                  : Colors.white,
+                              fontWeight: isCurrent
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                          subtitle: Text(
+                            song.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: isCurrent
+                                  ? Theme.of(
+                                      context,
+                                    ).primaryColor.withOpacity(0.7)
+                                  : Colors.grey.shade400,
+                            ),
+                          ),
+                          trailing: isCurrent
+                              ? const SizedBox.shrink()
+                              : null, // İleride buraya sürükleme ikonu eklenebilir
+                          onTap: () {
+                            if (!isCurrent) {
+                              songProvider.playSong(
+                                song,
+                                songProvider.playlist,
+                              );
+                              Navigator.pop(context); // Listeyi kapat
+                            }
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -454,6 +784,7 @@ class _PlayerPageState extends State<PlayerPage> {
     SongProvider provider,
     Song song,
   ) {
+    final primaryColor = Theme.of(context).primaryColor;
     final isDownloaded = provider.isSongDownloaded(song.id);
     final progress = provider.downloadProgress[song.id];
 
@@ -464,24 +795,62 @@ class _PlayerPageState extends State<PlayerPage> {
           CircularProgressIndicator(
             value: progress,
             strokeWidth: 3,
-            color: Colors.white,
+            color: primaryColor,
           ),
           IconButton(
             icon: const Icon(Icons.close, size: 20, color: Colors.white),
-            onPressed: () => provider.cancelDownload(song.id),
+            onPressed: () {
+              provider.cancelDownload(song.id);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      const Icon(
+                        Icons.cancel_outlined,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        "İndirme işlemi iptal edildi",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                  backgroundColor: Colors.redAccent,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  margin: const EdgeInsets.all(16),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            },
           ),
         ],
       );
     } else if (isDownloaded) {
       return IconButton(
-        icon: const Icon(Icons.check_circle, color: Colors.green),
+        icon: CustomIcons.svgIcon(
+          CustomIcons.check,
+          color: primaryColor,
+          size: 24,
+        ),
         onPressed: () {
           // İndirildi durumu
         },
       );
     } else {
       return IconButton(
-        icon: const Icon(Icons.download_rounded, color: Colors.white),
+        icon: CustomIcons.svgIcon(
+          CustomIcons.download,
+          color: Colors.white,
+          size: 24,
+        ),
         onPressed: () {
           if (!provider.isFirebaseLoggedIn) {
             _showLoginBottomSheet(context);
@@ -535,67 +904,16 @@ class _PlayerPageState extends State<PlayerPage> {
             ),
           );
 
-          provider
-              .downloadSong(song)
-              .then((_) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Row(
-                        children: [
-                          const Icon(
-                            Icons.check_circle_rounded,
-                            color: Colors.white,
-                            size: 28,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Text(
-                                  "İndirme Tamamlandı",
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                Text(
-                                  song.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.white70,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      backgroundColor: Colors.green.shade700,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      margin: const EdgeInsets.all(16),
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                }
-              })
-              .catchError((e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text("İndirme başarısız: $e"),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              });
+          provider.downloadSong(song).catchError((e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text("İndirme başarısız: $e"),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          });
         },
       );
     }
