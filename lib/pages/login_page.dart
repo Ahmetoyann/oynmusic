@@ -17,9 +17,10 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<SongProvider>();
+    final primaryColor = Theme.of(context).primaryColor;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFB4B4B4), // veya ikonun baskın rengi
+      backgroundColor: Colors.black, // veya ikonun baskın rengi
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 30.0),
@@ -33,6 +34,7 @@ class _LoginPageState extends State<LoginPage> {
                 'assets/icon/oyn_yenii_ikon.png',
                 height: 130,
                 width: 130,
+                color: primaryColor,
               ),
               const SizedBox(height: 20),
 
@@ -41,12 +43,12 @@ class _LoginPageState extends State<LoginPage> {
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.w900,
-                  color: const Color(0xFF333333),
+                  color: primaryColor,
                   letterSpacing: 1.5,
                   shadows: [
                     Shadow(
                       blurRadius: 10.0,
-                      color: Colors.black.withValues(alpha: 0.1),
+                      color: primaryColor.withValues(alpha: 0.3),
                       offset: const Offset(0, 2),
                     ),
                   ],
@@ -55,7 +57,10 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 10),
               Text(
                 "Müziğin ritmini keşfet",
-                style: TextStyle(fontSize: 16, color: Colors.black54),
+                style: TextStyle(
+                  fontSize: 16,
+                  color: primaryColor.withValues(alpha: 0.7),
+                ),
               ),
 
               const Spacer(),
@@ -153,7 +158,7 @@ class _LoginPageState extends State<LoginPage> {
                 },
                 child: Text(
                   "Giriş yapmadan devam et",
-                  style: TextStyle(color: Colors.black54),
+                  style: TextStyle(color: Colors.white),
                 ),
               ),
               const SizedBox(height: 40),

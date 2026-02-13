@@ -129,33 +129,46 @@ class _MiniPlayerState extends State<MiniPlayer>
                       children: [
                         Row(
                           children: [
-                            (song.localImagePath != null &&
-                                    File(song.localImagePath!).existsSync())
+                            (song.localImagePath != null)
                                 ? Image.file(
                                     File(song.localImagePath!),
                                     height: 65,
                                     width: 65,
                                     fit: BoxFit.cover,
                                     errorBuilder:
-                                        (context, error, stackTrace) =>
-                                            Container(
-                                              height: 65,
-                                              width: 65,
-                                              decoration: BoxDecoration(
-                                                gradient: LinearGradient(
-                                                  colors: [
-                                                    Colors.grey.shade800,
-                                                    Colors.black,
-                                                  ],
-                                                  begin: Alignment.topLeft,
-                                                  end: Alignment.bottomRight,
+                                        (
+                                          context,
+                                          error,
+                                          stackTrace,
+                                        ) => Image.network(
+                                          song.coverUrl,
+                                          height: 65,
+                                          width: 65,
+                                          fit: BoxFit.cover,
+                                          errorBuilder:
+                                              (
+                                                context,
+                                                error,
+                                                stackTrace,
+                                              ) => Container(
+                                                height: 65,
+                                                width: 65,
+                                                decoration: BoxDecoration(
+                                                  gradient: LinearGradient(
+                                                    colors: [
+                                                      Colors.grey.shade800,
+                                                      Colors.black,
+                                                    ],
+                                                    begin: Alignment.topLeft,
+                                                    end: Alignment.bottomRight,
+                                                  ),
+                                                ),
+                                                child: const Icon(
+                                                  Icons.music_note_rounded,
+                                                  color: Colors.white24,
                                                 ),
                                               ),
-                                              child: const Icon(
-                                                Icons.music_note_rounded,
-                                                color: Colors.white24,
-                                              ),
-                                            ),
+                                        ),
                                   )
                                 : Image.network(
                                     song.coverUrl,

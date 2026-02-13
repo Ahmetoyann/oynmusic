@@ -10,6 +10,7 @@ import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/pages/downloads_page.dart';
 import 'package:muzik_app/pages/profile_page.dart';
 import 'package:muzik_app/providers/auth_provider.dart';
+import 'package:muzik_app/pages/settings_page.dart';
 
 // 1. YENİ SAYFAYI IMPORT EDİYORUZ
 import 'package:muzik_app/pages/folder_detail_page.dart';
@@ -88,6 +89,15 @@ class _ListelerPageState extends State<ListelerPage> {
           ),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsPage()),
+              );
+            },
+          ),
           if (sortedFolders.isNotEmpty)
             PopupMenuButton<SortOption>(
               icon: const Icon(Icons.sort),
@@ -682,8 +692,8 @@ class _ListelerPageState extends State<ListelerPage> {
                     size: 64,
                     color: Theme.of(context).primaryColor.withOpacity(0.5),
                   )
-                : CustomIcons.svgIcon(
-                    CustomIcons.wifiOff,
+                : Icon(
+                    Icons.wifi_off,
                     size: 64,
                     color: Theme.of(context).primaryColor.withOpacity(0.5),
                   ),

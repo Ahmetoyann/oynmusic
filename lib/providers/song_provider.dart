@@ -119,9 +119,6 @@ class SongProvider with ChangeNotifier {
   bool get isSleepTimerActive => _sleepTimer != null && _sleepTimer!.isActive;
   DateTime? get sleepTimerEndTime => _sleepTimerEndTime;
 
-  // Durum kaydetme zamanlayıcısı
-  Timer? _saveStateTimer;
-
   Song? get currentSong =>
       _currentSongIndex != null ? _playlist[_currentSongIndex!] : null;
 
@@ -154,7 +151,6 @@ class SongProvider with ChangeNotifier {
     fetchSongsFromApi(); // Uygulama açılışında direkt çek
     _loadSettings();
     _initConnectivity();
-    _loadLastPlaybackState(); // Son kalınan yeri yükle
     _initNotifications(); // Bildirim servisini başlat
   }
 
@@ -558,17 +554,6 @@ class SongProvider with ChangeNotifier {
         if (state.processingState == ProcessingState.completed) {
           playNext(userInitiated: false);
         }
-        // Duraklatıldığında durumu kaydet
-        if (!state.playing) {
-          _savePlaybackState();
-        }
-      });
-
-      // Pozisyon değiştiğinde periyodik kaydet (Debounce ile)
-      _audioHandler.audioPlayer.positionStream.listen((position) {
-        if (_audioHandler.audioPlayer.playing) {
-          _scheduleSaveState();
-        }
       });
 
       // Bildirimden gelen Sonraki/Önceki komutlarını dinle
@@ -577,83 +562,6 @@ class SongProvider with ChangeNotifier {
     } catch (e) {
       _isAudioServiceInitialized = false;
       rethrow;
-    }
-  }
-
-  void _scheduleSaveState() {
-    if (_saveStateTimer?.isActive ?? false) return;
-    _saveStateTimer = Timer(const Duration(seconds: 5), () {
-      _savePlaybackState();
-    });
-  }
-
-  Future<void> _savePlaybackState() async {
-    if (currentSong == null) return;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final String songJson = jsonEncode(currentSong!.toJson());
-      final int position = audioPlayer.position.inSeconds;
-
-      await prefs.setString('last_played_song', songJson);
-      await prefs.setInt('last_played_position', position);
-    } catch (e) {
-      debugPrint("Durum kaydedilemedi: $e");
-    }
-  }
-
-  Future<void> _loadLastPlaybackState() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final String? songJson = prefs.getString('last_played_song');
-      final int position = prefs.getInt('last_played_position') ?? 0;
-
-      if (songJson != null) {
-        final song = Song.fromMap(jsonDecode(songJson));
-
-        // UI'ı güncelle (MiniPlayer görünsün)
-        _playlist = [song];
-        _currentSongIndex = 0;
-        notifyListeners();
-
-        // Servisi başlat ve şarkıyı hazırla (Çalmadan)
-        await _initAudioService();
-
-        final mediaItem = MediaItem(
-          id: song.id,
-          album: "OYN Music",
-          title: song.title,
-          artist: song.artist,
-          artUri: Uri.parse(song.coverUrl),
-          duration: Duration(seconds: song.duration ?? 0),
-        );
-
-        // Yerel dosya kontrolü
-        String playUrl = song.audioUrl;
-        bool isLocal = false;
-
-        // İndirilenler listesinde var mı kontrol et (Daha güncel path için)
-        // _downloadedSongs henüz yüklenmemiş olabilir, bu yüzden song.localPath'e bakıyoruz
-        // Ancak _loadDownloadedSongs constructor'da çağrılmıyor, updateUser'da çağrılıyor.
-        // Bu yüzden song nesnesindeki path'i kullanacağız.
-
-        if (song.localPath != null) {
-          final file = File(song.localPath!);
-          if (await file.exists()) {
-            playUrl = song.localPath!;
-            isLocal = true;
-          }
-        }
-
-        // Şarkıyı hazırla
-        await _audioHandler.prepareSong(mediaItem, playUrl);
-
-        // Kaldığı yere sar
-        if (position > 0) {
-          await _audioHandler.seek(Duration(seconds: position));
-        }
-      }
-    } catch (e) {
-      debugPrint("Son durum yüklenirken hata: $e");
     }
   }
 
@@ -1197,6 +1105,8 @@ class SongProvider with ChangeNotifier {
 
     // Bildirim güncelleme kontrolü için değişken
     int lastProgressPercent = 0;
+    // UI güncelleme kontrolü için değişken (Kasma sorununu çözmek için)
+    int lastUiProgressPercent = 0;
 
     try {
       // Dosya yolunu hazırla
@@ -1237,7 +1147,13 @@ class SongProvider with ChangeNotifier {
         onReceiveProgress: (received, total) {
           if (total > 0) {
             _downloadProgress[song.id] = received / total;
-            notifyListeners();
+
+            // UI'ı her byte'da değil, %5'lik değişimlerde güncelle
+            int currentPercent = ((received / total) * 100).toInt();
+            if (currentPercent >= lastUiProgressPercent + 5) {
+              lastUiProgressPercent = currentPercent;
+              notifyListeners();
+            }
             updateNotification(received, total);
           }
         },
@@ -1418,41 +1334,110 @@ class SongProvider with ChangeNotifier {
 
   /// İndirilen şarkıyı siler
   Future<void> deleteDownloadedSong(Song song) async {
+    // Eğer silinen şarkı şu an çalıyorsa oynatmayı durdur
+    if (currentSong?.id == song.id) {
+      if (_isAudioServiceInitialized) {
+        await _audioHandler.stop();
+      }
+      _currentSongIndex = null; // Çalan şarkı silindiği için index'i sıfırla
+    } else if (identical(_playlist, _downloadedSongs)) {
+      // Eğer indirilenler listesinden çalınıyorsa ve önceki bir şarkı siliniyorsa index'i güncelle
+      final indexToRemove = _downloadedSongs.indexWhere((s) => s.id == song.id);
+      if (_currentSongIndex != null &&
+          indexToRemove != -1 &&
+          indexToRemove < _currentSongIndex!) {
+        _currentSongIndex = _currentSongIndex! - 1;
+      }
+    }
+
     if (song.localPath != null) {
       final file = File(song.localPath!);
       if (await file.exists()) {
-        await file.delete();
+        try {
+          await file.delete();
+        } catch (e) {
+          debugPrint("Dosya silme hatası: $e");
+        }
       }
     }
     if (song.localImagePath != null) {
       final imgFile = File(song.localImagePath!);
       if (await imgFile.exists()) {
-        await imgFile.delete();
+        try {
+          await imgFile.delete();
+        } catch (e) {
+          debugPrint("Resim silme hatası: $e");
+        }
       }
     }
     _downloadedSongs.removeWhere((s) => s.id == song.id);
     await _saveDownloadedSongs();
+
+    // Klasörlerden de kaldır
+    bool folderUpdated = false;
+    for (var folder in _folders) {
+      final int initialCount = folder.songs.length;
+      folder.songs.removeWhere((s) => s.id == song.id);
+      if (folder.songs.length != initialCount) {
+        folderUpdated = true;
+      }
+    }
+    if (folderUpdated) {
+      await _saveFolders();
+    }
     notifyListeners();
   }
 
   /// Tüm indirilen şarkıları siler
   Future<void> deleteAllDownloadedSongs() async {
+    // Oynatmayı durdur (Eğer indirilenlerden biri çalıyorsa)
+    if (currentSong != null &&
+        _downloadedSongs.any((s) => s.id == currentSong!.id) &&
+        _isAudioServiceInitialized) {
+      await _audioHandler.stop();
+      _currentSongIndex = null; // Tüm liste silindiği için index'i sıfırla
+    }
+
+    // Silinecek ID'leri sakla (Klasörlerden silmek için)
+    final idsToRemove = _downloadedSongs.map((s) => s.id).toSet();
+
     for (var song in _downloadedSongs) {
       if (song.localPath != null) {
         final file = File(song.localPath!);
         if (await file.exists()) {
-          await file.delete();
+          try {
+            await file.delete();
+          } catch (e) {
+            debugPrint("Dosya silme hatası: $e");
+          }
         }
       }
       if (song.localImagePath != null) {
         final imgFile = File(song.localImagePath!);
         if (await imgFile.exists()) {
-          await imgFile.delete();
+          try {
+            await imgFile.delete();
+          } catch (e) {
+            debugPrint("Resim silme hatası: $e");
+          }
         }
       }
     }
     _downloadedSongs.clear();
     await _saveDownloadedSongs();
+
+    // Klasörlerden de kaldır
+    bool folderUpdated = false;
+    for (var folder in _folders) {
+      final int initialCount = folder.songs.length;
+      folder.songs.removeWhere((s) => idsToRemove.contains(s.id));
+      if (folder.songs.length != initialCount) {
+        folderUpdated = true;
+      }
+    }
+    if (folderUpdated) {
+      await _saveFolders();
+    }
     notifyListeners();
   }
 
@@ -1596,22 +1581,30 @@ class SongProvider with ChangeNotifier {
 
     if (_currentSongIndex != -1) {
       try {
-        // Bildirimde görünecek veriyi hazırla
-        final mediaItem = MediaItem(
-          id: song.id,
-          album: "OYN Music",
-          title: song.title,
-          artist: song.artist,
-          artUri: Uri.parse(song.coverUrl),
-          duration: Duration(seconds: song.duration ?? 0),
-        );
-
         // 1. ÖNCE YEREL DOSYAYI KONTROL ET
         // Eğer şarkı indirilmişse ve dosya mevcutsa internete gitme
         final downloadedSong = _downloadedSongs.firstWhere(
           (s) => s.id == song.id,
           orElse: () => song,
         );
+
+        // Resim URI'sini belirle (Çevrimdışı mod için yerel resim)
+        Uri artUri = Uri.parse(song.coverUrl);
+        if (downloadedSong.localImagePath != null &&
+            File(downloadedSong.localImagePath!).existsSync()) {
+          artUri = Uri.file(downloadedSong.localImagePath!);
+        }
+
+        // Bildirimde görünecek veriyi hazırla
+        final mediaItem = MediaItem(
+          id: song.id,
+          album: "OYN Music",
+          title: song.title,
+          artist: song.artist,
+          artUri: artUri,
+          duration: Duration(seconds: song.duration ?? 0),
+        );
+
         if (downloadedSong.localPath != null) {
           final file = File(downloadedSong.localPath!);
           if (await file.exists()) {
@@ -1796,7 +1789,6 @@ class SongProvider with ChangeNotifier {
   @override
   void dispose() {
     _audioHandler.stop();
-    _saveStateTimer?.cancel();
     super.dispose();
   }
 }

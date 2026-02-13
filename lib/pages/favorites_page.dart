@@ -56,7 +56,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.grey.shade900.withOpacity(0.4),
+      backgroundColor: Colors.grey.shade900,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -181,7 +181,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.grey.shade900.withOpacity(0.9),
+      backgroundColor: Colors.grey.shade900,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -290,7 +290,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.grey.shade900.withOpacity(0.4),
+        backgroundColor: Colors.grey.shade900,
         title: const Text(
           'Tümünü Temizle',
           style: TextStyle(color: Colors.white),

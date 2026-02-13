@@ -5,7 +5,6 @@ import 'package:muzik_app/providers/auth_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:muzik_app/providers/song_provider.dart';
 import 'package:muzik_app/pages/folder_detail_page.dart';
-import 'package:muzik_app/pages/settings_page.dart';
 import 'package:muzik_app/widgets/google_logo_painter.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -41,20 +40,7 @@ class _ProfilePageState extends State<ProfilePage>
     final user = authProvider.user;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Profil"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SettingsPage()),
-              );
-            },
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text("Profil")),
       body: user == null
           ? Center(child: _buildLoginButton(context, authProvider))
           : _buildUserProfile(context, authProvider, user),
@@ -342,7 +328,7 @@ class _ProfilePageState extends State<ProfilePage>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.grey.shade900.withOpacity(0.4),
+      backgroundColor: Colors.grey.shade900,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -426,7 +412,7 @@ class _ProfilePageState extends State<ProfilePage>
   void _showSignOutBottomSheet(BuildContext context, AuthProvider provider) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.grey.shade900.withOpacity(0.4),
+      backgroundColor: Colors.grey.shade900,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),

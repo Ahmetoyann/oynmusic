@@ -91,8 +91,10 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).primaryColor;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFB4B4B4), // veya ikonun baskın rengi
+      backgroundColor: Colors.black,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -105,22 +107,12 @@ class _SplashScreenState extends State<SplashScreen>
                   child: Transform.scale(
                     scale: _scaleAnimation.value,
                     child: Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Theme.of(
-                              context,
-                            ).primaryColor.withOpacity(0.3),
-                            blurRadius: 40,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
+                      decoration: BoxDecoration(shape: BoxShape.circle),
                       child: Image.asset(
                         'assets/icon/oyn_yenii_ikon.png',
                         height: 160,
                         width: 160,
+                        color: primaryColor,
                       ),
                     ),
                   ),
@@ -137,12 +129,12 @@ class _SplashScreenState extends State<SplashScreen>
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.w900,
-                    color: const Color(0xFF333333),
+                    color: primaryColor,
                     letterSpacing: 1.5,
                     shadows: [
                       Shadow(
                         blurRadius: 10.0,
-                        color: Colors.black.withOpacity(0.1),
+                        color: primaryColor.withOpacity(0.3),
                         offset: const Offset(0, 2),
                       ),
                     ],
@@ -153,11 +145,11 @@ class _SplashScreenState extends State<SplashScreen>
             const SizedBox(height: 12),
             FadeTransition(
               opacity: _sloganOpacityAnimation,
-              child: const Text(
+              child: Text(
                 "Müziğin Ritmi",
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.black54,
+                  color: primaryColor.withOpacity(0.7),
                   letterSpacing: 4,
                   fontWeight: FontWeight.w300,
                 ),
