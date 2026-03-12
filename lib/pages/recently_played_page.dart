@@ -6,6 +6,9 @@ import 'package:muzik_app/widgets/mini_player.dart';
 import 'package:muzik_app/models/song_model.dart';
 import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/widgets/song_card.dart';
+import 'package:muzik_app/widgets/custom_snack_bar.dart';
+import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
+import 'package:muzik_app/widgets/custom_app_bar.dart';
 
 class RecentlyPlayedPage extends StatefulWidget {
   const RecentlyPlayedPage({super.key});
@@ -25,46 +28,21 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
   }
 
   void _showClearHistoryDialog(BuildContext context) {
-    showDialog(
+    CustomBottomSheet.show(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.grey.shade900,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Geçmişi Temizle',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: const Text(
-          'Tüm dinleme geçmişiniz silinsin mi? Bu işlem geri alınamaz.',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('İptal', style: TextStyle(color: Colors.white)),
-          ),
-          TextButton(
-            onPressed: () {
-              context.read<SongProvider>().clearRecentlyPlayed();
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text("Geçmiş temizlendi"),
-                  backgroundColor: Colors.redAccent,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              );
-            },
-            child: const Text(
-              'Temizle',
-              style: TextStyle(color: Colors.redAccent),
-            ),
-          ),
-        ],
-      ),
+      title: 'Geçmişi Temizle',
+      message: 'Tüm dinleme geçmişiniz silinsin mi? Bu işlem geri alınamaz.',
+      primaryButtonText: 'Temizle',
+      primaryButtonColor: Colors.redAccent,
+      secondaryButtonText: 'İptal',
+      onPrimaryButtonTap: () {
+        context.read<SongProvider>().clearRecentlyPlayed();
+        Navigator.pop(context);
+        CustomSnackBar.showError(
+          context: context,
+          message: "Geçmiş temizlendi",
+        );
+      },
     );
   }
 
@@ -110,15 +88,10 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text("En Son Dinlediklerin")),
+      appBar: const CustomAppBar(title: 'En Son Dinlediklerin'),
       bottomNavigationBar: songProvider.currentSong != null
           ? GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const PlayerPage()),
-                );
-              },
+              onTap: () => PlayerPage.show(context),
               child: const MiniPlayer(),
             )
           : null,
@@ -231,12 +204,7 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
                                       displayedSongs,
                                     );
                                   }
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => const PlayerPage(),
-                                    ),
-                                  );
+                                  PlayerPage.show(context);
                                 },
                               ),
                             );

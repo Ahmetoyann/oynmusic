@@ -1,8 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:muzik_app/providers/song_provider.dart';
 import 'package:muzik_app/providers/theme_provider.dart';
 import 'package:muzik_app/providers/auth_provider.dart';
+import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
+import 'package:muzik_app/widgets/custom_snack_bar.dart';
+import 'package:muzik_app/widgets/custom_app_bar.dart';
+import 'package:muzik_app/custom_icons.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -16,14 +21,7 @@ class SettingsPage extends StatelessWidget {
     final user = authProvider.user;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Ayarlar',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-        // AppBar rengi artık temadan geliyor
-      ),
+      appBar: const CustomAppBar(title: 'Ayarlar', centerTitle: true),
       // Arka plan rengi artık temadan geliyor
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -35,7 +33,12 @@ class SettingsPage extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 40,
-                    backgroundImage: NetworkImage(user.photoURL ?? ''),
+                    backgroundImage: user.photoURL != null
+                        ? (user.photoURL!.startsWith('http')
+                                  ? NetworkImage(user.photoURL!)
+                                  : FileImage(File(user.photoURL!)))
+                              as ImageProvider
+                        : null,
                     backgroundColor: Colors.grey.shade800,
                   ),
                   const SizedBox(height: 12),
@@ -98,7 +101,10 @@ class SettingsPage extends StatelessWidget {
           _buildSettingsCard(
             children: [
               ListTile(
-                leading: const Icon(Icons.timer, color: Colors.white),
+                leading: _buildLeadingIcon(
+                  Colors.orange,
+                  const Icon(Icons.timer_rounded, color: Colors.orange),
+                ),
                 title: const Text(
                   'Uyku Zamanlayıcısı',
                   style: TextStyle(color: Colors.white),
@@ -119,7 +125,10 @@ class SettingsPage extends StatelessWidget {
           _buildSettingsCard(
             children: [
               ListTile(
-                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                leading: _buildLeadingIcon(
+                  Colors.red,
+                  CustomIcons.svgIcon(CustomIcons.delete, color: Colors.red),
+                ),
                 title: Text(
                   'Önbelleği Temizle',
                   style: TextStyle(color: textColor),
@@ -138,14 +147,20 @@ class SettingsPage extends StatelessWidget {
           _buildSettingsCard(
             children: [
               ListTile(
-                leading: Icon(Icons.info_outline, color: textColor),
+                leading: _buildLeadingIcon(
+                  Colors.blue,
+                  const Icon(Icons.info_outline, color: Colors.blue),
+                ),
                 title: Text('Versiyon', style: TextStyle(color: textColor)),
                 trailing: Text('1.0.0', style: TextStyle(color: subTextColor)),
               ),
               if (authProvider.user != null) ...[
                 const Divider(height: 1, color: Colors.white10),
                 ListTile(
-                  leading: const Icon(Icons.logout, color: Colors.redAccent),
+                  leading: _buildLeadingIcon(
+                    Colors.redAccent,
+                    const Icon(Icons.logout, color: Colors.redAccent),
+                  ),
                   title: Text('Çıkış Yap', style: TextStyle(color: textColor)),
                   onTap: () => _showSignOutDialog(context),
                 ),
@@ -155,6 +170,17 @@ class SettingsPage extends StatelessWidget {
           const SizedBox(height: 30),
         ],
       ),
+    );
+  }
+
+  Widget _buildLeadingIcon(Color color, Widget icon) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: icon,
     );
   }
 
@@ -209,142 +235,207 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  void _showClearCacheDialog(BuildContext context) {
-    showDialog(
+  void _showClearCacheDialog(BuildContext context) async {
+    final provider = context.read<SongProvider>();
+    final cacheSize = await provider.getCacheSize();
+
+    if (!context.mounted) return;
+
+    CustomBottomSheet.show(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.grey.shade900,
-        title: const Text(
-          'Emin misiniz?',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: const Text(
-          'Tüm indirilen şarkılar ve favoriler silinecek. Bu işlem geri alınamaz.',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('İptal', style: TextStyle(color: Colors.grey)),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(ctx); // Dialogu kapat
-              try {
-                await context.read<SongProvider>().clearCache();
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Önbellek başarıyla temizlendi.'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Bir hata oluştu.')),
-                  );
-                }
-              }
-            },
-            child: const Text('Temizle', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
+      title: 'Emin misiniz?',
+      message:
+          'Tüm indirilen şarkılar ve favoriler silinecek ($cacheSize). Bu işlem geri alınamaz.',
+      primaryButtonText: 'Temizle',
+      primaryButtonColor: Colors.red,
+      secondaryButtonText: 'İptal',
+      onPrimaryButtonTap: () async {
+        Navigator.pop(context);
+        try {
+          await context.read<SongProvider>().clearCache();
+          if (context.mounted) {
+            CustomSnackBar.showSuccess(
+              context: context,
+              message: 'Önbellek başarıyla temizlendi.',
+            );
+          }
+        } catch (e) {
+          if (context.mounted) {
+            CustomSnackBar.showError(
+              context: context,
+              message: 'Bir hata oluştu.',
+            );
+          }
+        }
+      },
     );
   }
 
   void _showSignOutDialog(BuildContext context) {
-    showDialog(
+    CustomBottomSheet.show(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.grey.shade900,
-        title: const Text('Çıkış Yap', style: TextStyle(color: Colors.white)),
-        content: const Text(
-          'Hesabınızdan çıkış yapmak istediğinize emin misiniz?',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('İptal', style: TextStyle(color: Colors.grey)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              context.read<AuthProvider>().signOut();
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('Çıkış yapıldı.')));
-            },
-            child: const Text('Çıkış Yap', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
+      title: 'Çıkış Yap',
+      message: 'Hesabınızdan çıkış yapmak istediğinize emin misiniz?',
+      primaryButtonText: 'Çıkış Yap',
+      primaryButtonColor: Colors.red,
+      secondaryButtonText: 'İptal',
+      onPrimaryButtonTap: () {
+        Navigator.pop(context);
+        context.read<AuthProvider>().signOut();
+        CustomSnackBar.showInfo(context: context, message: 'Çıkış yapıldı.');
+      },
     );
   }
 
   void _showSleepTimerDialog(BuildContext context) {
-    showModalBottomSheet(
+    CustomBottomSheet.showContent(
       context: context,
-      backgroundColor: Colors.grey.shade900,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 16),
-            const Text(
-              'Zamanlayıcı Ayarla',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            _buildTimerOption(context, 15),
-            _buildTimerOption(context, 30),
-            _buildTimerOption(context, 45),
-            _buildTimerOption(context, 60),
-            if (context.read<SongProvider>().isSleepTimerActive)
-              ListTile(
-                leading: const Icon(Icons.timer_off, color: Colors.redAccent),
-                title: const Text(
-                  'Zamanlayıcıyı Kapat',
-                  style: TextStyle(color: Colors.redAccent),
+      child: Consumer<SongProvider>(
+        builder: (context, provider, child) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade700,
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                onTap: () {
-                  context.read<SongProvider>().cancelSleepTimer();
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Zamanlayıcı kapatıldı.')),
-                  );
-                },
               ),
-            const SizedBox(height: 20),
-          ],
-        );
-      },
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.timer_outlined,
+                    color: Theme.of(context).primaryColor,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Uyku Zamanlayıcısı',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              if (provider.isSleepTimerActive &&
+                  provider.sleepTimerEndTime != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  "Kapanış: ${provider.sleepTimerEndTime!.hour.toString().padLeft(2, '0')}:${provider.sleepTimerEndTime!.minute.toString().padLeft(2, '0')}",
+                  style: TextStyle(
+                    color: Theme.of(context).primaryColor,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 32),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    _buildModernTimerOption(context, 15),
+                    _buildModernTimerOption(context, 30),
+                    _buildModernTimerOption(context, 45),
+                    _buildModernTimerOption(context, 60),
+                    _buildModernTimerOption(context, 90),
+                    _buildModernTimerOption(context, 120),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              if (provider.isSleepTimerActive)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        provider.cancelSleepTimer();
+                        Navigator.pop(context);
+                        CustomSnackBar.showInfo(
+                          context: context,
+                          message: 'Zamanlayıcı kapatıldı.',
+                        );
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.redAccent,
+                        side: const BorderSide(color: Colors.redAccent),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        "Zamanlayıcıyı Kapat",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                const SizedBox(height: 24),
+            ],
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildTimerOption(BuildContext context, int minutes) {
-    return ListTile(
-      title: Text(
-        '$minutes Dakika',
-        style: const TextStyle(color: Colors.white),
+  Widget _buildModernTimerOption(BuildContext context, int minutes) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          context.read<SongProvider>().setSleepTimer(minutes);
+          Navigator.pop(context);
+          CustomSnackBar.showInfo(
+            context: context,
+            message: 'Müzik $minutes dakika sonra duracak.',
+          );
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: (MediaQuery.of(context).size.width - 64) / 3,
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade900,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.1)),
+          ),
+          child: Column(
+            children: [
+              Text(
+                "$minutes",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                "dk",
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
-      onTap: () {
-        context.read<SongProvider>().setSleepTimer(minutes);
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Müzik $minutes dakika sonra duracak.')),
-        );
-      },
     );
   }
 }

@@ -242,7 +242,8 @@ class _MiniPlayerState extends State<MiniPlayer>
                                   songProvider.toggleFavorite(song),
                             ),
                             if (processingState == ProcessingState.loading ||
-                                processingState == ProcessingState.buffering)
+                                processingState == ProcessingState.buffering ||
+                                songProvider.isSongLoading)
                               SizedBox(
                                 width: 48,
                                 height: 48,

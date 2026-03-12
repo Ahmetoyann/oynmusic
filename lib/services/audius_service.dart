@@ -2,27 +2,84 @@ import 'package:dio/dio.dart';
 import 'package:muzik_app/models/song_model.dart';
 
 class AudiusService {
-  // Audius Discovery Provider (Node)
-  static const String _baseUrl = 'https://discoveryprovider.audius.co';
   static const String _appName = 'OYN Music';
+  static const String _baseUrl = 'https://discoveryprovider.audius.co';
+
+  static const List<String> _bannedWords = [
+    "sex",
+    "porn",
+    "xxx",
+    "nude",
+    "weed",
+    "drug",
+    "cocaine",
+    "lean",
+    "smoke",
+    "beer",
+    "alcohol",
+    "vodka",
+    "whiskey",
+    "kill",
+    "murder",
+    "gun",
+    "blood",
+    "violence",
+  ];
+
+  static bool _isSafeContent(dynamic trackData) {
+    if (trackData == null) return false;
+
+    bool hasBannedWord(String? text) {
+      if (text == null || text.isEmpty) return false;
+      final lowerText = text.toLowerCase();
+      for (final word in _bannedWords) {
+        if (lowerText.contains(word)) return true;
+      }
+      return false;
+    }
+
+    final title = trackData['title']?.toString();
+    final description = trackData['description']?.toString();
+    final genre = trackData['genre']?.toString();
+    String? artistName;
+    if (trackData['user'] != null && trackData['user'] is Map) {
+      artistName = trackData['user']['name']?.toString();
+    }
+
+    if (hasBannedWord(title)) return false;
+    if (hasBannedWord(artistName)) return false;
+    if (hasBannedWord(genre)) return false;
+    if (hasBannedWord(description)) return false;
+
+    // Resim kontrolü: Artwork alanı yoksa veya boşsa filtrele
+    final artwork = trackData['artwork'];
+    if (artwork == null) return false;
+
+    // Song.fromAudiusJson Map bekliyor ve belirli keyleri arıyor
+    if (artwork is! Map || artwork.isEmpty) return false;
+
+    // Placeholder oluşmasını engellemek için geçerli boyut kontrolü
+    if (artwork['150x150'] == null && artwork['480x480'] == null) return false;
+
+    return true;
+  }
 
   /// Trend şarkıları çeker
   static Future<List<Song>> getTrendingSongs({
     String? genre,
-    String? timeRange, // 'week', 'month', 'year', 'allTime'
+    String? timeRange,
     int limit = 20,
     int offset = 0,
-    String? regionCode,
   }) async {
     final dio = Dio();
     try {
       final Map<String, dynamic> queryParams = {
+        'app_name': _appName,
         'limit': limit,
         'offset': offset,
-        'app_name': _appName,
       };
 
-      if (genre != null) {
+      if (genre != null && genre != 'Hepsi') {
         queryParams['genre'] = genre;
       }
 
@@ -30,17 +87,17 @@ class AudiusService {
         queryParams['time'] = timeRange;
       }
 
-      if (regionCode != null) {
-        queryParams['region'] = regionCode;
-      }
-
       final response = await dio.get(
         '$_baseUrl/v1/tracks/trending',
         queryParameters: queryParams,
       );
+
       if (response.statusCode == 200) {
         final data = response.data['data'] as List;
-        return data.map((e) => Song.fromAudiusJson(e)).toList();
+        return data
+            .where((e) => _isSafeContent(e))
+            .map((e) => Song.fromAudiusJson(e))
+            .toList();
       }
       return [];
     } catch (e) {
@@ -48,7 +105,7 @@ class AudiusService {
     }
   }
 
-  /// Şarkı veya sanatçı araması yapar
+  /// Şarkı araması yapar
   static Future<List<Song>> searchSongs(
     String query, {
     int limit = 20,
@@ -65,9 +122,13 @@ class AudiusService {
           'offset': offset,
         },
       );
+
       if (response.statusCode == 200) {
         final data = response.data['data'] as List;
-        return data.map((e) => Song.fromAudiusJson(e)).toList();
+        return data
+            .where((e) => _isSafeContent(e))
+            .map((e) => Song.fromAudiusJson(e))
+            .toList();
       }
       return [];
     } catch (e) {

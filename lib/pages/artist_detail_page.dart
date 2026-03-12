@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:muzik_app/models/song_model.dart';
 import 'package:muzik_app/providers/song_provider.dart';
@@ -8,6 +9,7 @@ import 'package:muzik_app/pages/player_page.dart';
 import 'package:muzik_app/widgets/mini_player.dart';
 import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/widgets/song_card.dart';
+import 'package:muzik_app/widgets/custom_snack_bar.dart';
 
 class ArtistDetailPage extends StatefulWidget {
   final String artistName;
@@ -112,12 +114,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
     return Scaffold(
       bottomNavigationBar: songProvider.currentSong != null
           ? GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const PlayerPage()),
-                );
-              },
+              onTap: () => PlayerPage.show(context),
               child: const MiniPlayer(),
             )
           : null,
@@ -255,36 +252,96 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    if (displayedSongs.isNotEmpty) {
-                      songProvider.playSong(
-                        displayedSongs.first,
-                        displayedSongs,
-                      );
-                    }
-                  },
-                  icon: CustomIcons.svgIcon(
-                    CustomIcons.playerPlay,
-                    size: 28,
-                    color: Colors.white,
-                  ),
-                  label: const Text(
-                    "Tümünü Çal",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 16.0,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        if (displayedSongs.isNotEmpty) {
+                          if (!songProvider.isShuffleEnabled) {
+                            songProvider.toggleShuffle();
+                          }
+                          final random = Random();
+                          final randomSong =
+                              displayedSongs[random.nextInt(
+                                displayedSongs.length,
+                              )];
+                          songProvider.playSong(randomSong, displayedSongs);
+                          CustomSnackBar.showInfo(
+                            context: context,
+                            message: "Liste karışık çalınıyor.",
+                            icon: const Icon(
+                              Icons.shuffle,
+                              color: Colors.white,
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.shuffle_rounded),
+                      label: const Text(
+                        "Karışık",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey.shade800,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        elevation: 0,
+                      ),
                     ),
                   ),
-                ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        if (displayedSongs.isNotEmpty) {
+                          if (songProvider.isShuffleEnabled) {
+                            songProvider.toggleShuffle();
+                          }
+                          songProvider.playSong(
+                            displayedSongs.first,
+                            displayedSongs,
+                          );
+                          CustomSnackBar.showInfo(
+                            context: context,
+                            message: "Liste oynatılıyor.",
+                            icon: const Icon(
+                              Icons.play_arrow,
+                              color: Colors.white,
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.play_arrow_rounded),
+                      label: const Text(
+                        "Oynat",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        elevation: 5,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -307,15 +364,15 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
                   isPlaying: isCurrentSong,
                   showOptions: true,
                   onTap: () {
-                    if (!isCurrentSong) {
+                    if (isCurrentSong) {
+                      if (songProvider.audioPlayer.playing) {
+                        songProvider.audioPlayer.pause();
+                      } else {
+                        songProvider.audioPlayer.play();
+                      }
+                    } else {
                       songProvider.playSong(song, displayedSongs);
                     }
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const PlayerPage(),
-                      ),
-                    );
                   },
                 ),
               );

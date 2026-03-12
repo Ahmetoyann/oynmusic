@@ -54,7 +54,7 @@ class _BlurryAlbumCardState extends State<BlurryAlbumCard> {
               ),
               // 2. Blur Efekti
               BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
+                filter: ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
                 child: Container(
                   color: Colors.black.withOpacity(0.4), // Karartma
                 ),

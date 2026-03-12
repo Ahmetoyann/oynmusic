@@ -7,7 +7,8 @@ import 'package:muzik_app/models/song_model.dart';
 import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/widgets/song_card.dart';
 import 'package:muzik_app/providers/auth_provider.dart';
-import 'package:muzik_app/pages/profile_page.dart';
+import 'package:muzik_app/widgets/custom_snack_bar.dart';
+import 'package:muzik_app/widgets/custom_app_bar.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -29,11 +30,9 @@ class _SearchPageState extends State<SearchPage> {
           _scrollController.position.maxScrollExtent - 200) {
         context.read<SongProvider>().loadMoreSearchResults().catchError((e) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text("Sonuçlar yüklenirken hata: $e"),
-                backgroundColor: Colors.red,
-              ),
+            CustomSnackBar.showError(
+              context: context,
+              message: "Sonuçlar yüklenirken hata: $e",
             );
           }
         });
@@ -72,34 +71,7 @@ class _SearchPageState extends State<SearchPage> {
     final aramaMetni = _searchController.text;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Ara'),
-        centerTitle: false,
-        leading: GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const ProfilePage()),
-            );
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: CircleAvatar(
-              backgroundColor: Colors.grey.shade800,
-              backgroundImage: authProvider.user?.photoURL != null
-                  ? NetworkImage(authProvider.user!.photoURL!)
-                  : null,
-              child: authProvider.user?.photoURL == null
-                  ? CustomIcons.svgIcon(
-                      CustomIcons.person,
-                      color: Colors.white,
-                      size: 20,
-                    )
-                  : null,
-            ),
-          ),
-        ),
-      ),
+      appBar: CustomAppBar(title: 'Ara', showLeading: false),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -261,7 +233,7 @@ class _SearchPageState extends State<SearchPage> {
               child: Text(
                 'Sizin İçin Önerilenler',
                 style: TextStyle(
-                  color: Theme.of(context).primaryColor,
+                  color: Colors.white,
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
                 ),

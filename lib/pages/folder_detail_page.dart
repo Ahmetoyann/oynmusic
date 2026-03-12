@@ -13,6 +13,9 @@ import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/services/audius_service.dart';
 import 'package:muzik_app/widgets/song_card.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
+import 'package:muzik_app/widgets/custom_snack_bar.dart';
+import 'package:muzik_app/widgets/custom_app_bar.dart';
 
 enum FolderSortOption { titleAZ, titleZA, artistAZ, artistZA }
 
@@ -62,7 +65,7 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
 
     return Scaffold(
       appBar: _isSelectionMode
-          ? AppBar(
+          ? CustomAppBar(
               leading: IconButton(
                 icon: const Icon(Icons.close),
                 onPressed: () {
@@ -72,7 +75,7 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                   });
                 },
               ),
-              title: Text('${_selectedSongIds.length} Seçildi'),
+              title: '${_selectedSongIds.length} Seçildi',
               actions: [
                 IconButton(
                   icon: const Icon(Icons.select_all),
@@ -96,7 +99,10 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                         },
                 ),
                 IconButton(
-                  icon: const Icon(Icons.delete),
+                  icon: CustomIcons.svgIcon(
+                    CustomIcons.delete,
+                    color: Colors.redAccent,
+                  ),
                   tooltip: "Sil",
                   onPressed: _selectedSongIds.isEmpty
                       ? null
@@ -106,12 +112,9 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                 ),
               ],
             )
-          : AppBar(
+          : CustomAppBar(
               // Başlık olarak klasörün adını gösteriyoruz.
-              title: Text(
-                folder.name,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
+              title: folder.name,
               actions: [
                 IconButton(
                   icon: const Icon(Icons.add_rounded),
@@ -221,15 +224,33 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                                 : Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.more_vert,
-                                          color: Colors.white,
-                                        ),
-                                        onPressed: () => _showSongOptions(
+                                      GestureDetector(
+                                        onTap: () => _showSongOptions(
                                           context,
                                           songProvider,
                                           song,
+                                        ),
+                                        child: Container(
+                                          width: 32,
+                                          height: 32,
+                                          decoration: BoxDecoration(
+                                            color: Theme.of(
+                                              context,
+                                            ).primaryColor.withOpacity(0.4),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            border: Border.all(
+                                              color: Colors.white.withOpacity(
+                                                0.1,
+                                              ),
+                                            ),
+                                          ),
+                                          child: const Icon(
+                                            Icons.more_vert,
+                                            size: 20,
+                                            color: Colors.white,
+                                          ),
                                         ),
                                       ),
                                       ReorderableDragStartListener(
@@ -277,12 +298,7 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
             ),
       bottomNavigationBar: songProvider.currentSong != null
           ? GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const PlayerPage()),
-                );
-              },
+              onTap: () => PlayerPage.show(context),
               child: const MiniPlayer(),
             )
           : null,
@@ -294,55 +310,64 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
     SongProvider provider,
     Song song,
   ) {
-    showModalBottomSheet(
+    final theme = Theme.of(context);
+    CustomBottomSheet.showContent(
       context: context,
-      backgroundColor: Colors.grey.shade900,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 40,
-              height: 4,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 8),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade700,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 16),
+          ListTile(
+            leading: Container(
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.grey.shade700,
-                borderRadius: BorderRadius.circular(2),
+                color: theme.primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
+              child: Icon(Icons.playlist_play, color: theme.primaryColor),
             ),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.playlist_play, color: Colors.white),
-              title: const Text(
-                'Sıradaki Çal',
-                style: TextStyle(color: Colors.white),
+            title: const Text(
+              'Sıradaki Çal',
+              style: TextStyle(color: Colors.white),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              provider.addSongToNext(song);
+            },
+          ),
+          ListTile(
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
-              onTap: () {
-                Navigator.pop(ctx);
-                provider.addSongToNext(song);
-              },
-            ),
-            ListTile(
-              leading: CustomIcons.svgIcon(
+              child: CustomIcons.svgIcon(
                 CustomIcons.delete,
                 color: Colors.redAccent,
                 size: 24,
               ),
-              title: const Text(
-                'Listeden Sil',
-                style: TextStyle(color: Colors.redAccent),
-              ),
-              onTap: () {
-                Navigator.pop(ctx);
-                _showDeleteDialog(context, provider, song);
-              },
             ),
-            const SizedBox(height: 16),
-          ],
-        ),
+            title: const Text(
+              'Listeden Sil',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              _showDeleteDialog(context, provider, song);
+            },
+          ),
+          const SizedBox(height: 16),
+        ],
       ),
     );
   }
@@ -357,68 +382,61 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
     if (image != null) {
       provider.updateFolderImage(widget.folder, image.path);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Kapak resmi güncellendi'),
-            backgroundColor: Colors.green,
-          ),
+        CustomSnackBar.showSuccess(
+          context: context,
+          message: 'Kapak resmi güncellendi',
         );
       }
     }
   }
 
   void _showImageOptions(BuildContext context, SongProvider provider) {
-    showModalBottomSheet(
+    CustomBottomSheet.showContent(
       context: context,
-      backgroundColor: Colors.grey.shade900,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade700,
-                borderRadius: BorderRadius.circular(2),
-              ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 8),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade700,
+              borderRadius: BorderRadius.circular(2),
             ),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.image, color: Colors.white),
-              title: const Text(
-                'Resmi Değiştir',
-                style: TextStyle(color: Colors.white),
-              ),
-              onTap: () {
-                Navigator.pop(ctx);
-                _pickFolderImage(context, provider);
-              },
+          ),
+          const SizedBox(height: 16),
+          ListTile(
+            leading: const Icon(Icons.image, color: Colors.white),
+            title: const Text(
+              'Resmi Değiştir',
+              style: TextStyle(color: Colors.white),
             ),
-            ListTile(
-              leading: const Icon(Icons.delete, color: Colors.redAccent),
-              title: const Text(
-                'Resmi Kaldır',
-                style: TextStyle(color: Colors.redAccent),
-              ),
-              onTap: () {
-                Navigator.pop(ctx);
-                provider.updateFolderImage(widget.folder, null);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Kapak resmi kaldırıldı'),
-                    backgroundColor: Colors.redAccent,
-                  ),
-                );
-              },
+            onTap: () {
+              Navigator.pop(context);
+              _pickFolderImage(context, provider);
+            },
+          ),
+          ListTile(
+            leading: CustomIcons.svgIcon(
+              CustomIcons.delete,
+              color: Colors.redAccent,
             ),
-            const SizedBox(height: 16),
-          ],
-        ),
+            title: const Text(
+              'Resmi Kaldır',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              provider.updateFolderImage(widget.folder, null);
+              CustomSnackBar.showError(
+                context: context,
+                message: 'Kapak resmi kaldırıldı',
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+        ],
       ),
     );
   }
@@ -494,6 +512,11 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                           .songs[random.nextInt(widget.folder.songs.length)];
 
                       provider.playSong(randomSong, widget.folder.songs);
+                      CustomSnackBar.showInfo(
+                        context: context,
+                        message: "Liste karışık çalınıyor.",
+                        icon: const Icon(Icons.shuffle, color: Colors.white),
+                      );
                     }
                   },
                   icon: const Icon(Icons.shuffle_rounded),
@@ -524,6 +547,11 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                       provider.playSong(
                         widget.folder.songs.first,
                         widget.folder.songs,
+                      );
+                      CustomSnackBar.showInfo(
+                        context: context,
+                        message: "Liste oynatılıyor.",
+                        icon: const Icon(Icons.play_arrow, color: Colors.white),
                       );
                     }
                   },
@@ -638,102 +666,47 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
     SongProvider provider,
     Song song,
   ) {
-    showDialog(
+    CustomBottomSheet.show(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.grey.shade900,
-        title: const Text(
-          'Şarkıyı Listeden Sil',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: Text(
-          '${song.title} bu listeden silinsin mi?',
-          style: const TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('İptal', style: TextStyle(color: Colors.white)),
-          ),
-          TextButton(
-            onPressed: () {
-              provider.removeSongFromFolder(widget.folder, song);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Row(
-                    children: [
-                      CustomIcons.svgIcon(
-                        CustomIcons.delete,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          '${song.title} listeden silindi.',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                  backgroundColor: Colors.redAccent,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  margin: const EdgeInsets.all(16),
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-            },
-            child: const Text('Sil', style: TextStyle(color: Colors.redAccent)),
-          ),
-        ],
-      ),
+      title: 'Şarkıyı Listeden Sil',
+      message: '${song.title} bu listeden silinsin mi?',
+      primaryButtonText: 'Sil',
+      primaryButtonColor: Colors.redAccent,
+      secondaryButtonText: 'İptal',
+      onPrimaryButtonTap: () {
+        provider.removeSongFromFolder(widget.folder, song);
+        Navigator.pop(context);
+        CustomSnackBar.showError(
+          context: context,
+          message: '${song.title} listeden silindi.',
+        );
+      },
     );
   }
 
   void _showBulkDeleteDialog(BuildContext context, SongProvider provider) {
-    showDialog(
+    CustomBottomSheet.show(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: Colors.grey.shade900,
-        title: const Text(
-          'Seçilenleri Sil',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: Text(
-          '${_selectedSongIds.length} şarkı bu listeden silinsin mi?',
-          style: const TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('İptal', style: TextStyle(color: Colors.white)),
-          ),
-          TextButton(
-            onPressed: () {
-              provider.removeSongsFromFolder(
-                widget.folder,
-                _selectedSongIds.toList(),
-              );
-              Navigator.pop(dialogContext);
-              setState(() {
-                _isSelectionMode = false;
-                _selectedSongIds.clear();
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Seçilen şarkılar silindi.'),
-                  backgroundColor: Colors.redAccent,
-                ),
-              );
-            },
-            child: const Text('Sil', style: TextStyle(color: Colors.redAccent)),
-          ),
-        ],
-      ),
+      title: 'Seçilenleri Sil',
+      message: '${_selectedSongIds.length} şarkı bu listeden silinsin mi?',
+      primaryButtonText: 'Sil',
+      primaryButtonColor: Colors.redAccent,
+      secondaryButtonText: 'İptal',
+      onPrimaryButtonTap: () {
+        provider.removeSongsFromFolder(
+          widget.folder,
+          _selectedSongIds.toList(),
+        );
+        Navigator.pop(context);
+        setState(() {
+          _isSelectionMode = false;
+          _selectedSongIds.clear();
+        });
+        CustomSnackBar.showError(
+          context: context,
+          message: 'Seçilen şarkılar silindi.',
+        );
+      },
     );
   }
 
@@ -789,14 +762,10 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
   }
 
   void _showAddSongsSheet(BuildContext context) {
-    showModalBottomSheet(
+    CustomBottomSheet.showContent(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.grey.shade900,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => AddSongsSheet(folder: widget.folder),
+      child: AddSongsSheet(folder: widget.folder),
     );
   }
 }
@@ -816,6 +785,16 @@ class _AddSongsSheetState extends State<AddSongsSheet> {
   bool _isLoading = false;
   Timer? _debounce;
 
+  void _sortSongs() {
+    final folderSongIds = widget.folder.songs.map((s) => s.id).toSet();
+    _songs.sort((a, b) {
+      final aExists = folderSongIds.contains(a.id);
+      final bExists = folderSongIds.contains(b.id);
+      if (aExists == bExists) return 0;
+      return aExists ? 1 : -1;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -826,6 +805,7 @@ class _AddSongsSheetState extends State<AddSongsSheet> {
     } else {
       _songs = List.from(provider.favoriteSongs);
     }
+    _sortSongs();
   }
 
   @override
@@ -846,6 +826,7 @@ class _AddSongsSheetState extends State<AddSongsSheet> {
           } else {
             _songs = List.from(provider.favoriteSongs);
           }
+          _sortSongs();
         });
         return;
       }
@@ -859,10 +840,20 @@ class _AddSongsSheetState extends State<AddSongsSheet> {
             return s.title.toLowerCase().contains(q) ||
                 s.artist.toLowerCase().contains(q);
           }).toList();
-          if (mounted) setState(() => _songs = results);
+          if (mounted) {
+            setState(() {
+              _songs = results;
+              _sortSongs();
+            });
+          }
         } else {
           final results = await AudiusService.searchSongs(query);
-          if (mounted) setState(() => _songs = results);
+          if (mounted) {
+            setState(() {
+              _songs = results;
+              _sortSongs();
+            });
+          }
         }
       } catch (e) {
         debugPrint("Arama hatası: $e");
@@ -874,14 +865,30 @@ class _AddSongsSheetState extends State<AddSongsSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-        top: 20,
-      ),
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.85,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          const SizedBox(height: 12),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade700,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Şarkı Ekle',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: TextField(
@@ -910,60 +917,161 @@ class _AddSongsSheetState extends State<AddSongsSheet> {
               onChanged: _onSearchChanged,
             ),
           ),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 300,
+          const SizedBox(height: 16),
+          Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     itemCount: _songs.length,
                     itemBuilder: (context, index) {
                       final song = _songs[index];
                       final isSelected = _selectedSongIds.contains(song.id);
-                      return CheckboxListTile(
-                        value: isSelected,
-                        activeColor: Theme.of(context).primaryColor,
-                        title: Text(
-                          song.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        subtitle: Text(
-                          song.artist,
-                          maxLines: 1,
-                          style: TextStyle(color: Colors.grey.shade400),
-                        ),
-                        secondary: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: Image.network(
-                            song.coverUrl,
-                            width: 40,
-                            height: 40,
-                            fit: BoxFit.cover,
-                            errorBuilder: (c, e, s) => Container(
-                              width: 40,
-                              height: 40,
-                              color: Colors.grey.shade800,
-                              child: const Icon(Icons.music_note, size: 20),
+                      final isAlreadyAdded = widget.folder.songs.any(
+                        (s) => s.id == song.id,
+                      );
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: GestureDetector(
+                          onTap: isAlreadyAdded
+                              ? null
+                              : () {
+                                  setState(() {
+                                    if (isSelected) {
+                                      _selectedSongIds.remove(song.id);
+                                    } else {
+                                      _selectedSongIds.add(song.id);
+                                    }
+                                  });
+                                },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: (isSelected || isAlreadyAdded)
+                                  ? Theme.of(
+                                      context,
+                                    ).primaryColor.withOpacity(0.15)
+                                  : Colors.grey.shade900.withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: (isSelected || isAlreadyAdded)
+                                    ? Theme.of(context).primaryColor
+                                    : Colors.transparent,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Opacity(
+                                  opacity: isAlreadyAdded ? 0.5 : 1.0,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child:
+                                        (song.localImagePath != null &&
+                                            File(
+                                              song.localImagePath!,
+                                            ).existsSync())
+                                        ? Image.file(
+                                            File(song.localImagePath!),
+                                            width: 50,
+                                            height: 50,
+                                            fit: BoxFit.cover,
+                                          )
+                                        : Image.network(
+                                            song.coverUrl,
+                                            width: 50,
+                                            height: 50,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (c, e, s) =>
+                                                Container(
+                                                  width: 50,
+                                                  height: 50,
+                                                  color: Colors.grey.shade800,
+                                                  child: const Icon(
+                                                    Icons.music_note,
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
+                                          ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        song.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: isAlreadyAdded
+                                              ? Colors.grey
+                                              : Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        isAlreadyAdded
+                                            ? "Zaten listede"
+                                            : song.artist,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: isAlreadyAdded
+                                              ? Theme.of(context).primaryColor
+                                              : Colors.grey.shade400,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (!isAlreadyAdded)
+                                  Container(
+                                    width: 24,
+                                    height: 24,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: isSelected
+                                          ? Theme.of(context).primaryColor
+                                          : Colors.transparent,
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? Theme.of(context).primaryColor
+                                            : Colors.grey.shade600,
+                                        width: 2,
+                                      ),
+                                    ),
+                                    child: isSelected
+                                        ? const Icon(
+                                            Icons.check,
+                                            size: 16,
+                                            color: Colors.white,
+                                          )
+                                        : null,
+                                  ),
+                                const SizedBox(width: 8),
+                              ],
                             ),
                           ),
                         ),
-                        onChanged: (bool? value) {
-                          setState(() {
-                            if (value == true) {
-                              _selectedSongIds.add(song.id);
-                            } else {
-                              _selectedSongIds.remove(song.id);
-                            }
-                          });
-                        },
                       );
                     },
                   ),
           ),
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: EdgeInsets.fromLTRB(
+              24,
+              16,
+              24,
+              MediaQuery.of(context).viewInsets.bottom + 16,
+            ),
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -978,13 +1086,9 @@ class _AddSongsSheetState extends State<AddSongsSheet> {
                           selectedSongs,
                         );
                         Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              '${selectedSongs.length} şarkı eklendi.',
-                            ),
-                            backgroundColor: Colors.green,
-                          ),
+                        CustomSnackBar.showSuccess(
+                          context: context,
+                          message: '${selectedSongs.length} şarkı eklendi.',
                         );
                       },
                 style: ElevatedButton.styleFrom(

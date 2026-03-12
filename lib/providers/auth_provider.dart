@@ -24,7 +24,15 @@ class AuthProvider with ChangeNotifier {
 
   /// Google ile Giriş Yap
   Future<User?> signInWithGoogle() async {
-    if (_auth == null) return null;
+    // Eğer _auth başlatılamadıysa (örneğin main.dart'ta hata olduysa) tekrar dene
+    if (_auth == null) {
+      try {
+        _auth = FirebaseAuth.instance;
+      } catch (e) {
+        debugPrint("FirebaseAuth başlatılamadı, giriş yapılamıyor: $e");
+        return null;
+      }
+    }
     try {
       // 1. Google Sign In akışını başlat
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
@@ -48,6 +56,10 @@ class AuthProvider with ChangeNotifier {
       return userCredential.user;
     } catch (e) {
       debugPrint("Google Giriş Hatası: $e");
+      if (e is FirebaseAuthException) {
+        debugPrint("Firebase Hata Kodu: ${e.code}");
+        debugPrint("Firebase Hata Mesajı: ${e.message}");
+      }
       rethrow;
     }
   }

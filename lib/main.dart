@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:muzik_app/pages/lists_page.dart';
 import 'package:muzik_app/pages/search_page.dart';
 import 'package:muzik_app/pages/trend_page.dart';
@@ -13,12 +15,14 @@ import 'package:muzik_app/providers/theme_provider.dart';
 import 'package:muzik_app/providers/auth_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:muzik_app/firebase_options.dart'; // Dosyayı import edin
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:muzik_app/pages/login_page.dart';
 import 'package:muzik_app/pages/player_page.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:muzik_app/pages/splash_screen.dart';
 import 'package:muzik_app/custom_icons.dart';
+import 'package:muzik_app/pages/onboarding_page.dart';
 
 // Global Navigator Key
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -27,13 +31,18 @@ final GlobalKey<MainScreenState> mainScreenKey = GlobalKey<MainScreenState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (Platform.isAndroid || Platform.isIOS) {
+    await MobileAds.instance.initialize();
+  }
   try {
     await dotenv.load(fileName: "youtubeapi.env");
   } catch (e) {
     debugPrint("Env dosyası yüklenemedi: $e");
   }
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform, // Güncel ayarları kullan
+    );
   } catch (e) {
     debugPrint("Firebase başlatılamadı: $e");
   }
@@ -93,6 +102,18 @@ class MyApp extends StatelessWidget {
           ),
           hintStyle: TextStyle(color: Colors.grey.shade400),
         ),
+        snackBarTheme: SnackBarThemeData(
+          backgroundColor: Colors.grey.shade900,
+          contentTextStyle: GoogleFonts.montserrat(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          behavior: SnackBarBehavior.floating,
+          insetPadding: const EdgeInsets.all(16),
+        ),
       ),
       debugShowCheckedModeBanner: false,
       builder: (context, child) {
@@ -114,11 +135,46 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
 
   @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  bool? _seenOnboarding;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkOnboarding();
+  }
+
+  Future<void> _checkOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _seenOnboarding = prefs.getBool('seenOnboarding') ?? false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_seenOnboarding == null)
+      return const Scaffold(backgroundColor: Colors.black);
+
+    if (!_seenOnboarding!) {
+      return OnboardingPage(
+        onCompleted: () {
+          setState(() {
+            _seenOnboarding = true;
+          });
+        },
+      );
+    }
+
     final songProvider = context.watch<SongProvider>();
 
     // Oturum açılmışsa veya misafir ise Ana Ekrana git
@@ -173,7 +229,9 @@ class MainScreenState extends State<MainScreen> {
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white),
+        border: Border.all(
+          color: Theme.of(context).primaryColor.withOpacity(0.5),
+        ),
       ),
       child: CustomIcons.svgIcon(
         svgIcon,
@@ -189,7 +247,9 @@ class MainScreenState extends State<MainScreen> {
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white),
+        border: Border.all(
+          color: Theme.of(context).primaryColor.withOpacity(0.5),
+        ),
       ),
       child: Icon(icon, color: color, size: 24),
     );
@@ -202,151 +262,109 @@ class MainScreenState extends State<MainScreen> {
       (p) => p.hasConnection,
     );
 
-    return PopScope(
-      canPop: false,
-      onPopInvoked: (didPop) async {
-        if (didPop) return;
-        final shouldExit = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            backgroundColor: Colors.grey.shade900,
-            title: const Text('Çıkış', style: TextStyle(color: Colors.white)),
-            content: const Text(
-              'Uygulamadan çıkmak istediğinize emin misiniz?',
-              style: TextStyle(color: Colors.white70),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text(
-                  'İptal',
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text(
-                  'Çıkış',
-                  style: TextStyle(color: Colors.redAccent),
-                ),
-              ),
-            ],
+    return Scaffold(
+      extendBody: true,
+      body: (!hasConnection && _selectedIndex != 3)
+          ? _buildNoConnectionView()
+          : IndexedStack(index: _selectedIndex, children: _pages),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onTap: () => PlayerPage.show(context),
+            child: const MiniPlayer(),
           ),
-        );
-
-        if (shouldExit == true) {
-          SystemNavigator.pop();
-        }
-      },
-      child: Scaffold(
-        extendBody: true,
-        body: (!hasConnection && _selectedIndex != 3)
-            ? _buildNoConnectionView()
-            : IndexedStack(index: _selectedIndex, children: _pages),
-        bottomNavigationBar: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const PlayerPage()),
-                );
-              },
-              child: const MiniPlayer(),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(48, 8, 48, 7),
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: primaryColor.withOpacity(0.25),
-                      blurRadius: 15,
-                      spreadRadius: 1,
-                    ),
-                  ],
-                  border: Border.all(
-                    color: primaryColor.withOpacity(0.3),
-                    width: 1,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(48, 8, 48, 7),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: primaryColor.withOpacity(0.25),
+                    blurRadius: 15,
+                    spreadRadius: 1,
                   ),
+                ],
+                border: Border.all(
+                  color: primaryColor.withOpacity(0.3),
+                  width: 1,
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                    child: BottomNavigationBar(
-                      type: BottomNavigationBarType.fixed,
-                      items: <BottomNavigationBarItem>[
-                        BottomNavigationBarItem(
-                          icon: CustomIcons.svgIcon(
-                            CustomIcons.trending,
-                            size: 24,
-                            color: Colors.grey,
-                          ),
-                          activeIcon: _buildActiveIcon(
-                            CustomIcons.trending,
-                            primaryColor,
-                          ),
-                          label: 'Trendler',
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  child: BottomNavigationBar(
+                    type: BottomNavigationBarType.fixed,
+                    items: <BottomNavigationBarItem>[
+                      BottomNavigationBarItem(
+                        icon: CustomIcons.svgIcon(
+                          CustomIcons.trending,
+                          size: 24,
+                          color: Colors.grey,
                         ),
-                        BottomNavigationBarItem(
-                          icon: CustomIcons.svgIcon(
-                            CustomIcons.search,
-                            size: 24,
-                            color: Colors.grey,
-                          ),
-                          activeIcon: _buildActiveIcon(
-                            CustomIcons.search,
-                            primaryColor,
-                          ),
-                          label: 'Ara',
+                        activeIcon: _buildActiveIcon(
+                          CustomIcons.trending,
+                          primaryColor,
                         ),
-                        BottomNavigationBarItem(
-                          icon: Icon(
-                            Icons.favorite_border,
-                            color: Colors.grey,
-                            size: 24,
-                          ),
-                          activeIcon: _buildActiveMaterialIcon(
-                            Icons.favorite,
-                            primaryColor,
-                          ),
-                          label: 'Favoriler',
+                        label: 'Trendler',
+                      ),
+                      BottomNavigationBarItem(
+                        icon: CustomIcons.svgIcon(
+                          CustomIcons.search,
+                          size: 24,
+                          color: Colors.grey,
                         ),
-                        BottomNavigationBarItem(
-                          icon: CustomIcons.svgIcon(
-                            CustomIcons.library,
-                            size: 24,
-                            color: Colors.grey,
-                          ),
-                          activeIcon: _buildActiveIcon(
-                            CustomIcons.library,
-                            primaryColor,
-                          ),
-                          label: 'Kitaplığım',
+                        activeIcon: _buildActiveIcon(
+                          CustomIcons.search,
+                          primaryColor,
                         ),
-                      ],
-                      currentIndex: _selectedIndex,
-                      onTap: _onItemTapped,
-                      backgroundColor: Colors.black.withValues(alpha: 0.3),
-                      selectedItemColor: primaryColor,
-                      unselectedItemColor: Colors.grey,
-                      selectedIconTheme: const IconThemeData(size: 24),
-                      unselectedIconTheme: const IconThemeData(size: 24),
-                      selectedFontSize: 1,
-                      unselectedFontSize: 1,
-                      showUnselectedLabels: false,
-                      showSelectedLabels: false,
-                      elevation: 0,
-                    ),
+                        label: 'Ara',
+                      ),
+                      BottomNavigationBarItem(
+                        icon: Icon(
+                          Icons.favorite_border,
+                          color: Colors.grey,
+                          size: 24,
+                        ),
+                        activeIcon: _buildActiveMaterialIcon(
+                          Icons.favorite,
+                          primaryColor,
+                        ),
+                        label: 'Favoriler',
+                      ),
+                      BottomNavigationBarItem(
+                        icon: CustomIcons.svgIcon(
+                          CustomIcons.library,
+                          size: 24,
+                          color: Colors.grey,
+                        ),
+                        activeIcon: _buildActiveIcon(
+                          CustomIcons.library,
+                          primaryColor,
+                        ),
+                        label: 'Kitaplığım',
+                      ),
+                    ],
+                    currentIndex: _selectedIndex,
+                    onTap: _onItemTapped,
+                    backgroundColor: Colors.black.withValues(alpha: 0.3),
+                    selectedItemColor: primaryColor,
+                    unselectedItemColor: Colors.grey,
+                    selectedIconTheme: const IconThemeData(size: 24),
+                    unselectedIconTheme: const IconThemeData(size: 24),
+                    selectedFontSize: 1,
+                    unselectedFontSize: 1,
+                    showUnselectedLabels: false,
+                    showSelectedLabels: false,
+                    elevation: 0,
                   ),
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -496,11 +514,6 @@ class _ConnectionManagerState extends State<ConnectionManager> {
                 ],
               ),
               backgroundColor: Colors.green.shade700,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              margin: const EdgeInsets.all(16),
               duration: const Duration(seconds: 2),
             ),
           );

@@ -64,7 +64,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '871651311558',
     projectId: 'music-app-62ae8',
     storageBucket: 'music-app-62ae8.firebasestorage.app',
-    iosBundleId: 'com.example.bankacilikUygulamasi',
+    iosBundleId: 'com.ahmed.oyn_music',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
@@ -73,7 +73,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '871651311558',
     projectId: 'music-app-62ae8',
     storageBucket: 'music-app-62ae8.firebasestorage.app',
-    iosBundleId: 'com.example.bankacilikUygulamasi',
+    iosBundleId: 'com.ahmed.oyn_music',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(

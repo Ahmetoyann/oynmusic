@@ -7,18 +7,26 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:871651311558:android:6e89ab2dc6b94d35bffcc7",
+        "mobilesdk_app_id": "1:871651311558:android:f5c4e3c7e6f0a4a1bffcc7",
         "android_client_info": {
-          "package_name": "com.example.bankacilik_uygulamasi"
+          "package_name": "com.ahmed.oyn_music"
         }
       },
       "oauth_client": [
         {
-          "client_id": "871651311558-jhue18v96pqb60or5g97i9gt1sdp3qbc.apps.googleusercontent.com",
+          "client_id": "871651311558-43qp6s9s4p9iokctfih47blba3sch16u.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.example.bankacilik_uygulamasi",
+            "package_name": "com.ahmed.oyn_music",
             "certificate_hash": "5da4f0903dcda86f20a66bca0a7752da8f0a3857"
+          }
+        },
+        {
+          "client_id": "871651311558-kvtrfhdtqmgbf565jsvjhvtbftlmeia7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ahmed.oyn_music",
+            "certificate_hash": "0e369ed517aa8afbe0d0882bc93aee9023f7b7f4"
           }
         },
         {
