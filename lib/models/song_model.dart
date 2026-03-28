@@ -48,7 +48,10 @@ class Song {
 
       // Kapak resmini 'album' nesnesinin içindeki 'cover_medium' alanından alıyoruz.
       // Eğer bu alanlar boş (null) gelirse, varsayılan bir yer tutucu resim kullanıyoruz.
-      coverUrl: albumInfo?['cover_medium'] ?? 'https://via.placeholder.com/250',
+      coverUrl:
+          albumInfo?['cover_small'] ??
+          albumInfo?['cover_medium'] ??
+          'https://via.placeholder.com/250',
 
       // Önizleme ses URL'sini alıyoruz.
       audioUrl: json['preview'] ?? '',
@@ -117,10 +120,11 @@ class Song {
       id: videoId,
       title: snippet['title'] ?? 'İsimsiz Video',
       artist: snippet['channelTitle'] ?? 'YouTube Kanalı',
-      // Yüksek çözünürlüklü kapak resmi varsa al, yoksa varsayılanı kullan
+      // İnternet tasarrufu için düşük/orta çözünürlüklü kapak resmi alıyoruz
       coverUrl:
-          snippet['thumbnails']['high']?['url'] ??
+          snippet['thumbnails']['medium']?['url'] ??
           snippet['thumbnails']['default']?['url'] ??
+          snippet['thumbnails']['high']?['url'] ??
           'https://via.placeholder.com/250',
       // Not: Bu URL doğrudan oynatılamaz. youtube_explode_dart gibi bir paket ile stream URL'ine çevrilmelidir.
       audioUrl: 'https://www.youtube.com/watch?v=$videoId',
@@ -140,9 +144,9 @@ class Song {
       title: snippet['title'] ?? 'İsimsiz Video',
       artist: snippet['channelTitle'] ?? 'YouTube Kanalı',
       coverUrl:
-          snippet['thumbnails']['high']?['url'] ??
           snippet['thumbnails']['medium']?['url'] ??
           snippet['thumbnails']['default']?['url'] ??
+          snippet['thumbnails']['high']?['url'] ??
           'https://via.placeholder.com/250',
       audioUrl: 'https://www.youtube.com/watch?v=$videoId',
       duration: _parseDuration(contentDetails['duration']),
@@ -161,8 +165,8 @@ class Song {
       title: json['title'] ?? 'İsimsiz Şarkı',
       artist: user['name'] ?? 'Bilinmeyen Sanatçı',
       coverUrl:
-          artwork['480x480'] ??
           artwork['150x150'] ??
+          artwork['480x480'] ??
           'https://via.placeholder.com/250',
       audioUrl: 'https://discoveryprovider.audius.co/v1/tracks/$trackId/stream',
       duration: json['duration'] ?? 0,

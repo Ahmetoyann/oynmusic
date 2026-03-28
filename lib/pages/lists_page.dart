@@ -17,6 +17,10 @@ import 'package:muzik_app/pages/folder_detail_page.dart';
 import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/widgets/custom_app_bar.dart';
+import 'package:muzik_app/pages/recently_played_page.dart';
+import 'package:muzik_app/widgets/song_grid_card.dart';
+import 'package:muzik_app/pages/player_page.dart';
+import 'package:muzik_app/widgets/custom_drop_down.dart';
 
 enum SortOption { dateNewest, dateOldest, nameAZ, nameZA }
 
@@ -62,13 +66,22 @@ class _ListelerPageState extends State<ListelerPage> {
         break;
     }
 
+    // En Son Dinlenenler için filtreleme
+    final validRecentlyPlayed = songProvider.recentlyPlayed
+        .where(
+          (s) =>
+              s.coverUrl.isNotEmpty &&
+              !s.coverUrl.contains('via.placeholder.com'),
+        )
+        .toList();
+
     return Scaffold(
       appBar: CustomAppBar(
         title: 'Kitaplığım',
         showLeading: false,
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings),
+            icon: CustomIcons.svgIcon(CustomIcons.settings, size: 24),
             onPressed: () {
               Navigator.push(
                 context,
@@ -77,33 +90,56 @@ class _ListelerPageState extends State<ListelerPage> {
             },
           ),
           if (sortedFolders.isNotEmpty)
-            PopupMenuButton<SortOption>(
-              icon: const Icon(Icons.sort),
+            CustomDropDown<SortOption>(
+              icon: CustomIcons.svgIcon(CustomIcons.sort, size: 24),
               tooltip: "Sırala",
               onSelected: (SortOption result) {
                 setState(() {
                   _sortOption = result;
                 });
               },
-              itemBuilder: (BuildContext context) =>
-                  <PopupMenuEntry<SortOption>>[
-                    const PopupMenuItem<SortOption>(
-                      value: SortOption.dateNewest,
-                      child: Text('Tarihe Göre (En Yeni)'),
-                    ),
-                    const PopupMenuItem<SortOption>(
-                      value: SortOption.dateOldest,
-                      child: Text('Tarihe Göre (En Eski)'),
-                    ),
-                    const PopupMenuItem<SortOption>(
-                      value: SortOption.nameAZ,
-                      child: Text('İsme Göre (A-Z)'),
-                    ),
-                    const PopupMenuItem<SortOption>(
-                      value: SortOption.nameZA,
-                      child: Text('İsme Göre (Z-A)'),
-                    ),
-                  ],
+              items: [
+                CustomDropdownItem.build<SortOption>(
+                  context: context,
+                  value: SortOption.dateNewest,
+                  icon: Icon(
+                    Icons.arrow_downward_rounded,
+                    size: 20,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                  text: 'Tarihe Göre (En Yeni)',
+                ),
+                CustomDropdownItem.build<SortOption>(
+                  context: context,
+                  value: SortOption.dateOldest,
+                  icon: Icon(
+                    Icons.arrow_upward_rounded,
+                    size: 20,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                  text: 'Tarihe Göre (En Eski)',
+                ),
+                CustomDropdownItem.build<SortOption>(
+                  context: context,
+                  value: SortOption.nameAZ,
+                  icon: Icon(
+                    Icons.sort_by_alpha_rounded,
+                    size: 20,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                  text: 'İsme Göre (A-Z)',
+                ),
+                CustomDropdownItem.build<SortOption>(
+                  context: context,
+                  value: SortOption.nameZA,
+                  icon: Icon(
+                    Icons.sort_by_alpha_rounded,
+                    size: 20,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                  text: 'İsme Göre (Z-A)',
+                ),
+              ],
             ),
         ],
       ),
@@ -146,7 +182,7 @@ class _ListelerPageState extends State<ListelerPage> {
                     child: Transform.rotate(
                       angle: -0.2,
                       child: Icon(
-                        Icons.downloading_rounded,
+                        Icons.downloading,
                         size: 140,
                         color: Colors.white.withOpacity(0.1),
                       ),
@@ -174,8 +210,8 @@ class _ListelerPageState extends State<ListelerPage> {
                                 color: Colors.white.withOpacity(0.1),
                                 shape: BoxShape.circle,
                               ),
-                              child: Icon(
-                                Icons.downloading_rounded,
+                              child: const Icon(
+                                Icons.downloading,
                                 color: Colors.white,
                                 size: 28,
                               ),
@@ -219,11 +255,12 @@ class _ListelerPageState extends State<ListelerPage> {
               ),
             ),
           ),
+
           Expanded(
             child: (sortedFolders.isEmpty && !hasConnection)
                 ? _buildEmptyState(context, hasConnection)
                 : GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 160),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 4,
@@ -251,6 +288,74 @@ class _ListelerPageState extends State<ListelerPage> {
                     },
                   ),
           ),
+
+          if (validRecentlyPlayed.isNotEmpty) const SizedBox(height: 12),
+
+          // --- EN SON DİNLEDİKLERİN BÖLÜMÜ ---
+          if (validRecentlyPlayed.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.only(
+                bottom: songProvider.currentSong != null ? 160 : 100,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const RecentlyPlayedPage(),
+                          ),
+                        );
+                      },
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            "En Son Dinlediklerin",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    height: 150,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      itemCount: validRecentlyPlayed.length > 10
+                          ? 11
+                          : validRecentlyPlayed.length,
+                      itemBuilder: (context, index) {
+                        if (validRecentlyPlayed.length > 10 && index == 10) {
+                          return Container(
+                            width: 110,
+                            margin: const EdgeInsets.only(right: 12),
+                            child: _buildSeeMoreCard(context),
+                          );
+                        }
+                        final song = validRecentlyPlayed[index];
+                        return Container(
+                          width: 110,
+                          margin: const EdgeInsets.only(right: 12),
+                          child: _buildRecentlyPlayedCard(context, song),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            SizedBox(height: songProvider.currentSong != null ? 160 : 100),
         ],
       ),
     );
@@ -306,6 +411,94 @@ class _ListelerPageState extends State<ListelerPage> {
     );
   }
 
+  Widget _buildRecentlyPlayedCard(BuildContext context, Song song) {
+    return SongGridCard(
+      song: song,
+      imageUrl: song.coverUrl,
+      title: song.title,
+      subtitle: song.artist,
+      onTap: () {
+        final provider = context.read<SongProvider>();
+        if (provider.currentSong?.id == song.id) {
+          if (provider.audioPlayer.playing) {
+            provider.audioPlayer.pause();
+          } else {
+            provider.audioPlayer.play();
+          }
+        } else {
+          provider.playSong(song, provider.recentlyPlayed);
+        }
+        PlayerPage.show(context);
+      },
+    );
+  }
+
+  Widget _buildSeeMoreCard(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const RecentlyPlayedPage()),
+        );
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Theme.of(context).primaryColor.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.arrow_forward_rounded,
+                      color: Theme.of(context).primaryColor,
+                      size: 32,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "Devamını\nGör",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Theme.of(context).primaryColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            "Tümü",
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            "Dinleme Geçmişi",
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildFolderGridCard(BuildContext context, MusicFolder folder) {
     return GestureDetector(
       onTap: () {
@@ -349,7 +542,7 @@ class _ListelerPageState extends State<ListelerPage> {
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
-                            Icons.downloading_rounded,
+                            Icons.downloading,
                             size: 16,
                             color: Theme.of(context).primaryColor,
                           ),
@@ -392,13 +585,6 @@ class _ListelerPageState extends State<ListelerPage> {
         height: double.infinity,
       );
     }
-    // Klasör türüne göre ikon ve renk seçimi
-    final String icon = folder.isFromDownloads
-        ? CustomIcons.download
-        : CustomIcons.star;
-    final Color iconColor = folder.isFromDownloads
-        ? Colors.white
-        : Colors.orange;
 
     if (songs.isEmpty) {
       return Container(
@@ -410,11 +596,17 @@ class _ListelerPageState extends State<ListelerPage> {
           ),
         ),
         child: Center(
-          child: CustomIcons.svgIcon(
-            icon,
-            color: iconColor,
-            size: isGrid ? 28 : 24,
-          ),
+          child: folder.isFromDownloads
+              ? Icon(
+                  Icons.downloading,
+                  color: Colors.white,
+                  size: isGrid ? 28 : 24,
+                )
+              : CustomIcons.svgIcon(
+                  CustomIcons.star,
+                  color: Colors.orange,
+                  size: isGrid ? 28 : 24,
+                ),
         ),
       );
     }
@@ -503,7 +695,11 @@ class _ListelerPageState extends State<ListelerPage> {
           ),
           const SizedBox(height: 16),
           ListTile(
-            leading: const Icon(Icons.edit, color: Colors.white),
+            leading: CustomIcons.svgIcon(
+              CustomIcons.edit,
+              color: Colors.white,
+              size: 24,
+            ),
             title: const Text(
               'Yeniden Adlandır',
               style: TextStyle(color: Colors.white),
@@ -582,8 +778,8 @@ class _ListelerPageState extends State<ListelerPage> {
                     size: 64,
                     color: Theme.of(context).primaryColor.withOpacity(0.5),
                   )
-                : Icon(
-                    Icons.wifi_off,
+                : CustomIcons.svgIcon(
+                    CustomIcons.wifiOff,
                     size: 64,
                     color: Theme.of(context).primaryColor.withOpacity(0.5),
                   ),
@@ -853,8 +1049,8 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
                   ? Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.add_photo_alternate_rounded,
+                        CustomIcons.svgIcon(
+                          CustomIcons.addPhotoAlternateRounded,
                           color: Theme.of(context).primaryColor,
                           size: 48,
                         ),
@@ -875,59 +1071,82 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
           const SizedBox(height: 24),
           // --- Modern İsim Girişi ---
           Container(
-            margin: const EdgeInsets.symmetric(horizontal: 40),
+            margin: const EdgeInsets.symmetric(horizontal: 24),
             child: TextField(
               controller: _nameController,
               textAlign: TextAlign.center,
               decoration: InputDecoration(
                 hintText: 'Liste adı',
                 hintStyle: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 22,
+                  color: Colors.grey.shade500,
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.zero,
+                filled: true,
+                fillColor: Colors.grey.shade800,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 16,
+                  horizontal: 16,
+                ),
               ),
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 22,
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
               ),
             ),
           ),
-          const SizedBox(height: 8),
-          Container(
-            height: 2,
-            width: 100,
-            decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor.withOpacity(0.5),
-              borderRadius: BorderRadius.circular(1),
-            ),
-          ),
           const SizedBox(height: 16),
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 20),
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade900,
-              borderRadius: BorderRadius.circular(25),
-            ),
-            child: TabBar(
-              controller: _tabController,
-              indicator: BoxDecoration(
-                color: Theme.of(context).primaryColor,
-                borderRadius: BorderRadius.circular(21),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.1),
+                      width: 1,
+                    ),
+                  ),
+                  child: TabBar(
+                    controller: _tabController,
+                    indicator: BoxDecoration(
+                      color: Theme.of(context).primaryColor.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Theme.of(context).primaryColor.withOpacity(0.5),
+                        width: 1,
+                      ),
+                    ),
+                    labelColor: Theme.of(context).primaryColor,
+                    unselectedLabelColor: Colors.grey.shade400,
+                    dividerColor: Colors.transparent,
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    overlayColor: MaterialStateProperty.all(Colors.transparent),
+                    labelStyle: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                    unselectedLabelStyle: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                    tabs: const [
+                      Tab(text: 'Favoriler'),
+                      Tab(text: 'İndirilenler'),
+                    ],
+                  ),
+                ),
               ),
-              labelColor: Colors.white,
-              unselectedLabelColor: Colors.grey,
-              dividerColor: Colors.transparent,
-              indicatorSize: TabBarIndicatorSize.tab,
-              overlayColor: MaterialStateProperty.all(Colors.transparent),
-              tabs: const [
-                Tab(text: 'Favoriler'),
-                Tab(text: 'İndirilenler'),
-              ],
             ),
           ),
           Expanded(
@@ -945,66 +1164,93 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
             ),
             child: SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  // 1. İsim kontrolü
-                  if (_nameController.text.isEmpty) {
-                    CustomSnackBar.showError(
-                      context: context,
-                      message: 'Lütfen bir liste adı girin.',
-                    );
-                    return;
-                  }
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: BackdropFilter(
+                  filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).primaryColor.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Theme.of(context).primaryColor.withOpacity(0.5),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Theme.of(
+                            context,
+                          ).primaryColor.withOpacity(0.2),
+                          blurRadius: 15,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          // 1. İsim kontrolü
+                          if (_nameController.text.isEmpty) {
+                            CustomSnackBar.showError(
+                              context: context,
+                              message: 'Lütfen bir liste adı girin.',
+                            );
+                            return;
+                          }
 
-                  // 2. Şarkı seçimi kontrolü (YENİ)
-                  if (_selectedSongIds.isEmpty) {
-                    CustomSnackBar.showError(
-                      context: context,
-                      message: 'Lütfen en az bir şarkı seçin.',
-                    );
-                    return;
-                  }
+                          // 2. Şarkı seçimi kontrolü (YENİ)
+                          if (_selectedSongIds.isEmpty) {
+                            CustomSnackBar.showError(
+                              context: context,
+                              message: 'Lütfen en az bir şarkı seçin.',
+                            );
+                            return;
+                          }
 
-                  // 3. Liste oluşturma işlemleri
-                  final allSongs = [...favorites, ...downloads];
-                  final uniqueSelectedSongs = <String, Song>{};
-                  for (var s in allSongs) {
-                    if (_selectedSongIds.contains(s.id)) {
-                      uniqueSelectedSongs[s.id] = s;
-                    }
-                  }
+                          // 3. Liste oluşturma işlemleri
+                          final allSongs = [...favorites, ...downloads];
+                          final uniqueSelectedSongs = <String, Song>{};
+                          for (var s in allSongs) {
+                            if (_selectedSongIds.contains(s.id)) {
+                              uniqueSelectedSongs[s.id] = s;
+                            }
+                          }
 
-                  final provider = context.read<SongProvider>();
-                  final bool isAllDownloaded = uniqueSelectedSongs.values.every(
-                    (s) => provider.isSongDownloaded(s.id),
-                  );
+                          final provider = context.read<SongProvider>();
+                          final bool isAllDownloaded = uniqueSelectedSongs
+                              .values
+                              .every((s) => provider.isSongDownloaded(s.id));
 
-                  provider.createFolder(
-                    name: _nameController.text,
-                    songs: uniqueSelectedSongs.values.toList(),
-                    isFromDownloads: isAllDownloaded,
-                    customImagePath: _selectedImagePath,
-                  );
-                  Navigator.pop(context); // Sheet'i kapat
-                  // Başarılı mesajı ana ekranda görünsün
-                  CustomSnackBar.showSuccess(
-                    context: context,
-                    message: '${_nameController.text} oluşturuldu.',
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).primaryColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Text(
-                  'Oluştur (${_selectedSongIds.length})',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                          provider.createFolder(
+                            name: _nameController.text,
+                            songs: uniqueSelectedSongs.values.toList(),
+                            isFromDownloads: isAllDownloaded,
+                            customImagePath: _selectedImagePath,
+                          );
+                          Navigator.pop(context); // Sheet'i kapat
+                          // Başarılı mesajı ana ekranda görünsün
+                          CustomSnackBar.showSuccess(
+                            context: context,
+                            message: '${_nameController.text} oluşturuldu.',
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          child: Center(
+                            child: Text(
+                              'Oluştur (${_selectedSongIds.length})',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -1021,8 +1267,8 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.music_off_rounded,
+            CustomIcons.svgIcon(
+              CustomIcons.musicOffRounded,
               size: 64,
               color: Colors.grey.shade800,
             ),
@@ -1091,9 +1337,10 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
                               width: 50,
                               height: 50,
                               color: Colors.grey.shade800,
-                              child: const Icon(
-                                Icons.music_note,
+                              child: CustomIcons.svgIcon(
+                                CustomIcons.musicNote,
                                 color: Colors.grey,
+                                size: 24,
                               ),
                             ),
                           ),
@@ -1142,7 +1389,11 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
                       ),
                     ),
                     child: isSelected
-                        ? const Icon(Icons.check, size: 16, color: Colors.white)
+                        ? CustomIcons.svgIcon(
+                            CustomIcons.check,
+                            size: 16,
+                            color: Colors.white,
+                          )
                         : null,
                   ),
                   const SizedBox(width: 8),

@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 
 class CustomBottomSheet extends StatelessWidget {
@@ -44,20 +45,38 @@ class CustomBottomSheet extends StatelessWidget {
     return showModalBottomSheet(
       context: context,
       isDismissible: isDismissible,
-      backgroundColor: Colors.black,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => CustomBottomSheet(
-        title: title,
-        message: message,
-        icon: icon,
-        primaryButtonText: primaryButtonText,
-        onPrimaryButtonTap: onPrimaryButtonTap,
-        secondaryButtonText: secondaryButtonText,
-        onSecondaryButtonTap: onSecondaryButtonTap,
-        primaryButtonColor: primaryButtonColor,
-        primaryButtonTextColor: primaryButtonTextColor,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      builder: (ctx) => ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.6),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
+              ),
+              border: Border(
+                top: BorderSide(
+                  color: Colors.white.withOpacity(0.2),
+                  width: 1.5,
+                ),
+              ),
+            ),
+            child: CustomBottomSheet(
+              title: title,
+              message: message,
+              icon: icon,
+              primaryButtonText: primaryButtonText,
+              onPrimaryButtonTap: onPrimaryButtonTap,
+              secondaryButtonText: secondaryButtonText,
+              onSecondaryButtonTap: onSecondaryButtonTap,
+              primaryButtonColor: primaryButtonColor,
+              primaryButtonTextColor: primaryButtonTextColor,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -67,17 +86,35 @@ class CustomBottomSheet extends StatelessWidget {
     required Widget child,
     bool isScrollControlled = false,
     bool isDismissible = true,
-    Color backgroundColor = Colors.black,
+    Color? backgroundColor,
   }) {
     return showModalBottomSheet<T>(
       context: context,
       isScrollControlled: isScrollControlled,
       isDismissible: isDismissible,
-      backgroundColor: backgroundColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      builder: (ctx) => ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Container(
+            decoration: BoxDecoration(
+              color: backgroundColor ?? Colors.black.withOpacity(0.6),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
+              ),
+              border: Border(
+                top: BorderSide(
+                  color: Colors.white.withOpacity(0.2),
+                  width: 1.5,
+                ),
+              ),
+            ),
+            child: SafeArea(child: child),
+          ),
+        ),
       ),
-      builder: (ctx) => SafeArea(child: child),
     );
   }
 
@@ -113,22 +150,55 @@ class CustomBottomSheet extends StatelessWidget {
           if (primaryButtonText != null)
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
-                onPressed: onPrimaryButtonTap ?? () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      primaryButtonColor ?? Theme.of(context).primaryColor,
-                  foregroundColor: primaryButtonTextColor ?? Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Text(
-                  primaryButtonText!,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color:
+                          (primaryButtonColor ?? Theme.of(context).primaryColor)
+                              .withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color:
+                            (primaryButtonColor ??
+                                    Theme.of(context).primaryColor)
+                                .withOpacity(0.5),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color:
+                              (primaryButtonColor ??
+                                      Theme.of(context).primaryColor)
+                                  .withOpacity(0.2),
+                          blurRadius: 15,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap:
+                            onPrimaryButtonTap ?? () => Navigator.pop(context),
+                        borderRadius: BorderRadius.circular(16),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          child: Center(
+                            child: Text(
+                              primaryButtonText!,
+                              style: TextStyle(
+                                color: primaryButtonTextColor ?? Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),

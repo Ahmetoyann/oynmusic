@@ -10,6 +10,8 @@ import 'package:muzik_app/widgets/mini_player.dart';
 import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/widgets/song_card.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
+import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
+import 'package:muzik_app/pages/login_page.dart';
 
 class ArtistDetailPage extends StatefulWidget {
   final String artistName;
@@ -60,7 +62,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
   Future<void> _fetchArtistSongs() async {
     try {
       // Sanatçı adına göre Audius'ta arama yap
-      final results = await AudiusService.searchSongs(widget.artistName);
+      final results = await YoutubeService.searchSongs(widget.artistName);
       if (mounted) {
         setState(() {
           _songs = results;
@@ -80,7 +82,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
     });
 
     try {
-      final results = await AudiusService.searchSongs(
+      final results = await YoutubeService.searchSongs(
         widget.artistName,
         offset: _songs.length,
       );
@@ -127,9 +129,32 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
             pinned: true,
             stretch: true,
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            leading: Center(
+              child: Container(
+                width: 46,
+                height: 46,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(
+                    0.4,
+                  ), // Kapak resmi üzerinde okunabilir olması için yarı saydam siyah
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                ),
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  icon: const BackButtonIcon(),
+                  color: Theme.of(context).primaryColor,
+                  iconSize: 27,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ),
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
                 widget.artistName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -209,7 +234,126 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              padding: const EdgeInsets.only(top: 20.0, bottom: 8.0),
+              child: Center(
+                child: Consumer<SongProvider>(
+                  builder: (context, provider, _) {
+                    final isFollowed = provider.isArtistFollowed(
+                      widget.artistName,
+                    );
+
+                    final primaryColor = Theme.of(context).primaryColor;
+                    Color borderColor;
+                    Color bgColor;
+                    Widget content;
+
+                    if (isFollowed) {
+                      borderColor = primaryColor.withOpacity(0.5);
+                      bgColor = primaryColor.withOpacity(0.1);
+                      content = Row(
+                        key: const ValueKey('followed'),
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.check_rounded,
+                            color: primaryColor,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            "Takip Ediliyor",
+                            style: TextStyle(
+                              color: primaryColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      );
+                    } else {
+                      borderColor = Colors.white.withOpacity(0.2);
+                      bgColor = Colors.black.withOpacity(0.4);
+                      content = Row(
+                        key: const ValueKey('follow'),
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.person_add_alt_1_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            "Takip Et",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(30),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                          decoration: BoxDecoration(
+                            color: bgColor,
+                            borderRadius: BorderRadius.circular(30),
+                            border: Border.all(color: borderColor, width: 1.5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: borderColor.withOpacity(0.2),
+                                blurRadius: 15,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                if (!provider.isFirebaseLoggedIn) {
+                                  _showLoginBottomSheet(context);
+                                  return;
+                                }
+                                provider.toggleFollowArtist(widget.artistName);
+                                CustomSnackBar.showInfo(
+                                  context: context,
+                                  message: isFollowed
+                                      ? "${widget.artistName} takipten çıkarıldı."
+                                      : "${widget.artistName} takip ediliyor.",
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(30),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: 14,
+                                ),
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 300),
+                                  child: content,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: TextField(
                 controller: _searchController,
                 style: const TextStyle(color: Colors.white),
@@ -259,85 +403,159 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
               child: Row(
                 children: [
                   Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        if (displayedSongs.isNotEmpty) {
-                          if (!songProvider.isShuffleEnabled) {
-                            songProvider.toggleShuffle();
-                          }
-                          final random = Random();
-                          final randomSong =
-                              displayedSongs[random.nextInt(
-                                displayedSongs.length,
-                              )];
-                          songProvider.playSong(randomSong, displayedSongs);
-                          CustomSnackBar.showInfo(
-                            context: context,
-                            message: "Liste karışık çalınıyor.",
-                            icon: const Icon(
-                              Icons.shuffle,
-                              color: Colors.white,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(30),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(30),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.2),
+                              width: 1.5,
                             ),
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.shuffle_rounded),
-                      label: const Text(
-                        "Karışık",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                if (displayedSongs.isNotEmpty) {
+                                  if (!songProvider.isShuffleEnabled) {
+                                    songProvider.toggleShuffle();
+                                  }
+                                  final random = Random();
+                                  final randomSong =
+                                      displayedSongs[random.nextInt(
+                                        displayedSongs.length,
+                                      )];
+                                  songProvider.playSong(
+                                    randomSong,
+                                    displayedSongs,
+                                  );
+                                  CustomSnackBar.showInfo(
+                                    context: context,
+                                    message: "Liste karışık çalınıyor.",
+                                    icon: CustomIcons.svgIcon(
+                                      CustomIcons.shuffle,
+                                      color: Colors.white,
+                                      size: 24,
+                                    ),
+                                  );
+                                  PlayerPage.show(context);
+                                }
+                              },
+                              borderRadius: BorderRadius.circular(30),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    CustomIcons.svgIcon(
+                                      CustomIcons.shuffleRounded,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      "Karışık",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey.shade800,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        elevation: 0,
                       ),
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        if (displayedSongs.isNotEmpty) {
-                          if (songProvider.isShuffleEnabled) {
-                            songProvider.toggleShuffle();
-                          }
-                          songProvider.playSong(
-                            displayedSongs.first,
-                            displayedSongs,
-                          );
-                          CustomSnackBar.showInfo(
-                            context: context,
-                            message: "Liste oynatılıyor.",
-                            icon: const Icon(
-                              Icons.play_arrow,
-                              color: Colors.white,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(30),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Theme.of(
+                              context,
+                            ).primaryColor.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(30),
+                            border: Border.all(
+                              color: Theme.of(
+                                context,
+                              ).primaryColor.withOpacity(0.5),
+                              width: 1.5,
                             ),
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.play_arrow_rounded),
-                      label: const Text(
-                        "Oynat",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Theme.of(
+                                  context,
+                                ).primaryColor.withOpacity(0.2),
+                                blurRadius: 15,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                if (displayedSongs.isNotEmpty) {
+                                  if (songProvider.isShuffleEnabled) {
+                                    songProvider.toggleShuffle();
+                                  }
+                                  songProvider.playSong(
+                                    displayedSongs.first,
+                                    displayedSongs,
+                                  );
+                                  CustomSnackBar.showInfo(
+                                    context: context,
+                                    message: "Liste oynatılıyor.",
+                                    icon: CustomIcons.svgIcon(
+                                      CustomIcons.playArrow,
+                                      color: Colors.white,
+                                      size: 24,
+                                    ),
+                                  );
+                                  PlayerPage.show(context);
+                                }
+                              },
+                              borderRadius: BorderRadius.circular(30),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    CustomIcons.svgIcon(
+                                      CustomIcons.playArrowRounded,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      "Oynat",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        elevation: 5,
                       ),
                     ),
                   ),
@@ -373,6 +591,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
                     } else {
                       songProvider.playSong(song, displayedSongs);
                     }
+                    PlayerPage.show(context);
                   },
                 ),
               );
@@ -429,6 +648,31 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
           ),
         ],
       ),
+    );
+  }
+
+  void _showLoginBottomSheet(BuildContext context) {
+    CustomBottomSheet.show(
+      context: context,
+      title: "Takip Etmek için Giriş Yapın",
+      message:
+          "Sanatçıları takip etmek ve güncellemelerinden haberdar olmak için lütfen giriş yapın.",
+      icon: const Icon(
+        Icons.person_add_disabled_rounded,
+        size: 60,
+        color: Colors.white70,
+      ),
+      primaryButtonText: "Giriş Yap",
+      primaryButtonColor: Colors.white,
+      primaryButtonTextColor: Colors.black,
+      secondaryButtonText: "İptal",
+      onPrimaryButtonTap: () {
+        Navigator.pop(context);
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginPage()),
+        );
+      },
     );
   }
 }

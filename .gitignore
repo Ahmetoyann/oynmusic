@@ -57,3 +57,4 @@ git init
 # Environment files
 youtubeapi.env
 
+assets/*.json

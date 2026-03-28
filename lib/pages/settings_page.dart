@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:muzik_app/providers/song_provider.dart';
 import 'package:muzik_app/providers/theme_provider.dart';
 import 'package:muzik_app/providers/auth_provider.dart';
@@ -26,40 +27,6 @@ class SettingsPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // 1. Profil Bölümü (Giriş yapılmışsa)
-          if (user != null) ...[
-            Center(
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    radius: 40,
-                    backgroundImage: user.photoURL != null
-                        ? (user.photoURL!.startsWith('http')
-                                  ? NetworkImage(user.photoURL!)
-                                  : FileImage(File(user.photoURL!)))
-                              as ImageProvider
-                        : null,
-                    backgroundColor: Colors.grey.shade800,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    user.displayName ?? 'Kullanıcı',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  Text(
-                    user.email ?? '',
-                    style: TextStyle(color: Colors.grey.shade400),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
-
           // 2. Görünüm Ayarları
           _buildSectionHeader(context, 'Görünüm'),
           _buildSettingsCard(
@@ -78,15 +45,31 @@ class SettingsPage extends StatelessWidget {
                         children: [
                           _buildColorOption(
                             context,
-                            const Color.fromARGB(255, 101, 144, 32),
-                          ), // Yeşil (Varsayılan)
-                          _buildColorOption(context, Colors.blue),
-                          _buildColorOption(context, Colors.red),
-                          _buildColorOption(context, Colors.purple),
-                          _buildColorOption(context, Colors.orange),
+                            Colors.amber,
+                          ), // Kehribar (Varsayılan)
+                          _buildColorOption(context, Colors.green),
                           _buildColorOption(context, Colors.teal),
-                          _buildColorOption(context, Colors.pink),
+                          _buildColorOption(context, Colors.cyan),
+                          _buildColorOption(context, Colors.lightBlue),
+                          _buildColorOption(context, Colors.blue),
                           _buildColorOption(context, Colors.indigo),
+                          _buildColorOption(context, Colors.deepPurple),
+                          _buildColorOption(context, Colors.purple),
+                          _buildColorOption(context, Colors.pink),
+                          _buildColorOption(context, Colors.red),
+                          _buildColorOption(
+                            context,
+                            const Color(0xFF8B0000),
+                          ), // Koyu Kırmızı
+                          _buildColorOption(context, Colors.deepOrange),
+                          _buildColorOption(context, Colors.orange),
+                          _buildColorOption(
+                            context,
+                            const Color.fromARGB(255, 101, 144, 32),
+                          ),
+                          _buildColorOption(context, Colors.yellow),
+                          _buildColorOption(context, Colors.brown),
+                          _buildColorOption(context, Colors.blueGrey),
                         ],
                       ),
                     ),
@@ -103,7 +86,11 @@ class SettingsPage extends StatelessWidget {
               ListTile(
                 leading: _buildLeadingIcon(
                   Colors.orange,
-                  const Icon(Icons.timer_rounded, color: Colors.orange),
+                  CustomIcons.svgIcon(
+                    CustomIcons.timerRounded,
+                    color: Colors.orange,
+                    size: 24,
+                  ),
                 ),
                 title: const Text(
                   'Uyku Zamanlayıcısı',
@@ -117,6 +104,59 @@ class SettingsPage extends StatelessWidget {
                 ),
                 onTap: () => _showSleepTimerDialog(context),
               ),
+              const Divider(height: 1, color: Colors.white10),
+              Consumer<SongProvider>(
+                builder: (context, provider, child) {
+                  return SwitchListTile(
+                    secondary: _buildLeadingIcon(
+                      Colors.blueAccent,
+                      const Icon(
+                        Icons.data_usage_rounded,
+                        color: Colors.blueAccent,
+                        size: 24,
+                      ),
+                    ),
+                    title: const Text(
+                      'Veri Tasarrufu',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    subtitle: Text(
+                      'Düşük kaliteli ses kullanarak internet tasarrufu sağlar',
+                      style: TextStyle(color: subTextColor, fontSize: 12),
+                    ),
+                    value: provider.isLowDataMode,
+                    activeColor: Theme.of(context).primaryColor,
+                    onChanged: (bool value) {
+                      provider.toggleLowDataMode(value);
+                    },
+                  );
+                },
+              ),
+              const Divider(height: 1, color: Colors.white10),
+              ListTile(
+                leading: _buildLeadingIcon(
+                  Colors.purpleAccent,
+                  const Icon(
+                    Icons.equalizer_rounded,
+                    color: Colors.purpleAccent,
+                    size: 24,
+                  ),
+                ),
+                title: const Text(
+                  'Ekolayzer',
+                  style: TextStyle(color: Colors.white),
+                ),
+                subtitle: Text(
+                  'Ses frekanslarını kişiselleştirin',
+                  style: TextStyle(color: subTextColor, fontSize: 12),
+                ),
+                trailing: const Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.grey,
+                  size: 14,
+                ),
+                onTap: () => _showEqualizerBottomSheet(context),
+              ),
             ],
           ),
 
@@ -124,6 +164,26 @@ class SettingsPage extends StatelessWidget {
           _buildSectionHeader(context, 'Veri ve Depolama'),
           _buildSettingsCard(
             children: [
+              ListTile(
+                leading: _buildLeadingIcon(
+                  Colors.orange,
+                  const Icon(
+                    Icons.cleaning_services_rounded,
+                    color: Colors.orange,
+                    size: 24,
+                  ),
+                ),
+                title: Text(
+                  'API Önbelleğini Temizle',
+                  style: TextStyle(color: textColor),
+                ),
+                subtitle: Text(
+                  'Arama ve Trendler sonuçlarını günceller.',
+                  style: TextStyle(color: subTextColor, fontSize: 12),
+                ),
+                onTap: () => _showClearApiCacheDialog(context),
+              ),
+              const Divider(height: 1, color: Colors.white10),
               ListTile(
                 leading: _buildLeadingIcon(
                   Colors.red,
@@ -148,18 +208,35 @@ class SettingsPage extends StatelessWidget {
             children: [
               ListTile(
                 leading: _buildLeadingIcon(
-                  Colors.blue,
-                  const Icon(Icons.info_outline, color: Colors.blue),
+                  Theme.of(context).primaryColor,
+                  Image.asset(
+                    'assets/icon/oyn_uyg_ikon.png',
+                    width: 24,
+                    height: 24,
+                    color: Theme.of(context).primaryColor,
+                  ),
                 ),
                 title: Text('Versiyon', style: TextStyle(color: textColor)),
-                trailing: Text('1.0.0', style: TextStyle(color: subTextColor)),
+                trailing: FutureBuilder<PackageInfo>(
+                  future: PackageInfo.fromPlatform(),
+                  builder: (context, snapshot) {
+                    final version = snapshot.hasData
+                        ? snapshot.data!.version
+                        : '...';
+                    return Text(version, style: TextStyle(color: subTextColor));
+                  },
+                ),
               ),
               if (authProvider.user != null) ...[
                 const Divider(height: 1, color: Colors.white10),
                 ListTile(
                   leading: _buildLeadingIcon(
                     Colors.redAccent,
-                    const Icon(Icons.logout, color: Colors.redAccent),
+                    CustomIcons.svgIcon(
+                      CustomIcons.logout,
+                      color: Colors.redAccent,
+                      size: 24,
+                    ),
                   ),
                   title: Text('Çıkış Yap', style: TextStyle(color: textColor)),
                   onTap: () => _showSignOutDialog(context),
@@ -229,7 +306,11 @@ class SettingsPage extends StatelessWidget {
           border: isSelected ? Border.all(color: Colors.white, width: 2) : null,
         ),
         child: isSelected
-            ? const Icon(Icons.check, color: Colors.white, size: 20)
+            ? CustomIcons.svgIcon(
+                CustomIcons.check,
+                color: Colors.white,
+                size: 20,
+              )
             : null,
       ),
     );
@@ -257,6 +338,37 @@ class SettingsPage extends StatelessWidget {
             CustomSnackBar.showSuccess(
               context: context,
               message: 'Önbellek başarıyla temizlendi.',
+            );
+          }
+        } catch (e) {
+          if (context.mounted) {
+            CustomSnackBar.showError(
+              context: context,
+              message: 'Bir hata oluştu.',
+            );
+          }
+        }
+      },
+    );
+  }
+
+  void _showClearApiCacheDialog(BuildContext context) {
+    CustomBottomSheet.show(
+      context: context,
+      title: 'API Önbelleğini Temizle',
+      message:
+          'Arama ve Trendler sonuçları yenilenecektir. İşleme devam edilsin mi?',
+      primaryButtonText: 'Temizle',
+      primaryButtonColor: Colors.orange,
+      secondaryButtonText: 'İptal',
+      onPrimaryButtonTap: () async {
+        Navigator.pop(context);
+        try {
+          await context.read<SongProvider>().clearApiCache();
+          if (context.mounted) {
+            CustomSnackBar.showSuccess(
+              context: context,
+              message: 'API önbelleği başarıyla temizlendi.',
             );
           }
         } catch (e) {
@@ -308,8 +420,8 @@ class SettingsPage extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.timer_outlined,
+                  CustomIcons.svgIcon(
+                    CustomIcons.timerOutlined,
                     color: Theme.of(context).primaryColor,
                     size: 28,
                   ),
@@ -435,6 +547,213 @@ class SettingsPage extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showEqualizerBottomSheet(BuildContext context) {
+    CustomBottomSheet.showContent(
+      context: context,
+      isScrollControlled: true,
+      child: const _EqualizerSheet(),
+    );
+  }
+}
+
+class _EqualizerSheet extends StatefulWidget {
+  const _EqualizerSheet();
+
+  @override
+  State<_EqualizerSheet> createState() => _EqualizerSheetState();
+}
+
+class _EqualizerSheetState extends State<_EqualizerSheet> {
+  late bool _isEnabled;
+  late List<double> _values;
+  final List<String> _freqs = ['60Hz', '230Hz', '910Hz', '3.6kHz', '14kHz'];
+
+  @override
+  void initState() {
+    super.initState();
+    final provider = context.read<SongProvider>();
+    _isEnabled = provider.isEqualizerEnabled;
+    _values = List.from(provider.equalizerValues);
+  }
+
+  void _saveToProvider() {
+    context.read<SongProvider>().updateEqualizerSettings(_isEnabled, _values);
+  }
+
+  void _reset() {
+    setState(() {
+      _values = [0.0, 0.0, 0.0, 0.0, 0.0];
+    });
+    _saveToProvider();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).primaryColor;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        left: 24,
+        right: 24,
+        top: 12,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade700,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: primaryColor.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.equalizer_rounded,
+                      color: primaryColor,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  const Text(
+                    'Ekolayzer',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              Switch(
+                value: _isEnabled,
+                activeColor: primaryColor,
+                onChanged: (val) {
+                  setState(() => _isEnabled = val);
+                  _saveToProvider();
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _isEnabled ? "Özel Ayar" : "Kapalı",
+                style: TextStyle(
+                  color: _isEnabled ? primaryColor : Colors.grey.shade500,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              TextButton(
+                onPressed: _isEnabled ? _reset : null,
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(50, 30),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  "Sıfırla",
+                  style: TextStyle(
+                    color: _isEnabled ? Colors.white70 : Colors.grey.shade700,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            height: 220,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: List.generate(5, (index) {
+                return Column(
+                  children: [
+                    Text(
+                      _values[index] > 0
+                          ? "+${_values[index].toInt()}dB"
+                          : "${_values[index].toInt()}dB",
+                      style: TextStyle(
+                        color: _isEnabled ? Colors.white : Colors.grey.shade700,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: RotatedBox(
+                        quarterTurns: 3, // Dikey slider için çeviriyoruz
+                        child: SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            trackHeight: 6,
+                            activeTrackColor: _isEnabled
+                                ? primaryColor
+                                : Colors.grey.shade800,
+                            inactiveTrackColor: _isEnabled
+                                ? Colors.white.withOpacity(0.08)
+                                : Colors.white.withOpacity(0.02),
+                            thumbColor: _isEnabled
+                                ? Colors.white
+                                : Colors.grey.shade600,
+                            overlayColor: primaryColor.withOpacity(0.2),
+                            trackShape: const RoundedRectSliderTrackShape(),
+                          ),
+                          child: Slider(
+                            value: _values[index],
+                            min: -15,
+                            max: 15,
+                            divisions: 30, // Hassas geçişler
+                            onChanged: _isEnabled
+                                ? (val) {
+                                    setState(() {
+                                      _values[index] = val;
+                                    });
+                                  }
+                                : null,
+                            onChangeEnd: _isEnabled
+                                ? (val) => _saveToProvider()
+                                : null,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      _freqs[index],
+                      style: TextStyle(
+                        color: _isEnabled
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade700,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                );
+              }),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
       ),
     );
   }

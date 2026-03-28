@@ -109,7 +109,7 @@ class _SplashScreenState extends State<SplashScreen>
                     child: Container(
                       decoration: BoxDecoration(shape: BoxShape.circle),
                       child: Image.asset(
-                        'assets/icon/oyn_yenii_ikon.png',
+                        'assets/icon/oyn_uyg_ikon.png',
                         height: 160,
                         width: 160,
                         color: primaryColor,

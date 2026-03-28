@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:muzik_app/providers/song_provider.dart';
 import 'package:muzik_app/models/song_model.dart';
@@ -12,6 +13,8 @@ import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/widgets/custom_app_bar.dart';
+import 'package:muzik_app/widgets/custom_drop_down.dart';
+import 'package:muzik_app/widgets/custom_banner_ad.dart';
 
 class PlayerPage extends StatefulWidget {
   const PlayerPage({super.key});
@@ -96,6 +99,7 @@ class _PlayerPageState extends State<PlayerPage>
     final songProvider = context.watch<SongProvider>();
     final currentSong = songProvider.currentSong;
     final primaryColor = Theme.of(context).primaryColor;
+    final screenWidth = MediaQuery.of(context).size.width;
 
     // Eğer şarkı seçili değilse boş ekran dön
     if (currentSong == null) {
@@ -120,36 +124,71 @@ class _PlayerPageState extends State<PlayerPage>
           title: '',
           backgroundColor: Colors.transparent,
           leading: IconButton(
-            icon: Icon(Icons.keyboard_arrow_down, size: 24),
+            icon: CustomIcons.svgIcon(CustomIcons.keyboardArrowDown, size: 24),
             onPressed: () => Navigator.pop(context),
           ),
           actions: [
             IconButton(
-              icon: Icon(
-                songProvider.isSleepTimerActive
-                    ? Icons.more_time
-                    : Icons.more_time_outlined,
-                color: songProvider.isSleepTimerActive
-                    ? Theme.of(context).primaryColor
-                    : Theme.of(context).primaryColor.withOpacity(0.3),
+              icon: CustomIcons.svgIcon(
+                currentSong.isFavorite
+                    ? CustomIcons.favorite
+                    : CustomIcons.favoriteBorder,
+                color: Theme.of(context).primaryColor,
+                size: 24,
               ),
-              tooltip: "Uyku Zamanlayıcısı",
-              onPressed: () => _showSleepTimerDialog(context),
+              onPressed: () => songProvider.toggleFavorite(currentSong),
             ),
-            IconButton(
-              icon: Icon(Icons.table_rows),
-              tooltip: "Sıradaki Şarkılar",
-              onPressed: () {
-                _showQueueBottomSheet(context, songProvider);
+            CustomDropDown<int>(
+              icon: const Icon(Icons.menu, size: 24),
+              tooltip: "Seçenekler",
+              onSelected: (value) {
+                if (value == 0) {
+                  _showSleepTimerDialog(context);
+                } else if (value == 1) {
+                  _showQueueBottomSheet(context, songProvider);
+                } else if (value == 2) {
+                  Share.share(
+                    'OYN Müzik\n\n🎵 ${currentSong.title}\n👤 ${currentSong.artist}\n\nDinlemek için uygulamamızı indirin: https://play.google.com/store/apps/details?id=com.ahmed.oyn_music',
+                  );
+                }
               },
-            ),
-            IconButton(
-              icon: Icon(Icons.ios_share_outlined, size: 24),
-              onPressed: () {
-                Share.share(
-                  'Bu şarkıyı OYN Music\'te keşfettim!\n\n🎵 ${currentSong.title}\n👤 ${currentSong.artist}\n\nDinlemek için: ${currentSong.audioUrl}',
-                );
-              },
+              items: [
+                CustomDropdownItem.build<int>(
+                  context: context,
+                  value: 0,
+                  icon: CustomIcons.svgIcon(
+                    songProvider.isSleepTimerActive
+                        ? CustomIcons.moreTime
+                        : CustomIcons.moreTimeOutlined,
+                    size: 20,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                  text: "Uyku Zamanlayıcısı",
+                  textColor: songProvider.isSleepTimerActive
+                      ? Theme.of(context).primaryColor
+                      : Colors.white,
+                ),
+                CustomDropdownItem.build<int>(
+                  context: context,
+                  value: 1,
+                  icon: CustomIcons.svgIcon(
+                    CustomIcons.tableRows,
+                    size: 20,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                  text: "Sıradaki Şarkılar",
+                ),
+                CustomDropdownItem.build<int>(
+                  context: context,
+                  value: 2,
+                  icon: CustomIcons.svgIcon(
+                    CustomIcons.iosShareOutlined,
+                    size: 20,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                  text: "Paylaş",
+                ),
+              ],
             ),
           ],
         ),
@@ -186,13 +225,22 @@ class _PlayerPageState extends State<PlayerPage>
                     ),
                   ),
 
-            // 2. KATMAN: Bulanıklık Efekti (Glassmorphism)
-            BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-              child: AnimatedBuilder(
-                animation: _animationController,
-                builder: (context, child) {
-                  return Container(
+            // 2. KATMAN: Bulanıklık Efekti (Glassmorphism) ve Su Dalgası Animasyonu
+            AnimatedBuilder(
+              animation: _animationController,
+              builder: (context, child) {
+                // Su dalgası (sıvı titreşimi) hissi vermek için X ve Y eksenindeki bulanıklık miktarını
+                // animasyon süresince yavaşça ve sürekli olarak (asimetrik şekilde) değiştiriyoruz.
+                final sigmaX =
+                    25.0 +
+                    10.0 * math.sin(_animationController.value * math.pi);
+                final sigmaY =
+                    25.0 +
+                    10.0 * math.cos(_animationController.value * math.pi);
+
+                return BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: sigmaX, sigmaY: sigmaY),
+                  child: Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.lerp(
@@ -211,9 +259,9 @@ class _PlayerPageState extends State<PlayerPage>
                         ],
                       ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
 
             // 3. KATMAN: İçerik
@@ -224,13 +272,20 @@ class _PlayerPageState extends State<PlayerPage>
                   mainAxisAlignment: MainAxisAlignment.end,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Spacer(),
+                    const Spacer(flex: 2),
+
+                    // Şarkı yüklenirken kapak resminin üstünde gösterilecek animasyon
+                    AnimatedOpacity(
+                      opacity: songProvider.isSongLoading ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 300),
+                      child: const Center(child: _AnimatedLoadingText()),
+                    ),
+                    const SizedBox(height: 16),
 
                     // Büyük Kapak Resmi
                     Center(
                       child: Container(
                         width: MediaQuery.of(context).size.width * 0.85,
-                        height: MediaQuery.of(context).size.width * 0.85,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
@@ -240,7 +295,8 @@ class _PlayerPageState extends State<PlayerPage>
                               offset: const Offset(0, 15),
                             ),
                           ],
-                          color: Colors.grey.shade900,
+                          color: Colors
+                              .transparent, // Resim gelene kadar gri arka plan görünmesin
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(20),
@@ -251,66 +307,65 @@ class _PlayerPageState extends State<PlayerPage>
                                   ).existsSync())
                               ? Image.file(
                                   File(currentSong.localImagePath!),
-                                  fit: BoxFit.cover,
+                                  width:
+                                      MediaQuery.of(context).size.width * 0.85,
+                                  fit: BoxFit.fitWidth,
                                 )
                               : Image.network(
                                   currentSong.coverUrl,
-                                  fit: BoxFit.cover,
+                                  width:
+                                      MediaQuery.of(context).size.width * 0.85,
+                                  fit: BoxFit.fitWidth,
                                 ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 24),
+                    // İndirme Butonu (Ortalanmış ve Kapak Resminin Altında)
+                    Center(
+                      child: _buildDownloadButton(
+                        context,
+                        songProvider,
+                        currentSong,
+                      ),
+                    ),
+                    const Spacer(),
 
                     // Şarkı Başlığı ve Sanatçı
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                currentSong.title,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                currentSong.artist,
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.7),
-                                  fontSize: 18,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 400),
+                          switchInCurve: Curves.easeOut,
+                          switchOutCurve: Curves.easeIn,
+                          child: Text(
+                            currentSong.title,
+                            key: ValueKey('${currentSong.id}_title'),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: (screenWidth * 0.06).clamp(20.0, 30.0),
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        // İndirme Butonu
-                        _buildDownloadButton(
-                          context,
-                          songProvider,
-                          currentSong,
-                        ),
-                        IconButton(
-                          icon: Icon(
-                            currentSong.isFavorite
-                                ? Icons.favorite
-                                : Icons.favorite_border,
-                            color: currentSong.isFavorite
-                                ? Theme.of(context).primaryColor
-                                : Colors.white,
-                            size: 32,
+                        const SizedBox(height: 8),
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 400),
+                          switchInCurve: Curves.easeOut,
+                          switchOutCurve: Curves.easeIn,
+                          child: Text(
+                            currentSong.artist,
+                            key: ValueKey('${currentSong.id}_artist'),
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.7),
+                              fontSize: (screenWidth * 0.045).clamp(14.0, 22.0),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          onPressed: () =>
-                              songProvider.toggleFavorite(currentSong),
                         ),
                       ],
                     ),
@@ -320,64 +375,82 @@ class _PlayerPageState extends State<PlayerPage>
                     StreamBuilder<Duration>(
                       stream: songProvider.positionStream,
                       builder: (context, snapshot) {
-                        final position = snapshot.data ?? Duration.zero;
-                        final duration =
-                            songProvider.audioPlayer.duration ?? Duration.zero;
+                        // Şarkı yüklenirken ilerleme çubuğunu ve süreyi zorla 00:00'da tutuyoruz
+                        final position = songProvider.isSongLoading
+                            ? Duration.zero
+                            : (snapshot.data ?? Duration.zero);
+                        final duration = songProvider.isSongLoading
+                            ? Duration.zero
+                            : (songProvider.audioPlayer.duration ??
+                                  Duration.zero);
+                        final maxDuration = duration.inSeconds.toDouble() > 0
+                            ? duration.inSeconds.toDouble()
+                            : 1.0;
 
-                        return Column(
+                        return Row(
                           children: [
-                            SliderTheme(
-                              data: SliderTheme.of(context).copyWith(
-                                thumbShape: const RoundSliderThumbShape(
-                                  enabledThumbRadius: 6,
-                                ),
-                                trackHeight: 4,
-                                activeTrackColor: primaryColor,
-                                inactiveTrackColor: Colors.white.withOpacity(
-                                  0.3,
-                                ),
-                                thumbColor: primaryColor,
-                                overlayColor: primaryColor.withOpacity(0.2),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
                               ),
-                              child: Slider(
-                                value: position.inSeconds.toDouble().clamp(
-                                  0,
-                                  duration.inSeconds.toDouble(),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                _formatDuration(position),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
                                 ),
-                                min: 0,
-                                max: duration.inSeconds.toDouble() > 0
-                                    ? duration.inSeconds.toDouble()
-                                    : 1,
-                                onChanged: (value) {
-                                  songProvider.audioPlayer.seek(
-                                    Duration(seconds: value.toInt()),
-                                  );
-                                },
                               ),
                             ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8.0,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: SliderTheme(
+                                data: SliderTheme.of(context).copyWith(
+                                  thumbShape: SliderComponentShape.noThumb,
+                                  overlayShape: SliderComponentShape.noOverlay,
+                                  trackHeight: 4,
+                                  activeTrackColor: primaryColor,
+                                  inactiveTrackColor: Colors.white.withOpacity(
+                                    0.3,
+                                  ),
+                                ),
+                                child: Slider(
+                                  value: position.inSeconds.toDouble().clamp(
+                                    0.0,
+                                    maxDuration,
+                                  ),
+                                  min: 0,
+                                  max: maxDuration,
+                                  onChanged: (value) {
+                                    songProvider.audioPlayer.seek(
+                                      Duration(seconds: value.toInt()),
+                                    );
+                                  },
+                                ),
                               ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    _formatDuration(position),
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.7),
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  Text(
-                                    _formatDuration(duration),
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.7),
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
+                            ),
+                            const SizedBox(width: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                _formatDuration(duration),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ],
@@ -390,14 +463,24 @@ class _PlayerPageState extends State<PlayerPage>
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        IconButton(
-                          icon: Icon(
-                            Icons.shuffle,
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          decoration: BoxDecoration(
                             color: songProvider.isShuffleEnabled
-                                ? Theme.of(context).primaryColor
-                                : Colors.white,
+                                ? primaryColor.withOpacity(0.15)
+                                : Colors.transparent,
+                            shape: BoxShape.circle,
                           ),
-                          onPressed: songProvider.toggleShuffle,
+                          child: IconButton(
+                            icon: CustomIcons.svgIcon(
+                              CustomIcons.shuffle,
+                              size: 24,
+                              color: songProvider.isShuffleEnabled
+                                  ? primaryColor
+                                  : Colors.white.withOpacity(0.6),
+                            ),
+                            onPressed: songProvider.toggleShuffle,
+                          ),
                         ),
                         IconButton(
                           icon: CustomIcons.svgIcon(
@@ -431,20 +514,32 @@ class _PlayerPageState extends State<PlayerPage>
                           ),
                           onPressed: () => songProvider.playNext(),
                         ),
-                        IconButton(
-                          icon: Icon(
-                            songProvider.loopMode == LoopMode.one
-                                ? Icons.repeat_one
-                                : Icons.repeat,
-                            color: songProvider.loopMode == LoopMode.off
-                                ? Colors.white
-                                : Theme.of(context).primaryColor,
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          decoration: BoxDecoration(
+                            color: songProvider.loopMode != LoopMode.off
+                                ? primaryColor.withOpacity(0.15)
+                                : Colors.transparent,
+                            shape: BoxShape.circle,
                           ),
-                          onPressed: songProvider.cycleLoopMode,
+                          child: IconButton(
+                            icon: CustomIcons.svgIcon(
+                              songProvider.loopMode == LoopMode.one
+                                  ? CustomIcons.repeatOne
+                                  : CustomIcons.repeat,
+                              size: 24,
+                              color: songProvider.loopMode == LoopMode.off
+                                  ? Colors.white.withOpacity(0.6)
+                                  : primaryColor,
+                            ),
+                            onPressed: songProvider.cycleLoopMode,
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 50),
+                    const SizedBox(height: 20),
+                    const CustomBannerAd(),
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),
@@ -462,7 +557,11 @@ class _PlayerPageState extends State<PlayerPage>
   }) {
     return IconButton(
       icon: isPlaying
-          ? const Icon(Icons.pause_rounded, color: Colors.white, size: 45)
+          ? CustomIcons.svgIcon(
+              CustomIcons.pauseRounded,
+              color: Colors.white,
+              size: 45,
+            )
           : CustomIcons.svgIcon(
               CustomIcons.playerPlay,
               color: Colors.white,
@@ -475,6 +574,12 @@ class _PlayerPageState extends State<PlayerPage>
 
 /// Arka plan ses oynatıcısı (just_audio) için Oynat/Duraklat butonu oluşturan widget.
 Widget _buildAudioPlayPauseButton(SongProvider songProvider) {
+  // Şarkı bağlantısı çözülüyorsa veya reklam bekleniyorsa (motor henüz başlamadıysa)
+  // direkt olarak yükleme (indikatör) animasyonunu gösteriyoruz.
+  if (songProvider.isSongLoading) {
+    return const Center(child: CircularProgressIndicator(color: Colors.white));
+  }
+
   return StreamBuilder<PlayerState>(
     stream: songProvider.playerStateStream,
     builder: (context, snapshot) {
@@ -503,6 +608,96 @@ Widget _buildAudioPlayPauseButton(SongProvider songProvider) {
   );
 }
 
+/// Şarkı yüklenirken üç noktanın yanıp sönmesini (animasyonlu) sağlayan widget
+class _AnimatedLoadingText extends StatefulWidget {
+  const _AnimatedLoadingText();
+
+  @override
+  State<_AnimatedLoadingText> createState() => _AnimatedLoadingTextState();
+}
+
+class _AnimatedLoadingTextState extends State<_AnimatedLoadingText>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    )..repeat(reverse: true);
+
+    _fadeAnimation = Tween<double>(
+      begin: 0.5,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).primaryColor;
+
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(30),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.4),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(
+                color: primaryColor.withOpacity(0.5),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: primaryColor.withOpacity(0.2),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                const Text(
+                  "Şarkı Hazırlanıyor...",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Oynatma durumuna göre ikonları ve eylemi yöneten genel bir widget.
 Widget _buildPlayPauseIcon({
   required bool isPlaying,
@@ -510,7 +705,11 @@ Widget _buildPlayPauseIcon({
 }) {
   return IconButton(
     icon: isPlaying
-        ? const Icon(Icons.pause_rounded, color: Colors.white, size: 45)
+        ? CustomIcons.svgIcon(
+            CustomIcons.pauseRounded,
+            color: Colors.white,
+            size: 45,
+          )
         : CustomIcons.svgIcon(
             CustomIcons.playerPlay,
             color: Colors.white,
@@ -541,8 +740,8 @@ void _showSleepTimerDialog(BuildContext context) {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.timer_outlined,
+                CustomIcons.svgIcon(
+                  CustomIcons.timerOutlined,
                   color: Theme.of(context).primaryColor,
                   size: 28,
                 ),
@@ -695,17 +894,6 @@ void _showQueueBottomSheet(BuildContext context, SongProvider songProvider) {
         });
 
         return Container(
-          decoration: BoxDecoration(
-            color: Colors.black,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.5),
-                blurRadius: 20,
-                offset: const Offset(0, -5),
-              ),
-            ],
-          ),
           child: Column(
             children: [
               const SizedBox(height: 12),
@@ -779,9 +967,10 @@ void _showQueueBottomSheet(BuildContext context, SongProvider songProvider) {
                                           fit: BoxFit.cover,
                                           errorBuilder: (c, e, s) => Container(
                                             color: Colors.grey.shade800,
-                                            child: const Icon(
-                                              Icons.music_note,
+                                            child: CustomIcons.svgIcon(
+                                              CustomIcons.musicNote,
                                               color: Colors.white54,
+                                              size: 24,
                                             ),
                                           ),
                                         ),
@@ -789,10 +978,10 @@ void _showQueueBottomSheet(BuildContext context, SongProvider songProvider) {
                                     Container(
                                       color: Colors.black.withOpacity(0.6),
                                       child: Center(
-                                        child: Icon(
-                                          Icons.graphic_eq,
+                                        child: CustomIcons.svgIcon(
+                                          CustomIcons.graphicEq,
                                           color: Theme.of(context).primaryColor,
-                                          size: 24,
+                                          size: 20,
                                         ),
                                       ),
                                     ),
@@ -862,11 +1051,7 @@ void _showLoginBottomSheet(BuildContext context) {
     title: "İndirmek için Giriş Yapın",
     message:
         "Şarkıları cihazınıza indirmek ve çevrimdışı dinlemek için lütfen giriş yapın.",
-    icon: const Icon(
-      Icons.cloud_download_rounded,
-      size: 60,
-      color: Colors.white70,
-    ),
+    icon: const Icon(Icons.downloading, size: 60, color: Colors.white70),
     primaryButtonText: "Giriş Yap",
     primaryButtonColor: Colors.white,
     primaryButtonTextColor: Colors.black,
@@ -889,57 +1074,151 @@ Widget _buildDownloadButton(
   final primaryColor = Theme.of(context).primaryColor;
   final isDownloaded = provider.isSongDownloaded(song.id);
   final progress = provider.downloadProgress[song.id];
+  final isPaused = provider.isPaused(song.id);
+
+  Widget content;
+  VoidCallback? onTap;
+  Color borderColor;
+  Color bgColor;
 
   if (progress != null) {
-    return Stack(
-      alignment: Alignment.center,
+    // İndiriliyor & Duraklatıldı Durumu
+    borderColor = primaryColor.withOpacity(0.8);
+    bgColor = primaryColor.withOpacity(0.2);
+    content = Row(
+      key: const ValueKey('downloading'),
+      mainAxisSize: MainAxisSize.min,
       children: [
-        CircularProgressIndicator(
-          value: progress,
-          strokeWidth: 3,
-          color: primaryColor,
+        SizedBox(
+          width: 20,
+          height: 20,
+          child: isPaused
+              ? Icon(Icons.pause_rounded, color: primaryColor, size: 20)
+              : CircularProgressIndicator(
+                  value: progress,
+                  strokeWidth: 2.5,
+                  color: primaryColor,
+                ),
         ),
-        IconButton(
-          icon: const Icon(Icons.close, size: 20, color: Colors.white),
-          onPressed: () {
-            provider.cancelDownload(song.id);
-            CustomSnackBar.showError(
-              context: context,
-              message: "İndirme işlemi iptal edildi",
-            );
-          },
+        const SizedBox(width: 12),
+        Text(
+          isPaused ? "Duraklatıldı" : "İndiriliyor...",
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
         ),
       ],
     );
+    onTap = () {
+      if (isPaused) {
+        provider.downloadSong(song);
+      } else {
+        provider.pauseDownload(song);
+      }
+    };
   } else if (isDownloaded) {
-    return IconButton(
-      icon: CustomIcons.svgIcon(
-        CustomIcons.check,
-        color: primaryColor,
-        size: 24,
-      ),
-      onPressed: () {
-        // İndirildi durumu
-      },
+    // İndirildi Durumu
+    borderColor = Colors.greenAccent.withOpacity(0.5);
+    bgColor = Colors.greenAccent.withOpacity(0.1);
+    content = Row(
+      key: const ValueKey('downloaded'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        CustomIcons.svgIcon(
+          CustomIcons.check,
+          color: Colors.greenAccent,
+          size: 20,
+        ),
+        const SizedBox(width: 8),
+        const Text(
+          "İndirildi",
+          style: TextStyle(
+            color: Colors.greenAccent,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+        ),
+      ],
     );
+    onTap = () {
+      CustomSnackBar.showInfo(
+        context: context,
+        message: "Bu şarkı zaten cihazınızda bulunuyor.",
+      );
+    };
   } else {
-    return IconButton(
-      icon: Icon(Icons.downloading_rounded, color: Colors.white, size: 24),
-      onPressed: () {
-        if (!provider.isFirebaseLoggedIn) {
-          _showLoginBottomSheet(context);
-          return;
-        }
-
-        provider.downloadSong(song).catchError((e) {
-          if (context.mounted) {
-            CustomSnackBar.showError(
-              context: context,
-              message: "İndirme başarısız: $e",
-            );
-          }
-        });
-      },
+    // Varsayılan İndir Durumu
+    borderColor = Colors.white.withOpacity(0.2);
+    bgColor = Colors.black.withOpacity(0.4);
+    content = Row(
+      key: const ValueKey('download'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.downloading, color: Colors.white, size: 20),
+        const SizedBox(width: 8),
+        const Text(
+          "İndir",
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+        ),
+      ],
     );
+    onTap = () {
+      if (!provider.isFirebaseLoggedIn) {
+        _showLoginBottomSheet(context);
+        return;
+      }
+
+      provider.downloadSong(song).catchError((e) {
+        if (context.mounted) {
+          CustomSnackBar.showError(
+            context: context,
+            message: "İndirme başarısız: $e",
+          );
+        }
+      });
+    };
   }
+
+  return ClipRRect(
+    borderRadius: BorderRadius.circular(30),
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: borderColor, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: borderColor.withOpacity(0.2),
+              blurRadius: 15,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(30),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: content,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }

@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:muzik_app/models/song_model.dart';
@@ -65,13 +66,15 @@ class SongCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: isPlaying ? theme.primaryColor : Colors.white,
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
           ),
         ),
         subtitle: Text(
-          song.artist,
+          song.duration != null && song.duration! > 0
+              ? "${song.artist} • ${song.formattedDuration}"
+              : song.artist,
           style: TextStyle(
             color: isPlaying
                 ? theme.primaryColor.withOpacity(0.7)
@@ -80,7 +83,7 @@ class SongCard extends StatelessWidget {
             fontWeight: FontWeight.w500,
           ),
         ),
-        trailing: showOptions ? _buildOptionsButton(context) : trailing,
+        trailing: showOptions ? _buildTrailingActions(context) : trailing,
       ),
     );
   }
@@ -122,6 +125,90 @@ class SongCard extends StatelessWidget {
     );
   }
 
+  Widget _buildTrailingActions(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Consumer<SongProvider>(
+          builder: (context, provider, child) {
+            final isDownloaded = provider.isSongDownloaded(song.id);
+            final progress = provider.downloadProgress[song.id];
+            final isPaused = provider.isPaused(song.id);
+
+            Widget downloadIcon;
+            if (progress != null) {
+              downloadIcon = SizedBox(
+                width: 20,
+                height: 20,
+                child: isPaused
+                    ? Icon(
+                        Icons.pause,
+                        color: Theme.of(context).primaryColor,
+                        size: 20,
+                      )
+                    : CircularProgressIndicator(
+                        value: progress,
+                        strokeWidth: 2.0,
+                        color: Theme.of(context).primaryColor,
+                      ),
+              );
+            } else if (isDownloaded) {
+              downloadIcon = CustomIcons.svgIcon(
+                CustomIcons.checkCircle,
+                color: Theme.of(context).primaryColor,
+                size: 22,
+              );
+            } else {
+              downloadIcon = Icon(
+                Icons.downloading,
+                color: Colors.grey.shade400,
+                size: 22,
+              );
+            }
+
+            return GestureDetector(
+              onTap: () {
+                if (progress != null) {
+                  if (isPaused) {
+                    provider.downloadSong(song);
+                  } else {
+                    provider.pauseDownload(song);
+                  }
+                } else if (!isDownloaded) {
+                  if (!provider.isFirebaseLoggedIn) {
+                    _showLoginBottomSheet(context);
+                  } else {
+                    provider.downloadSong(song).catchError((e) {
+                      if (context.mounted) {
+                        CustomSnackBar.showError(
+                          context: context,
+                          message: "İndirme başarısız: $e",
+                        );
+                      }
+                    });
+                  }
+                }
+              },
+              child: Container(
+                width: 32,
+                height: 32,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).primaryColor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                ),
+                child: downloadIcon,
+              ),
+            );
+          },
+        ),
+        const SizedBox(width: 8),
+        _buildOptionsButton(context),
+      ],
+    );
+  }
+
   Widget _buildOptionsButton(BuildContext context) {
     return GestureDetector(
       onTap: () => _showOptionsBottomSheet(context),
@@ -133,7 +220,11 @@ class SongCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: Colors.white.withOpacity(0.1)),
         ),
-        child: const Icon(Icons.more_horiz, size: 20, color: Colors.grey),
+        child: CustomIcons.svgIcon(
+          CustomIcons.moreHoriz,
+          size: 20,
+          color: Colors.grey,
+        ),
       ),
     );
   }
@@ -191,9 +282,10 @@ class SongCard extends StatelessWidget {
                               width: 64,
                               height: 64,
                               color: Colors.grey.shade800,
-                              child: const Icon(
-                                Icons.music_note,
+                              child: CustomIcons.svgIcon(
+                                CustomIcons.musicNote,
                                 color: Colors.white54,
+                                size: 24,
                               ),
                             ),
                           ),
@@ -261,7 +353,9 @@ class SongCard extends StatelessWidget {
                   // Seçenekler
                   _buildOptionTile(
                     innerContext,
-                    icon: isFavorite ? Icons.favorite : Icons.favorite_border,
+                    iconStr: isFavorite
+                        ? CustomIcons.favorite
+                        : CustomIcons.favoriteBorder,
                     iconColor: isFavorite ? theme.primaryColor : Colors.white,
                     text: isFavorite ? 'Favorilerden Çıkar' : 'Favoriye Ekle',
                     onTap: () {
@@ -275,40 +369,19 @@ class SongCard extends StatelessWidget {
                         backgroundColor: !isFavorite
                             ? Colors.green.shade700
                             : Colors.redAccent,
-                        icon: Icon(
-                          !isFavorite ? Icons.favorite : Icons.favorite_border,
+                        icon: CustomIcons.svgIcon(
+                          !isFavorite
+                              ? CustomIcons.favorite
+                              : CustomIcons.favoriteBorder,
                           color: Colors.white,
+                          size: 24,
                         ),
                       );
                     },
                   ),
                   _buildOptionTile(
                     innerContext,
-                    icon: isDownloaded
-                        ? Icons.download_done
-                        : Icons.downloading_rounded,
-                    iconColor: isDownloaded ? theme.primaryColor : Colors.white,
-                    text: isDownloaded ? 'İndirildi' : 'İndir',
-                    onTap: () {
-                      if (!isDownloaded) {
-                        if (!provider.isFirebaseLoggedIn) {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const LoginPage(),
-                            ),
-                          );
-                        } else {
-                          Navigator.pop(context);
-                          provider.downloadSong(song);
-                        }
-                      }
-                    },
-                  ),
-                  _buildOptionTile(
-                    innerContext,
-                    icon: Icons.playlist_add_rounded,
+                    iconStr: CustomIcons.playlistAddRounded,
                     text: 'Çalma Listesine Ekle',
                     onTap: () {
                       Navigator.pop(context);
@@ -317,7 +390,7 @@ class SongCard extends StatelessWidget {
                   ),
                   _buildOptionTile(
                     innerContext,
-                    customIcon: CustomIcons.person,
+                    iconStr: CustomIcons.person,
                     text: 'Sanatçıya Git',
                     onTap: () {
                       Navigator.pop(context);
@@ -334,12 +407,12 @@ class SongCard extends StatelessWidget {
                   ),
                   _buildOptionTile(
                     innerContext,
-                    icon: Icons.ios_share_outlined,
+                    iconStr: CustomIcons.iosShareOutlined,
                     text: 'Paylaş',
                     onTap: () {
                       Navigator.pop(context);
                       Share.share(
-                        'OYN Müzik\n\n🎵 ${song.title}\n👤 ${song.artist}\n\nDinlemek için: ${song.audioUrl}',
+                        'OYN Müzik\n\n🎵 ${song.title}\n👤 ${song.artist}\n\nDinlemek için uygulamamızı indirin: https://play.google.com/store/apps/details?id=com.ahmed.oyn_music',
                       );
                     },
                   ),
@@ -355,8 +428,7 @@ class SongCard extends StatelessWidget {
 
   Widget _buildOptionTile(
     BuildContext context, {
-    IconData? icon,
-    String? customIcon,
+    required String iconStr,
     Color? iconColor,
     required String text,
     required VoidCallback onTap,
@@ -371,13 +443,11 @@ class SongCard extends StatelessWidget {
           color: theme.primaryColor.withOpacity(0.1),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: customIcon != null
-            ? CustomIcons.svgIcon(
-                customIcon,
-                color: iconColor ?? theme.primaryColor,
-                size: 22,
-              )
-            : Icon(icon, color: iconColor ?? theme.primaryColor, size: 22),
+        child: CustomIcons.svgIcon(
+          iconStr,
+          color: iconColor ?? theme.primaryColor,
+          size: 22,
+        ),
       ),
       title: Text(
         text,
@@ -387,8 +457,8 @@ class SongCard extends StatelessWidget {
           fontWeight: FontWeight.w500,
         ),
       ),
-      trailing: Icon(
-        Icons.arrow_forward_ios_rounded,
+      trailing: CustomIcons.svgIcon(
+        CustomIcons.arrowForwardIosRounded,
         color: theme.primaryColor.withOpacity(0.3),
         size: 14,
       ),
@@ -431,41 +501,60 @@ class SongCard extends StatelessWidget {
               // Modern "Yeni Liste Oluştur" Butonu
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      Navigator.pop(context);
-                      _showCreatePlaylistBottomSheet(context, song);
-                    },
-                    borderRadius: BorderRadius.circular(16),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 16,
-                        horizontal: 20,
-                      ),
                       decoration: BoxDecoration(
-                        color: theme.primaryColor.withOpacity(0.1),
+                        color: theme.primaryColor.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: theme.primaryColor.withOpacity(0.3),
-                          width: 1,
+                          color: theme.primaryColor.withOpacity(0.5),
+                          width: 1.5,
                         ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.add_rounded, color: theme.primaryColor),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Yeni Liste Oluştur',
-                            style: TextStyle(
-                              color: theme.primaryColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: theme.primaryColor.withOpacity(0.2),
+                            blurRadius: 15,
+                            spreadRadius: 1,
                           ),
                         ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            Navigator.pop(context);
+                            _showCreatePlaylistBottomSheet(context, song);
+                          },
+                          borderRadius: BorderRadius.circular(16),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 16,
+                              horizontal: 20,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                CustomIcons.svgIcon(
+                                  CustomIcons.addRounded,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
+                                const SizedBox(width: 12),
+                                const Text(
+                                  'Yeni Liste Oluştur',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -479,8 +568,8 @@ class SongCard extends StatelessWidget {
                   padding: const EdgeInsets.all(32.0),
                   child: Column(
                     children: [
-                      Icon(
-                        Icons.folder_open_rounded,
+                      CustomIcons.svgIcon(
+                        CustomIcons.folderOpenRounded,
                         size: 48,
                         color: Colors.grey.shade800,
                       ),
@@ -524,9 +613,10 @@ class SongCard extends StatelessWidget {
                             fit: BoxFit.cover,
                             errorBuilder: (c, e, s) => Container(
                               color: Colors.grey.shade800,
-                              child: const Icon(
-                                Icons.music_note,
+                              child: CustomIcons.svgIcon(
+                                CustomIcons.musicNote,
                                 color: Colors.white54,
+                                size: 24,
                               ),
                             ),
                           );
@@ -534,13 +624,17 @@ class SongCard extends StatelessWidget {
                       } else {
                         coverWidget = Container(
                           color: Colors.grey.shade800,
-                          child: Icon(
-                            folder.isFromDownloads
-                                ? Icons.download_rounded
-                                : Icons.music_note_rounded,
-                            color: Colors.white70,
-                            size: 24,
-                          ),
+                          child: folder.isFromDownloads
+                              ? const Icon(
+                                  Icons.downloading,
+                                  color: Colors.white70,
+                                  size: 24,
+                                )
+                              : CustomIcons.svgIcon(
+                                  CustomIcons.musicNoteRounded,
+                                  color: Colors.white70,
+                                  size: 24,
+                                ),
                         );
                       }
 
@@ -569,8 +663,8 @@ class SongCard extends StatelessWidget {
                             '${folder.songs.length} şarkı',
                             style: TextStyle(color: Colors.grey.shade400),
                           ),
-                          trailing: Icon(
-                            Icons.arrow_forward_ios_rounded,
+                          trailing: CustomIcons.svgIcon(
+                            CustomIcons.arrowForwardIosRounded,
                             size: 14,
                             color: Colors.grey.shade600,
                           ),
@@ -673,8 +767,8 @@ class SongCard extends StatelessWidget {
                         ? Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(
-                                Icons.add_photo_alternate_rounded,
+                              CustomIcons.svgIcon(
+                                CustomIcons.addPhotoAlternateRounded,
                                 color: Theme.of(context).primaryColor,
                                 size: 48,
                               ),
@@ -694,73 +788,102 @@ class SongCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
                 Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 40),
+                  margin: const EdgeInsets.symmetric(horizontal: 24),
                   child: TextField(
                     controller: controller,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 22,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
                     decoration: InputDecoration(
                       hintText: 'Liste Adı',
                       hintStyle: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 22,
+                        color: Colors.grey.shade500,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
+                      filled: true,
+                      fillColor: Colors.grey.shade800,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        vertical: 16,
+                        horizontal: 16,
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  height: 2,
-                  width: 100,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withOpacity(0.5),
-                    borderRadius: BorderRadius.circular(1),
                   ),
                 ),
                 const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      if (controller.text.isNotEmpty) {
-                        context.read<SongProvider>().createFolder(
-                          name: controller.text,
-                          songs: [song],
-                          customImagePath: selectedImagePath,
-                        );
-                        Navigator.pop(context);
-                        CustomSnackBar.showSuccess(
-                          context: context,
-                          message: '${controller.text} oluşturuldu.',
-                        );
-                      } else {
-                        CustomSnackBar.showError(
-                          context: context,
-                          message: 'Lütfen bir liste adı girin.',
-                        );
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).primaryColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: const Text(
-                      'Oluştur',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).primaryColor.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Theme.of(
+                              context,
+                            ).primaryColor.withOpacity(0.5),
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Theme.of(
+                                context,
+                              ).primaryColor.withOpacity(0.2),
+                              blurRadius: 15,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () {
+                              if (controller.text.isNotEmpty) {
+                                context.read<SongProvider>().createFolder(
+                                  name: controller.text,
+                                  songs: [song],
+                                  customImagePath: selectedImagePath,
+                                );
+                                Navigator.pop(context);
+                                CustomSnackBar.showSuccess(
+                                  context: context,
+                                  message: '${controller.text} oluşturuldu.',
+                                );
+                              } else {
+                                CustomSnackBar.showError(
+                                  context: context,
+                                  message: 'Lütfen bir liste adı girin.',
+                                );
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(16),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: Center(
+                                child: Text(
+                                  'Oluştur',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -771,6 +894,27 @@ class SongCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  void _showLoginBottomSheet(BuildContext context) {
+    CustomBottomSheet.show(
+      context: context,
+      title: "İndirmek için Giriş Yapın",
+      message:
+          "Şarkıları cihazınıza indirmek ve çevrimdışı dinlemek için lütfen giriş yapın.",
+      icon: const Icon(Icons.downloading, size: 60, color: Colors.white70),
+      primaryButtonText: "Giriş Yap",
+      primaryButtonColor: Colors.white,
+      primaryButtonTextColor: Colors.black,
+      secondaryButtonText: "İptal",
+      onPrimaryButtonTap: () {
+        Navigator.pop(context);
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginPage()),
+        );
+      },
     );
   }
 }

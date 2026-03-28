@@ -23,6 +23,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:muzik_app/pages/splash_screen.dart';
 import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/pages/onboarding_page.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 // Global Navigator Key
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -31,6 +32,10 @@ final GlobalKey<MainScreenState> mainScreenKey = GlobalKey<MainScreenState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Tam ekran modu (Alt navigasyon tuşlarını ve üst durum çubuğunu otomatik gizler)
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+
   if (Platform.isAndroid || Platform.isIOS) {
     await MobileAds.instance.initialize();
   }
@@ -142,13 +147,145 @@ class AuthWrapper extends StatefulWidget {
   State<AuthWrapper> createState() => _AuthWrapperState();
 }
 
-class _AuthWrapperState extends State<AuthWrapper> {
+class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
   bool? _seenOnboarding;
+  bool _isDialogShowing = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _checkOnboarding();
+    _requestPermissions();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Uygulama ayarlardan geri döndüğünde (Resumed) tetiklenir
+    if (state == AppLifecycleState.resumed && _isDialogShowing) {
+      _checkPermissionsStatus();
+    }
+  }
+
+  Future<void> _requestPermissions() async {
+    List<Permission> permissions = [];
+    if (Platform.isAndroid) {
+      permissions = [
+        Permission.storage,
+        Permission.audio,
+        Permission.notification,
+      ];
+    } else if (Platform.isIOS) {
+      // iOS için bildirim izni istenir (uygulamanızın özelliklerine göre eklenebilir)
+      permissions = [Permission.notification];
+    }
+
+    if (permissions.isEmpty) return;
+
+    Map<Permission, PermissionStatus> statuses = await permissions.request();
+
+    bool isPermanentlyDenied = false;
+    statuses.forEach((permission, status) {
+      // Android 13 ve üstü cihazlarda storage otomatik reddedilir. Eğer audio izni verildiyse bunu yoksayabiliriz.
+      if (Platform.isAndroid &&
+          permission == Permission.storage &&
+          statuses[Permission.audio]?.isGranted == true) {
+        return;
+      }
+      if (status.isPermanentlyDenied) {
+        isPermanentlyDenied = true;
+      }
+    });
+
+    if (isPermanentlyDenied && mounted && !_isDialogShowing) {
+      _isDialogShowing = true;
+      showDialog(
+        context: context,
+        barrierDismissible: false, // Kullanıcı tıklayana kadar kapanmasın
+        builder: (BuildContext context) {
+          return AlertDialog(
+            backgroundColor: Colors.grey.shade900,
+            title: const Text(
+              "İzin Gerekli",
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            content: const Text(
+              "Uygulamanın sorunsuz çalışabilmesi (şarkı indirme, arka planda çalma, bildirimler) için gerekli izinleri vermelisiniz. Lütfen uygulama ayarlarından izinleri etkinleştirin.",
+              style: TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: const Text(
+                  "İptal",
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).primaryColor,
+                  foregroundColor:
+                      Theme.of(context).primaryColor.computeLuminance() > 0.5
+                      ? Colors.black
+                      : Colors.white,
+                ),
+                onPressed: () {
+                  openAppSettings(); // Uygulama ayarlarına yönlendirir
+                  // Dialog'u açık bırakıyoruz, ayarlardan dönünce lifecycle ile kapanacak
+                },
+                child: const Text("Ayarları Aç"),
+              ),
+            ],
+          );
+        },
+      ).then((_) {
+        _isDialogShowing = false;
+      });
+    }
+  }
+
+  Future<void> _checkPermissionsStatus() async {
+    List<Permission> permissions = [];
+    if (Platform.isAndroid) {
+      permissions = [
+        Permission.storage,
+        Permission.audio,
+        Permission.notification,
+      ];
+    } else if (Platform.isIOS) {
+      permissions = [Permission.notification];
+    }
+
+    bool hasDenied = false;
+    for (var p in permissions) {
+      var status = await p.status;
+      if (Platform.isAndroid &&
+          p == Permission.storage &&
+          await Permission.audio.status.isGranted) {
+        continue;
+      }
+      // İzin kalıcı olarak reddedilmişse veya hala reddediliyorsa
+      if (status.isPermanentlyDenied || status.isDenied) {
+        hasDenied = true;
+        break;
+      }
+    }
+
+    // Eğer reddedilen bir izin kalmadıysa ve uyarı penceresi açıksa otomatik kapat
+    if (!hasDenied && _isDialogShowing && mounted) {
+      Navigator.of(context).pop();
+    }
   }
 
   Future<void> _checkOnboarding() async {
@@ -225,33 +362,28 @@ class MainScreenState extends State<MainScreen> {
 
   Widget _buildActiveIcon(String svgIcon, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Theme.of(context).primaryColor.withOpacity(0.5),
-        ),
+        border: Border.all(color: Colors.grey.withOpacity(0.5)),
       ),
-      child: CustomIcons.svgIcon(
-        svgIcon,
-        color: color, // Active color
-        size: 24,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CustomIcons.svgIcon(
+            svgIcon,
+            color: color, // Active color
+            size: 30,
+          ),
+          const SizedBox(height: 4),
+          Container(
+            width: 5,
+            height: 5,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+        ],
       ),
-    );
-  }
-
-  Widget _buildActiveMaterialIcon(IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Theme.of(context).primaryColor.withOpacity(0.5),
-        ),
-      ),
-      child: Icon(icon, color: color, size: 24),
     );
   }
 
@@ -275,7 +407,7 @@ class MainScreenState extends State<MainScreen> {
             child: const MiniPlayer(),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(48, 8, 48, 7),
+            padding: const EdgeInsets.fromLTRB(48, 8, 48, 12),
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
@@ -301,8 +433,8 @@ class MainScreenState extends State<MainScreen> {
                       BottomNavigationBarItem(
                         icon: CustomIcons.svgIcon(
                           CustomIcons.trending,
-                          size: 24,
-                          color: Colors.grey,
+                          size: 27,
+                          color: Colors.grey.withOpacity(0.5),
                         ),
                         activeIcon: _buildActiveIcon(
                           CustomIcons.trending,
@@ -313,8 +445,8 @@ class MainScreenState extends State<MainScreen> {
                       BottomNavigationBarItem(
                         icon: CustomIcons.svgIcon(
                           CustomIcons.search,
-                          size: 24,
-                          color: Colors.grey,
+                          size: 27,
+                          color: Colors.grey.withOpacity(0.5),
                         ),
                         activeIcon: _buildActiveIcon(
                           CustomIcons.search,
@@ -325,11 +457,11 @@ class MainScreenState extends State<MainScreen> {
                       BottomNavigationBarItem(
                         icon: Icon(
                           Icons.favorite_border,
-                          color: Colors.grey,
-                          size: 24,
+                          color: Colors.grey.withOpacity(0.5),
+                          size: 27,
                         ),
-                        activeIcon: _buildActiveMaterialIcon(
-                          Icons.favorite,
+                        activeIcon: _buildActiveIcon(
+                          CustomIcons.favorite,
                           primaryColor,
                         ),
                         label: 'Favoriler',
@@ -337,8 +469,8 @@ class MainScreenState extends State<MainScreen> {
                       BottomNavigationBarItem(
                         icon: CustomIcons.svgIcon(
                           CustomIcons.library,
-                          size: 24,
-                          color: Colors.grey,
+                          size: 27,
+                          color: Colors.grey.withOpacity(0.5),
                         ),
                         activeIcon: _buildActiveIcon(
                           CustomIcons.library,
@@ -351,9 +483,9 @@ class MainScreenState extends State<MainScreen> {
                     onTap: _onItemTapped,
                     backgroundColor: Colors.black.withValues(alpha: 0.3),
                     selectedItemColor: primaryColor,
-                    unselectedItemColor: Colors.grey,
-                    selectedIconTheme: const IconThemeData(size: 24),
-                    unselectedIconTheme: const IconThemeData(size: 24),
+                    unselectedItemColor: Colors.grey.withOpacity(0.5),
+                    selectedIconTheme: const IconThemeData(size: 27),
+                    unselectedIconTheme: const IconThemeData(size: 27),
                     selectedFontSize: 1,
                     unselectedFontSize: 1,
                     showUnselectedLabels: false,
@@ -449,7 +581,10 @@ class MainScreenState extends State<MainScreen> {
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).primaryColor,
-                    foregroundColor: Colors.white,
+                    foregroundColor:
+                        Theme.of(context).primaryColor.computeLuminance() > 0.5
+                        ? Colors.black
+                        : Colors.white,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 32,
                       vertical: 12,

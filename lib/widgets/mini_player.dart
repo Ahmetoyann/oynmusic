@@ -8,6 +8,7 @@ import 'package:muzik_app/providers/song_provider.dart';
 import 'package:muzik_app/models/song_model.dart';
 import 'package:provider/provider.dart';
 import 'package:muzik_app/pages/player_page.dart';
+import 'package:muzik_app/custom_icons.dart';
 
 class MiniPlayer extends StatefulWidget {
   const MiniPlayer({super.key});
@@ -163,9 +164,10 @@ class _MiniPlayerState extends State<MiniPlayer>
                                                     end: Alignment.bottomRight,
                                                   ),
                                                 ),
-                                                child: const Icon(
-                                                  Icons.music_note_rounded,
+                                                child: CustomIcons.svgIcon(
+                                                  CustomIcons.musicNoteRounded,
                                                   color: Colors.white24,
+                                                  size: 24,
                                                 ),
                                               ),
                                         ),
@@ -190,9 +192,10 @@ class _MiniPlayerState extends State<MiniPlayer>
                                                   end: Alignment.bottomRight,
                                                 ),
                                               ),
-                                              child: const Icon(
-                                                Icons.music_note_rounded,
+                                              child: CustomIcons.svgIcon(
+                                                CustomIcons.musicNoteRounded,
                                                 color: Colors.white24,
+                                                size: 24,
                                               ),
                                             ),
                                   ),
@@ -212,7 +215,9 @@ class _MiniPlayerState extends State<MiniPlayer>
                                     ),
                                   ),
                                   Text(
-                                    song.artist,
+                                    song.duration != null && song.duration! > 0
+                                        ? "${song.artist} • ${song.formattedDuration}"
+                                        : song.artist,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
@@ -230,13 +235,14 @@ class _MiniPlayerState extends State<MiniPlayer>
                                 songProvider.sleepTimerEndTime!,
                               ),
                             IconButton(
-                              icon: Icon(
+                              icon: CustomIcons.svgIcon(
                                 song.isFavorite
-                                    ? Icons.favorite
-                                    : Icons.favorite_border,
+                                    ? CustomIcons.favorite
+                                    : CustomIcons.favoriteBorder,
                                 color: song.isFavorite
                                     ? Theme.of(context).primaryColor
                                     : Colors.white,
+                                size: 24,
                               ),
                               onPressed: () =>
                                   songProvider.toggleFavorite(song),
@@ -260,10 +266,10 @@ class _MiniPlayerState extends State<MiniPlayer>
                               )
                             else
                               IconButton(
-                                icon: Icon(
+                                icon: CustomIcons.svgIcon(
                                   playing
-                                      ? Icons.pause_rounded
-                                      : Icons.play_arrow_rounded,
+                                      ? CustomIcons.pauseRounded
+                                      : CustomIcons.playArrowRounded,
                                   color: Theme.of(context).primaryColor,
                                   size: 32,
                                 ),
@@ -276,8 +282,8 @@ class _MiniPlayerState extends State<MiniPlayer>
                                 },
                               ),
                             IconButton(
-                              icon: const Icon(
-                                Icons.skip_next_rounded,
+                              icon: CustomIcons.svgIcon(
+                                CustomIcons.playerNext,
                                 color: Colors.white,
                                 size: 32,
                               ),
@@ -345,7 +351,11 @@ class _MiniPlayerState extends State<MiniPlayer>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.timer, size: 10, color: primaryColor),
+          CustomIcons.svgIcon(
+            CustomIcons.timerOutlined,
+            size: 10,
+            color: primaryColor,
+          ),
           const SizedBox(width: 4),
           Text(
             '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}',

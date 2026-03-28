@@ -13,11 +13,12 @@ import 'package:muzik_app/pages/artist_detail_page.dart';
 import 'package:muzik_app/providers/auth_provider.dart';
 import 'package:muzik_app/pages/profile_page.dart';
 import 'package:muzik_app/services/audius_service.dart';
-import 'package:muzik_app/pages/recently_played_page.dart';
 import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/widgets/song_card.dart';
 import 'package:muzik_app/widgets/song_grid_card.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
+import 'package:muzik_app/pages/player_page.dart';
+import 'package:muzik_app/widgets/custom_banner_ad.dart';
 
 /// Trend şarkıları gösteren ana sayfa widget'ı
 class TrendPage extends StatefulWidget {
@@ -29,7 +30,6 @@ class TrendPage extends StatefulWidget {
 
 class _TrendPageState extends State<TrendPage> {
   final ScrollController _scrollController = ScrollController();
-  bool _isAlbumGrid = false;
   // bool _isSongGrid = false;
   String _selectedFilter = 'TÜMÜ';
   final List<String> _filters = ['TÜMÜ', 'ŞARKILAR', 'ALBÜMLER'];
@@ -73,6 +73,12 @@ class _TrendPageState extends State<TrendPage> {
     return "$minutes:$secs";
   }
 
+  // Geçerli bir kapak resmi olup olmadığını kontrol eden filtre mekanizması
+  bool _hasValidCover(Song song) {
+    final url = song.coverUrl;
+    return url.isNotEmpty && !url.contains('via.placeholder.com');
+  }
+
   @override
   Widget build(BuildContext context) {
     final songProvider = context.watch<SongProvider>();
@@ -112,7 +118,7 @@ class _TrendPageState extends State<TrendPage> {
           ),
         ),
         title: SizedBox(
-          height: 32,
+          height: 36,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: _filters.length,
@@ -126,27 +132,36 @@ class _TrendPageState extends State<TrendPage> {
                     _selectedFilter = filter;
                   });
                 },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? Theme.of(context).primaryColor
-                        : Colors.grey.shade800,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: isSelected
-                          ? Theme.of(context).primaryColor
-                          : Colors.transparent,
-                    ),
-                  ),
-                  child: Text(
-                    filter,
-                    style: TextStyle(
-                      color: isSelected ? Colors.white : Colors.grey.shade400,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? Theme.of(context).primaryColor.withOpacity(0.2)
+                            : Colors.white.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isSelected
+                              ? Theme.of(context).primaryColor.withOpacity(0.5)
+                              : Colors.white.withOpacity(0.1),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        filter,
+                        style: TextStyle(
+                          color: isSelected
+                              ? Theme.of(context).primaryColor
+                              : Colors.grey.shade400,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -157,7 +172,12 @@ class _TrendPageState extends State<TrendPage> {
         titleSpacing: 0,
       ),
       // İçerik Alanı (Yükleniyor, Hata veya Liste)
-      body: _buildBody(context, songProvider),
+      body: Column(
+        children: [
+          Expanded(child: _buildBody(context, songProvider)),
+          const CustomBannerAd(),
+        ],
+      ),
     );
   }
 
@@ -180,7 +200,8 @@ class _TrendPageState extends State<TrendPage> {
     }
 
     // Normal Trend Listesi
-    final songs = provider.allSongs;
+    // Sadece kapak resmi olan şarkıları filtreleyerek UI'a gönderiyoruz
+    final songs = provider.allSongs.where(_hasValidCover).toList();
 
     if (songs.isEmpty) {
       return _buildNoResultsFound(context);
@@ -261,18 +282,25 @@ class _TrendPageState extends State<TrendPage> {
       displayedAlbums = [];
     }
 
-    final bool useGrid = showAlbumsOnly ? true : _isAlbumGrid;
+    final bool useGrid = showAlbumsOnly;
     final primaryColor = Theme.of(context).primaryColor;
+
+    // Günün şarkıları ve son dinlenenler için de sadece resmi olanları filtrele
+    final validDailySongs = songProvider.dailySongs
+        .where(
+          (s) =>
+              s.coverUrl.isNotEmpty &&
+              !s.coverUrl.contains('via.placeholder.com'),
+        )
+        .toList();
 
     return CustomScrollView(
       controller: _scrollController,
       slivers: [
         // Günün Şarkıları Listesi
-        if (!isSearch &&
-            (showAll || showSongs) &&
-            songProvider.dailySongs.isNotEmpty)
+        if (!isSearch && (showAll || showSongs) && validDailySongs.isNotEmpty)
           SliverToBoxAdapter(
-            child: _buildDailySongsList(context, songProvider.dailySongs),
+            child: _buildDailySongsList(context, validDailySongs),
           ),
 
         // --- ALBÜMLER BÖLÜMÜ ---
@@ -291,19 +319,6 @@ class _TrendPageState extends State<TrendPage> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  if (!showAlbumsOnly)
-                    IconButton(
-                      icon: CustomIcons.svgIcon(
-                        _isAlbumGrid ? CustomIcons.carousel : CustomIcons.grid,
-                        color: primaryColor,
-                        size: 24,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _isAlbumGrid = !_isAlbumGrid;
-                        });
-                      },
-                    ),
                 ],
               ),
             ),
@@ -334,7 +349,7 @@ class _TrendPageState extends State<TrendPage> {
                 )
               : SliverToBoxAdapter(
                   child: SizedBox(
-                    height: 150,
+                    height: 190,
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -342,7 +357,7 @@ class _TrendPageState extends State<TrendPage> {
                       itemBuilder: (context, index) {
                         final entry = displayedAlbums[index];
                         return Container(
-                          width: 110,
+                          width: 150,
                           margin: const EdgeInsets.only(right: 12),
                           child: _buildAlbumCard(
                             context,
@@ -355,66 +370,6 @@ class _TrendPageState extends State<TrendPage> {
                     ),
                   ),
                 ),
-
-        // --- EN SON DİNLEDİKLERİN BÖLÜMÜ ---
-        if (!isSearch &&
-            (showAll || showSongs) &&
-            songProvider.recentlyPlayed.isNotEmpty)
-          SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const RecentlyPlayedPage(),
-                        ),
-                      );
-                    },
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          "En Son Dinlediklerin",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        CustomIcons.svgIcon(
-                          CustomIcons.arrowRight,
-                          size: 16,
-                          color: primaryColor.withOpacity(0.7),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                SizedBox(
-                  height: 150,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    itemCount: songProvider.recentlyPlayed.length,
-                    itemBuilder: (context, index) {
-                      final song = songProvider.recentlyPlayed[index];
-                      return Container(
-                        width: 110,
-                        margin: const EdgeInsets.only(right: 12),
-                        child: _buildRecentlyPlayedCard(context, song),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
 
         // --- SANATÇI BAZLI LİSTELEME ---
         if (showAll || showSongs)
@@ -459,6 +414,7 @@ class _TrendPageState extends State<TrendPage> {
       placeholderIcon: CustomIcons.album,
       titleMaxLines: 2,
       onTap: () {
+        context.read<SongProvider>().checkAndShowAdForArtist();
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -466,27 +422,6 @@ class _TrendPageState extends State<TrendPage> {
                 ArtistDetailPage(artistName: artistName, songs: artistSongs),
           ),
         );
-      },
-    );
-  }
-
-  Widget _buildRecentlyPlayedCard(BuildContext context, Song song) {
-    return SongGridCard(
-      song: song,
-      imageUrl: song.coverUrl,
-      title: song.title,
-      subtitle: song.artist,
-      onTap: () {
-        final provider = context.read<SongProvider>();
-        if (provider.currentSong?.id == song.id) {
-          if (provider.audioPlayer.playing) {
-            provider.audioPlayer.pause();
-          } else {
-            provider.audioPlayer.play();
-          }
-        } else {
-          provider.playSong(song, provider.recentlyPlayed);
-        }
       },
     );
   }
@@ -500,6 +435,7 @@ class _TrendPageState extends State<TrendPage> {
       song: song,
       showOptions: true,
       onTap: () {
+        context.read<SongProvider>().checkAndShowAdForArtist();
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -522,6 +458,7 @@ class _TrendPageState extends State<TrendPage> {
       title: song.title,
       subtitle: song.artist,
       onTap: () {
+        context.read<SongProvider>().checkAndShowAdForArtist();
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -553,7 +490,7 @@ class _TrendPageState extends State<TrendPage> {
           ),
         ),
         SizedBox(
-          height: 100,
+          height: 120,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -573,16 +510,17 @@ class _TrendPageState extends State<TrendPage> {
                   } else {
                     provider.playSong(song, songs);
                   }
+                  PlayerPage.show(context);
                 },
                 child: Container(
-                  width: 72,
+                  width: 86,
                   margin: const EdgeInsets.only(right: 12),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Container(
-                        width: 60,
-                        height: 60,
+                        width: 76,
+                        height: 76,
                         padding: const EdgeInsets.all(2),
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
@@ -619,8 +557,8 @@ class _TrendPageState extends State<TrendPage> {
                                     color: Colors.black.withOpacity(0.5),
                                     shape: BoxShape.circle,
                                   ),
-                                  child: Icon(
-                                    Icons.graphic_eq,
+                                  child: CustomIcons.svgIcon(
+                                    CustomIcons.graphicEq,
                                     color: Theme.of(context).primaryColor,
                                     size: 24,
                                   ),
@@ -670,34 +608,61 @@ class ArtistSectionWidget extends StatefulWidget {
   State<ArtistSectionWidget> createState() => _ArtistSectionWidgetState();
 }
 
-class _ArtistSectionWidgetState extends State<ArtistSectionWidget> {
+class _ArtistSectionWidgetState extends State<ArtistSectionWidget>
+    with SingleTickerProviderStateMixin {
   late List<Song> _songs;
+  late AnimationController _arrowController;
+  late Animation<Offset> _arrowAnimation;
 
   @override
   void initState() {
     super.initState();
     _songs = List.from(widget.initialSongs);
     _fetchMoreSongs();
+    // Ok ikonunun ileri-geri hareket etmesi için animasyon denetleyicisi
+    _arrowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..repeat(reverse: true);
+
+    _arrowAnimation =
+        Tween<Offset>(
+          begin: Offset.zero,
+          end: const Offset(0.3, 0.0), // X ekseninde sağa doğru %30 kayma
+        ).animate(
+          CurvedAnimation(parent: _arrowController, curve: Curves.easeInOut),
+        );
+  }
+
+  @override
+  void dispose() {
+    _arrowController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchMoreSongs() async {
     try {
-      final results = await AudiusService.searchSongs(
+      final results = await YoutubeService.searchSongs(
         widget.artistName,
         limit: 10,
       );
       if (mounted && results.isNotEmpty) {
         setState(() {
+          // Kapak resmi olmayanları (placeholder vb.) burada da filtrele
+          final validResults = results
+              .where(
+                (s) =>
+                    s.coverUrl.isNotEmpty &&
+                    !s.coverUrl.contains('via.placeholder.com'),
+              )
+              .toList();
+
           // Mevcut şarkıların üzerine API'den gelenleri ekle (ID kontrolü ile)
           final existingIds = _songs.map((s) => s.id).toSet();
-          for (var song in results) {
+          for (var song in validResults) {
             if (!existingIds.contains(song.id)) {
               _songs.add(song);
             }
-          }
-          // Maksimum 10 şarkı göster
-          if (_songs.length > 10) {
-            _songs = _songs.sublist(0, 10);
           }
         });
       }
@@ -715,6 +680,7 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget> {
           padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
           child: GestureDetector(
             onTap: () {
+              context.read<SongProvider>().checkAndShowAdForArtist();
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -725,26 +691,55 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget> {
                 ),
               );
             },
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                  child: Text(
-                    widget.artistName,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Theme.of(context).primaryColor.withOpacity(0.2),
+                    Colors.transparent,
+                  ],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Theme.of(context).primaryColor.withOpacity(0.4),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CustomIcons.svgIcon(
+                    CustomIcons.person,
+                    color: Theme.of(context).primaryColor,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      widget.artistName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                CustomIcons.svgIcon(
-                  CustomIcons.arrowRight,
-                  size: 16,
-                  color: Theme.of(context).primaryColor.withOpacity(0.7),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  SlideTransition(
+                    position: _arrowAnimation,
+                    child: Icon(
+                      Icons.arrow_forward_rounded,
+                      color: Theme.of(context).primaryColor,
+                      size: 16,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -753,8 +748,15 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget> {
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            itemCount: _songs.length,
+            itemCount: _songs.length > 10 ? 11 : _songs.length,
             itemBuilder: (context, index) {
+              if (_songs.length > 10 && index == 10) {
+                return Container(
+                  width: 110,
+                  margin: const EdgeInsets.only(right: 12),
+                  child: _buildSeeMoreCard(context),
+                );
+              }
               return Container(
                 width: 110,
                 margin: const EdgeInsets.only(right: 12),
@@ -784,7 +786,78 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget> {
         } else {
           provider.playSong(song, _songs);
         }
+        PlayerPage.show(context);
       },
+    );
+  }
+
+  Widget _buildSeeMoreCard(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        context.read<SongProvider>().checkAndShowAdForArtist();
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) =>
+                ArtistDetailPage(artistName: widget.artistName, songs: _songs),
+          ),
+        );
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Theme.of(context).primaryColor.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.arrow_forward_rounded,
+                      color: Theme.of(context).primaryColor,
+                      size: 32,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "Devamını\nGör",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Theme.of(context).primaryColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            "Tümü",
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            "Sanatçı",
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 10),
+          ),
+        ],
+      ),
     );
   }
 }

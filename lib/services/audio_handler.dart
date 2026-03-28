@@ -66,11 +66,10 @@ class MyAudioHandler extends BaseAudioHandler {
 
       if (uri.startsWith('http')) {
         audioUri = Uri.parse(uri);
-        // 403 (Forbidden) hatasını çözmek için tarayıcı benzeri bir User-Agent ekliyoruz.
-        headers = {
-          'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-        };
+
+        // URL zaten youtube_explode tarafından imzalandığı için özel header eklemek
+        // imza uyuşmazlığına (403 Forbidden) sebep olur. Bu yüzden null bırakıyoruz.
+        headers = null;
       } else {
         audioUri = Uri.file(uri);
       }

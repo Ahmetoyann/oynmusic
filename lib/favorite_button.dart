@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:muzik_app/models/song_model.dart';
 import 'package:muzik_app/providers/song_provider.dart';
+import 'package:muzik_app/custom_icons.dart';
 
 class FavoriteButton extends StatefulWidget {
   final Song song;
@@ -51,11 +52,14 @@ class _FavoriteButtonState extends State<FavoriteButton>
         return ScaleTransition(
           scale: _scaleAnimation,
           child: IconButton(
-            icon: Icon(
-              widget.song.isFavorite ? Icons.favorite : Icons.favorite_border,
+            icon: CustomIcons.svgIcon(
+              widget.song.isFavorite
+                  ? CustomIcons.favorite
+                  : CustomIcons.favoriteBorder,
               color: widget.song.isFavorite
                   ? (widget.activeColor ?? Theme.of(context).primaryColor)
                   : (widget.inactiveColor ?? Colors.grey),
+              size: 24,
             ),
             onPressed: () {
               // Titreşim efekti
