@@ -48,14 +48,14 @@ class CustomBottomSheet extends StatelessWidget {
       backgroundColor: Colors.transparent,
       elevation: 0,
       builder: (ctx) => ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.6),
+              color: const Color(0xFF121212).withOpacity(0.7),
               borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(24),
+                top: Radius.circular(32),
               ),
               border: Border(
                 top: BorderSide(
@@ -95,14 +95,15 @@ class CustomBottomSheet extends StatelessWidget {
       backgroundColor: Colors.transparent,
       elevation: 0,
       builder: (ctx) => ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
           child: Container(
             decoration: BoxDecoration(
-              color: backgroundColor ?? Colors.black.withOpacity(0.6),
+              color:
+                  backgroundColor ?? const Color(0xFF121212).withOpacity(0.7),
               borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(24),
+                top: Radius.circular(32),
               ),
               border: Border(
                 top: BorderSide(

@@ -88,11 +88,37 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
     }
 
     return Scaffold(
+      extendBody: true,
       appBar: const CustomAppBar(title: 'En Son Dinlediklerin'),
       bottomNavigationBar: songProvider.currentSong != null
-          ? GestureDetector(
-              onTap: () => PlayerPage.show(context),
-              child: const MiniPlayer(),
+          ? Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [
+                    const Color(0xFF121212),
+                    const Color(0xFF121212).withOpacity(0.9),
+                    const Color(0xFF121212).withOpacity(0.4),
+                    Colors.transparent,
+                  ],
+                  stops: const [0.0, 0.4, 0.8, 1.0],
+                ),
+              ),
+              child: SafeArea(
+                bottom: true,
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: () => PlayerPage.show(context),
+                      child: const MiniPlayer(),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
             )
           : null,
       body: Column(
@@ -167,7 +193,9 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
                 ? _buildEmptyState(context, allSongs.isEmpty)
                 : ListView.builder(
                     itemCount: groupedSongs.length,
-                    padding: const EdgeInsets.only(bottom: 20),
+                    padding: EdgeInsets.only(
+                      bottom: songProvider.currentSong != null ? 160 : 40,
+                    ),
                     itemBuilder: (context, index) {
                       final header = groupedSongs.keys.elementAt(index);
                       final songs = groupedSongs[header]!;
@@ -204,7 +232,6 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
                                       displayedSongs,
                                     );
                                   }
-                                  PlayerPage.show(context);
                                 },
                               ),
                             );

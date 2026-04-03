@@ -94,7 +94,7 @@ class _SplashScreenState extends State<SplashScreen>
     final primaryColor = Theme.of(context).primaryColor;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFF121212),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

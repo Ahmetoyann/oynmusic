@@ -29,38 +29,44 @@ class TrendPage extends StatefulWidget {
 }
 
 class _TrendPageState extends State<TrendPage> {
-  final ScrollController _scrollController = ScrollController();
-  // bool _isSongGrid = false;
   String _selectedFilter = 'TÜMÜ';
   final List<String> _filters = ['TÜMÜ', 'ŞARKILAR', 'ALBÜMLER'];
+  ScrollController? _primaryScrollController;
 
   @override
-  void initState() {
-    super.initState();
-    // Kaydırma dinleyicisini ekle
-    _scrollController.addListener(_onScroll);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final currentController = PrimaryScrollController.maybeOf(context);
+    if (_primaryScrollController != currentController) {
+      _primaryScrollController?.removeListener(_onScroll);
+      _primaryScrollController = currentController;
+      _primaryScrollController?.addListener(_onScroll);
+    }
   }
 
   void _onScroll() {
     // Listenin sonuna 200 piksel kala yeni şarkıları yükle
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 200) {
-      final provider = context.read<SongProvider>();
-      provider.loadMoreSongs().catchError((e) {
-        if (mounted) {
-          // Varsa önceki uyarıyı gizle
-          CustomSnackBar.showError(
-            context: context,
-            message: 'Daha fazla şarkı yüklenemedi.',
-          );
-        }
-      });
+    if (_primaryScrollController != null &&
+        _primaryScrollController!.hasClients) {
+      if (_primaryScrollController!.position.pixels >=
+          _primaryScrollController!.position.maxScrollExtent - 200) {
+        final provider = context.read<SongProvider>();
+        provider.loadMoreSongs().catchError((e) {
+          if (mounted) {
+            // Varsa önceki uyarıyı gizle
+            CustomSnackBar.showError(
+              context: context,
+              message: 'Daha fazla şarkı yüklenemedi.',
+            );
+          }
+        });
+      }
     }
   }
 
   @override
   void dispose() {
-    _scrollController.dispose();
+    _primaryScrollController?.removeListener(_onScroll);
     super.dispose();
   }
 
@@ -86,7 +92,7 @@ class _TrendPageState extends State<TrendPage> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: const Color(0xFF121212),
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
@@ -295,7 +301,7 @@ class _TrendPageState extends State<TrendPage> {
         .toList();
 
     return CustomScrollView(
-      controller: _scrollController,
+      controller: _primaryScrollController,
       slivers: [
         // Günün Şarkıları Listesi
         if (!isSearch && (showAll || showSongs) && validDailySongs.isNotEmpty)
@@ -333,8 +339,8 @@ class _TrendPageState extends State<TrendPage> {
                         const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
                           childAspectRatio: 0.75,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
                         ),
                     delegate: SliverChildBuilderDelegate((context, index) {
                       final entry = displayedAlbums[index];
@@ -358,7 +364,7 @@ class _TrendPageState extends State<TrendPage> {
                         final entry = displayedAlbums[index];
                         return Container(
                           width: 150,
-                          margin: const EdgeInsets.only(right: 12),
+                          margin: const EdgeInsets.only(right: 16),
                           child: _buildAlbumCard(
                             context,
                             entry.key,
@@ -407,22 +413,25 @@ class _TrendPageState extends State<TrendPage> {
     required bool isGrid,
   }) {
     final coverUrl = artistSongs.first.coverUrl;
-    return SongGridCard(
-      imageUrl: coverUrl,
-      title: artistName,
-      showFavorite: false, // Albüm kartında favori butonu göstermiyoruz
-      placeholderIcon: CustomIcons.album,
-      titleMaxLines: 2,
-      onTap: () {
-        context.read<SongProvider>().checkAndShowAdForArtist();
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-                ArtistDetailPage(artistName: artistName, songs: artistSongs),
-          ),
-        );
-      },
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SongGridCard(
+        imageUrl: coverUrl,
+        title: artistName,
+        showFavorite: false, // Albüm kartında favori butonu göstermiyoruz
+        placeholderIcon: CustomIcons.album,
+        titleMaxLines: 2,
+        onTap: () {
+          context.read<SongProvider>().checkAndShowAdForArtist();
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  ArtistDetailPage(artistName: artistName, songs: artistSongs),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -471,126 +480,10 @@ class _TrendPageState extends State<TrendPage> {
   }
 
   Widget _buildDailySongsList(BuildContext context, List<Song> songs) {
-    final provider = context.read<SongProvider>();
-    final currentSongId = provider.currentSong?.id;
-    final isPlayingState = provider.audioPlayer.playing;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Text(
-            "Günün Şarkıları",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        SizedBox(
-          height: 120,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            itemCount: songs.length,
-            itemBuilder: (context, index) {
-              final song = songs[index];
-              final isPlaying = currentSongId == song.id && isPlayingState;
-
-              return GestureDetector(
-                onTap: () {
-                  if (provider.currentSong?.id == song.id) {
-                    if (provider.audioPlayer.playing) {
-                      provider.audioPlayer.pause();
-                    } else {
-                      provider.audioPlayer.play();
-                    }
-                  } else {
-                    provider.playSong(song, songs);
-                  }
-                  PlayerPage.show(context);
-                },
-                child: Container(
-                  width: 86,
-                  margin: const EdgeInsets.only(right: 12),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 76,
-                        height: 76,
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LinearGradient(
-                            colors: [
-                              Theme.of(context).primaryColor,
-                              Colors.purpleAccent.withOpacity(0.8),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Theme.of(
-                                context,
-                              ).primaryColor.withOpacity(0.3),
-                              blurRadius: 6,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.black, width: 2),
-                            image: DecorationImage(
-                              image: NetworkImage(song.coverUrl),
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                          child: isPlaying
-                              ? Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.5),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: CustomIcons.svgIcon(
-                                    CustomIcons.graphicEq,
-                                    color: Theme.of(context).primaryColor,
-                                    size: 24,
-                                  ),
-                                )
-                              : null,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        song.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: isPlaying
-                              ? Theme.of(context).primaryColor
-                              : Colors.white.withOpacity(0.9),
-                          fontSize: 10,
-                          fontWeight: isPlaying
-                              ? FontWeight.bold
-                              : FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
+    if (songs.isEmpty) return const SizedBox.shrink();
+    // Listeden sadece ilk şarkıyı alıp "Günün Şarkısı" kartına gönderiyoruz.
+    // İsteğe bağlı olarak Rastgele bir şarkı da seçilebilir (songs..shuffle()).
+    return DailySongCard(song: songs.first, playlist: songs);
   }
 }
 
@@ -673,6 +566,9 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget>
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final artistSongWidth = (screenWidth - 60) / 2.8;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -722,7 +618,7 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget>
                       widget.artistName,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 14,
+                        fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),
                       maxLines: 1,
@@ -744,7 +640,7 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget>
           ),
         ),
         SizedBox(
-          height: 150,
+          height: artistSongWidth + 48,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -752,14 +648,14 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget>
             itemBuilder: (context, index) {
               if (_songs.length > 10 && index == 10) {
                 return Container(
-                  width: 110,
-                  margin: const EdgeInsets.only(right: 12),
+                  width: artistSongWidth,
+                  margin: const EdgeInsets.only(right: 16),
                   child: _buildSeeMoreCard(context),
                 );
               }
               return Container(
-                width: 110,
-                margin: const EdgeInsets.only(right: 12),
+                width: artistSongWidth,
+                margin: const EdgeInsets.only(right: 16),
                 child: _buildSongCard(_songs[index]),
               );
             },
@@ -770,24 +666,32 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget>
   }
 
   Widget _buildSongCard(Song song) {
-    return SongGridCard(
-      song: song,
-      imageUrl: song.coverUrl,
-      title: song.title,
-      subtitle: song.artist,
-      onTap: () {
-        final provider = context.read<SongProvider>();
-        if (provider.currentSong?.id == song.id) {
-          if (provider.audioPlayer.playing) {
-            provider.audioPlayer.pause();
-          } else {
-            provider.audioPlayer.play();
-          }
-        } else {
-          provider.playSong(song, _songs);
-        }
-        PlayerPage.show(context);
-      },
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SongGridCard(
+        song: song,
+        imageUrl: song.coverUrl,
+        title: song.title,
+        subtitle: song.artist,
+        onTap: () {
+          SongCard.showOptionsSheet(
+            context,
+            song,
+            onTap: () {
+              final provider = context.read<SongProvider>();
+              if (provider.currentSong?.id == song.id) {
+                if (provider.audioPlayer.playing) {
+                  provider.audioPlayer.pause();
+                } else {
+                  provider.audioPlayer.play();
+                }
+              } else {
+                provider.playSong(song, _songs);
+              }
+            },
+          );
+        },
+      ),
     );
   }
 
@@ -832,7 +736,7 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget>
                       style: TextStyle(
                         color: Theme.of(context).primaryColor,
                         fontWeight: FontWeight.bold,
-                        fontSize: 12,
+                        fontSize: 10,
                       ),
                     ),
                   ],
@@ -848,15 +752,200 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget>
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
-              fontSize: 12,
+              fontSize: 10,
             ),
           ),
           const SizedBox(height: 2),
           Text(
             "Sanatçı",
-            style: TextStyle(color: Colors.grey.shade500, fontSize: 10),
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 9),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Günün Şarkısı için modern, buzlu arka planlı ve animasyonlu özel kart
+class DailySongCard extends StatefulWidget {
+  final Song song;
+  final List<Song> playlist;
+
+  const DailySongCard({super.key, required this.song, required this.playlist});
+
+  @override
+  State<DailySongCard> createState() => _DailySongCardState();
+}
+
+class _DailySongCardState extends State<DailySongCard> {
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<SongProvider>();
+    final isPlaying =
+        provider.currentSong?.id == widget.song.id &&
+        provider.audioPlayer.playing;
+    final primaryColor = Theme.of(context).primaryColor;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      child: GestureDetector(
+        onTap: () {
+          // Kartın geneline tıklandığında seçenekler menüsünü aç
+          SongCard.showOptionsSheet(
+            context,
+            widget.song,
+            onTap: () {
+              // Menüden "Oynat" seçilirse çalma işlemini yap
+              if (provider.currentSong?.id == widget.song.id) {
+                if (isPlaying) {
+                  provider.audioPlayer.pause();
+                } else {
+                  provider.audioPlayer.play();
+                }
+              } else {
+                provider.playSong(widget.song, widget.playlist);
+              }
+            },
+          );
+        },
+        child: Container(
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(24)),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.15),
+                    width: 1.5,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    // Kapak Resmi
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Transform.scale(
+                        scale:
+                            (widget.song.coverUrl.contains('ytimg.com') ||
+                                widget.song.coverUrl.contains('youtube.com'))
+                            ? 1.35
+                            : 1.0,
+                        child: Image.network(
+                          widget.song.coverUrl,
+                          width: 76,
+                          height: 76,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              Container(
+                                width: 76,
+                                height: 76,
+                                color: Colors.grey.shade800,
+                                child: const Icon(
+                                  Icons.music_note,
+                                  color: Colors.white54,
+                                ),
+                              ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    // Şarkı Bilgileri
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.local_fire_department_rounded,
+                                color: primaryColor,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                "Günün Şarkısı",
+                                style: TextStyle(
+                                  color: primaryColor,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            widget.song.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            widget.song.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.grey.shade400,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Oynat/Duraklat Butonu
+                    GestureDetector(
+                      onTap: () {
+                        // Sadece butona tıklandığında direkt çal/durdur
+                        if (provider.currentSong?.id == widget.song.id) {
+                          if (isPlaying) {
+                            provider.audioPlayer.pause();
+                          } else {
+                            provider.audioPlayer.play();
+                          }
+                        } else {
+                          provider.playSong(widget.song, widget.playlist);
+                        }
+                      },
+                      child: Container(
+                        width: 50,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: primaryColor.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: primaryColor.withOpacity(0.5),
+                            width: 1,
+                          ),
+                        ),
+                        child: Center(
+                          child: CustomIcons.svgIcon(
+                            isPlaying
+                                ? CustomIcons.pauseRounded
+                                : CustomIcons.playArrowRounded,
+                            color: primaryColor,
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

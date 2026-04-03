@@ -79,7 +79,7 @@ class _OnboardingPageState extends State<OnboardingPage>
     final currentColor = _onboardingData[_currentPage]['color'] as Color;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFF121212),
       body: Stack(
         children: [
           // Animasyonlu Arka Plan Parlaması
@@ -89,7 +89,10 @@ class _OnboardingPageState extends State<OnboardingPage>
               gradient: RadialGradient(
                 center: const Alignment(0, -0.2),
                 radius: 0.8,
-                colors: [currentColor.withOpacity(0.25), Colors.black],
+                colors: [
+                  currentColor.withOpacity(0.25),
+                  const Color(0xFF121212),
+                ],
               ),
             ),
           ),

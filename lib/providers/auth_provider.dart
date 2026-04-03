@@ -87,4 +87,15 @@ class AuthProvider with ChangeNotifier {
       rethrow;
     }
   }
+
+  /// Kullanıcı verilerini Firebase üzerinden tazeler ve arayüzü günceller
+  Future<void> reloadUser() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      await currentUser.reload();
+      // Değişkeninizi güncelleyin (Eğer içeride değişkeninizin adı _user ise _user olarak kullanın)
+      _user = FirebaseAuth.instance.currentUser;
+      notifyListeners(); // Trendler sayfası dahil her yeri tetikler
+    }
+  }
 }

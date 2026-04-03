@@ -22,6 +22,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'dart:isolate';
 import 'dart:ui';
+import 'package:audiotags/audiotags.dart';
 
 @pragma('vm:entry-point')
 void backgroundNotificationHandler(NotificationResponse response) {
@@ -81,6 +82,8 @@ class SongProvider with ChangeNotifier {
   bool _isSuggestionsLoading = false; // Önerilerin yüklenme durumu
   List<String> _followedArtists = []; // Takip edilen sanatçılar
 
+  bool _isSyncingUserData = false;
+  bool _seenInitialArtists = false;
   // Reklam Değişkenleri
   InterstitialAd? _interstitialAd;
   int _songsPlayedCounter = 0;
@@ -164,6 +167,8 @@ class SongProvider with ChangeNotifier {
   List<Song> get suggestedAlbums => _suggestedAlbums;
   bool get isSuggestionsLoading => _isSuggestionsLoading;
   List<String> get followedArtists => _followedArtists;
+  bool get isSyncingUserData => _isSyncingUserData;
+  bool get seenInitialArtists => _seenInitialArtists;
   List<Song> get playlist => _playlist;
   int? get currentSongIndex => _currentSongIndex;
   int get totalListeningSeconds => _totalListeningSeconds;
@@ -271,10 +276,27 @@ class SongProvider with ChangeNotifier {
     }
 
     if (_currentUser != null) {
-      _syncFavoritesWithFirestore();
-      _syncFoldersWithFirestore();
-      _syncSettingsWithFirestore();
-      _syncFollowedArtistsWithFirestore();
+      // Sadece yeni bir giriş yapıldığında yükleme ekranı göster
+      if (!wasLoggedIn) {
+        _isSyncingUserData = true;
+        Future.wait([
+          _syncFavoritesWithFirestore(),
+          _syncFoldersWithFirestore(),
+          _syncSettingsWithFirestore(),
+          _syncFollowedArtistsWithFirestore(),
+        ]).then((_) {
+          _isSyncingUserData = false;
+          notifyListeners();
+        });
+      } else {
+        _syncFavoritesWithFirestore();
+        _syncFoldersWithFirestore();
+        _syncSettingsWithFirestore();
+        _syncFollowedArtistsWithFirestore();
+      }
+    } else {
+      _seenInitialArtists = false;
+      _isSyncingUserData = false;
     }
   }
 
@@ -572,6 +594,18 @@ class SongProvider with ChangeNotifier {
           .get();
       if (docSnapshot.exists && docSnapshot.data() != null) {
         final data = docSnapshot.data()!;
+
+        bool cloudSeen = data['seenInitialArtists'] ?? false;
+        if (data.containsKey('followedArtists') &&
+            (data['followedArtists'] as List).isNotEmpty) {
+          cloudSeen = true; // Geriye dönük uyumluluk
+        }
+        if (cloudSeen) {
+          _seenInitialArtists = true;
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('seenInitialArtists', true);
+        }
+
         if (data.containsKey('followedArtists')) {
           final List<dynamic> cloudFollowed = data['followedArtists'];
           final Set<String> merged = {
@@ -589,6 +623,29 @@ class SongProvider with ChangeNotifier {
     }
   }
 
+  /// Seçilen sanatçıları Firestore'a kaydeder (Dışarıdan erişim için)
+  Future<void> saveFollowedArtistsToFirestore() async {
+    await _updateFirestoreFollowedArtists();
+  }
+
+  /// Sanatçı seçimi ekranının görüldüğünü yerelde ve veritabanında kaydeder
+  Future<void> markInitialArtistsSeen() async {
+    _seenInitialArtists = true;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('seenInitialArtists', true);
+    if (_currentUser != null) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(_currentUser!.uid)
+            .set({'seenInitialArtists': true}, SetOptions(merge: true));
+      } catch (e) {
+        debugPrint("seenInitialArtists kaydetme hatası: $e");
+      }
+    }
+    notifyListeners();
+  }
+
   Future<void> _updateFirestoreFollowedArtists() async {
     if (_currentUser == null) return;
     try {
@@ -601,7 +658,11 @@ class SongProvider with ChangeNotifier {
     }
   }
 
-  Future<void> fetchSongsFromApi({String? genre, String? timeRange}) async {
+  Future<void> fetchSongsFromApi({
+    String? genre,
+    String? timeRange,
+    bool forceRefresh = false,
+  }) async {
     _currentGenre = genre;
     _currentTimeRange = timeRange;
 
@@ -613,7 +674,7 @@ class SongProvider with ChangeNotifier {
     _initialOffset = Random().nextInt(50);
 
     // Yeni bir tür seçildiyse listeyi temizle ki kullanıcı yükleniyor görsün
-    if (genre != null) _allSongs = [];
+    if (genre != null || forceRefresh) _allSongs = [];
     notifyListeners();
 
     try {
@@ -1431,6 +1492,7 @@ class SongProvider with ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     _isLowDataMode = prefs.getBool('low_data_mode') ?? false;
     _totalListeningSeconds = prefs.getInt('total_listening_seconds') ?? 0;
+    _seenInitialArtists = prefs.getBool('seenInitialArtists') ?? false;
 
     final String? songSecondsJson = prefs.getString('song_listening_seconds');
     if (songSecondsJson != null) {
@@ -1519,7 +1581,10 @@ class SongProvider with ChangeNotifier {
 
   bool isArtistFollowed(String name) => _followedArtists.contains(name);
 
-  Future<void> toggleFollowArtist(String artistName) async {
+  Future<void> toggleFollowArtist(
+    String artistName, {
+    bool syncToFirestore = true,
+  }) async {
     if (_followedArtists.contains(artistName)) {
       _followedArtists.remove(artistName);
     } else {
@@ -1530,7 +1595,7 @@ class SongProvider with ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('followed_artists', _followedArtists);
 
-    if (_currentUser != null) {
+    if (_currentUser != null && syncToFirestore) {
       _updateFirestoreFollowedArtists();
     }
     _suggestedSongs.clear(); // Arama sayfası önerileri sıfırlansın
@@ -1873,7 +1938,36 @@ class SongProvider with ChangeNotifier {
           final publicSavePath =
               '${publicDir.path}/$cleanTitle - $cleanArtist.m4a'; // Müzik olarak tanınması için uzantıyı m4a yapıyoruz
 
+          final publicImagePath =
+              '${publicDir.path}/$cleanTitle - $cleanArtist.jpg'; // Resmi de aynı isimle kopyala
+
           await file.copy(publicSavePath);
+          if (File(imagePath).existsSync()) {
+            await File(imagePath).copy(publicImagePath);
+          }
+
+          // Metadataları (Kapak resmi, Şarkı Adı, Sanatçı) ses dosyasına (m4a) gömme işlemi
+          try {
+            if (File(imagePath).existsSync()) {
+              final pictureBytes = await File(imagePath).readAsBytes();
+              final tag = Tag(
+                title: song.title,
+                trackArtist: song.artist,
+                album: "OYN Music",
+                pictures: [
+                  Picture(
+                    bytes: pictureBytes,
+                    mimeType: MimeType.jpeg,
+                    pictureType: PictureType.coverFront,
+                  ),
+                ],
+              );
+              await AudioTags.write(publicSavePath, tag);
+              debugPrint("Kapak resmi ve metadatalar dosyaya gömüldü.");
+            }
+          } catch (e) {
+            debugPrint("ID3 Tag ekleme hatası: $e");
+          }
           debugPrint("Şarkı genel klasöre kopyalandı: $publicSavePath");
         } catch (e) {
           debugPrint("Genel klasöre kopyalama hatası: $e");
@@ -2662,6 +2756,34 @@ class SongProvider with ChangeNotifier {
     } else {
       _loopMode = LoopMode.off;
     }
+    notifyListeners();
+  }
+
+  /// Çalma listesindeki şarkıların sırasını değiştirir
+  void reorderPlaylist(int oldIndex, int newIndex) {
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+
+    final Song item = _playlist.removeAt(oldIndex);
+    _playlist.insert(newIndex, item);
+
+    if (_currentSongIndex != null) {
+      if (_currentSongIndex == oldIndex) {
+        _currentSongIndex = newIndex;
+      } else if (_currentSongIndex! > oldIndex &&
+          _currentSongIndex! <= newIndex) {
+        _currentSongIndex = _currentSongIndex! - 1;
+      } else if (_currentSongIndex! < oldIndex &&
+          _currentSongIndex! >= newIndex) {
+        _currentSongIndex = _currentSongIndex! + 1;
+      }
+    }
+
+    if (_isShuffleEnabled) {
+      _generateShuffledIndices();
+    }
+
     notifyListeners();
   }
 

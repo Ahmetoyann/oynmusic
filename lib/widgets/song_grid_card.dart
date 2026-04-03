@@ -46,46 +46,53 @@ class SongGridCard extends StatelessWidget {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(4), // Köşe yarıçapını azalt
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    (song?.localImagePath != null &&
-                            File(song!.localImagePath!).existsSync())
-                        ? Image.file(
-                            File(song!.localImagePath!),
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        Colors.grey.shade800,
-                                        Colors.black,
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
+                child: Transform.scale(
+                  scale:
+                      (imageUrl.contains('ytimg.com') ||
+                          imageUrl.contains('youtube.com'))
+                      ? 1.35
+                      : 1.0,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      (song?.localImagePath != null &&
+                              File(song!.localImagePath!).existsSync())
+                          ? Image.file(
+                              File(song!.localImagePath!),
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Colors.grey.shade800,
+                                          Colors.black,
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
                                     ),
                                   ),
-                                ),
-                          )
-                        : Image.network(
-                            imageUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        Colors.grey.shade800,
-                                        Colors.black,
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
+                            )
+                          : Image.network(
+                              imageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Colors.grey.shade800,
+                                          Colors.black,
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
                                     ),
                                   ),
-                                ),
-                          ),
-                  ],
+                            ),
+                    ],
+                  ),
                 ),
               ),
             ),

@@ -66,6 +66,7 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
     final folder = widget.folder;
 
     return Scaffold(
+      extendBody: true,
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
@@ -455,7 +456,6 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                                         size: 24,
                                       ),
                                     );
-                                    PlayerPage.show(context);
                                   }
                                 },
                                 borderRadius: BorderRadius.circular(30),
@@ -538,7 +538,6 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                                         size: 24,
                                       ),
                                     );
-                                    PlayerPage.show(context);
                                   }
                                 },
                                 borderRadius: BorderRadius.circular(30),
@@ -628,53 +627,27 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                             },
                             child: SongCard(
                               song: song,
+                              showOptions: !_isSelectionMode,
+                              onDeleteTap: () => _showDeleteDialog(
+                                context,
+                                songProvider,
+                                song,
+                              ),
+                              deleteText: 'Listeden Çıkar',
                               trailing: _isSelectionMode
                                   ? null
-                                  : Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        GestureDetector(
-                                          onTap: () => _showSongOptions(
-                                            context,
-                                            songProvider,
-                                            song,
-                                          ),
-                                          child: Container(
-                                            width: 32,
-                                            height: 32,
-                                            decoration: BoxDecoration(
-                                              color: Theme.of(
-                                                context,
-                                              ).primaryColor.withOpacity(0.4),
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                              border: Border.all(
-                                                color: Colors.white.withOpacity(
-                                                  0.1,
-                                                ),
-                                              ),
-                                            ),
-                                            child: CustomIcons.svgIcon(
-                                              CustomIcons.moreHoriz,
-                                              size: 20,
-                                              color: Colors.grey,
-                                            ),
-                                          ),
+                                  : ReorderableDragStartListener(
+                                      index: index,
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(
+                                          left: 8.0,
                                         ),
-                                        ReorderableDragStartListener(
-                                          index: index,
-                                          child: Padding(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8.0,
-                                            ),
-                                            child: CustomIcons.svgIcon(
-                                              CustomIcons.dragHandle,
-                                              color: Colors.grey,
-                                              size: 24,
-                                            ),
-                                          ),
+                                        child: CustomIcons.svgIcon(
+                                          CustomIcons.dragHandle,
+                                          color: Colors.grey,
+                                          size: 24,
                                         ),
-                                      ],
+                                      ),
                                     ),
                               onTap: () {
                                 if (_isSelectionMode) {
@@ -692,7 +665,6 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                                   } else {
                                     songProvider.playSong(song, folder.songs);
                                   }
-                                  PlayerPage.show(context);
                                 }
                               },
                             ),
@@ -704,86 +676,44 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                 },
               ),
             ),
-          const SliverPadding(padding: EdgeInsets.only(bottom: 20)),
+          SliverPadding(
+            padding: EdgeInsets.only(
+              bottom: songProvider.currentSong != null ? 160 : 40,
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: songProvider.currentSong != null
-          ? GestureDetector(
-              onTap: () => PlayerPage.show(context),
-              child: const MiniPlayer(),
+          ? Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [
+                    const Color(0xFF121212),
+                    const Color(0xFF121212).withOpacity(0.9),
+                    const Color(0xFF121212).withOpacity(0.4),
+                    Colors.transparent,
+                  ],
+                  stops: const [0.0, 0.4, 0.8, 1.0],
+                ),
+              ),
+              child: SafeArea(
+                bottom: true,
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: () => PlayerPage.show(context),
+                      child: const MiniPlayer(),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
             )
           : null,
-    );
-  }
-
-  void _showSongOptions(
-    BuildContext context,
-    SongProvider provider,
-    Song song,
-  ) {
-    final theme = Theme.of(context);
-    CustomBottomSheet.showContent(
-      context: context,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 8),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade700,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 16),
-          ListTile(
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: theme.primaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: CustomIcons.svgIcon(
-                CustomIcons.playlistPlay,
-                color: theme.primaryColor,
-                size: 24,
-              ),
-            ),
-            title: const Text(
-              'Sıradaki Çal',
-              style: TextStyle(color: Colors.white),
-            ),
-            onTap: () {
-              Navigator.pop(context);
-              provider.addSongToNext(song);
-            },
-          ),
-          ListTile(
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.redAccent.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: CustomIcons.svgIcon(
-                CustomIcons.delete,
-                color: Colors.redAccent,
-                size: 24,
-              ),
-            ),
-            title: const Text(
-              'Listeden Sil',
-              style: TextStyle(color: Colors.redAccent),
-            ),
-            onTap: () {
-              Navigator.pop(context);
-              _showDeleteDialog(context, provider, song);
-            },
-          ),
-          const SizedBox(height: 16),
-        ],
-      ),
     );
   }
 
@@ -913,34 +843,48 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
   Widget _buildImage(Song song) {
     if (song.localImagePath != null &&
         File(song.localImagePath!).existsSync()) {
-      return Image.file(
-        File(song.localImagePath!),
+      return Transform.scale(
+        scale:
+            (song.coverUrl.contains('ytimg.com') ||
+                song.coverUrl.contains('youtube.com'))
+            ? 1.35
+            : 1.0,
+        child: Image.file(
+          File(song.localImagePath!),
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              color: Colors.grey.shade900,
+              child: CustomIcons.svgIcon(
+                CustomIcons.musicNote,
+                size: 32,
+                color: Colors.grey,
+              ),
+            );
+          },
+        ),
+      );
+    }
+    return Transform.scale(
+      scale:
+          (song.coverUrl.contains('ytimg.com') ||
+              song.coverUrl.contains('youtube.com'))
+          ? 1.35
+          : 1.0,
+      child: Image.network(
+        song.coverUrl,
         fit: BoxFit.cover,
         width: double.infinity,
         height: double.infinity,
-        errorBuilder: (context, error, stackTrace) {
-          return Container(
-            color: Colors.grey.shade900,
-            child: CustomIcons.svgIcon(
-              CustomIcons.musicNote,
-              size: 32,
-              color: Colors.grey,
-            ),
-          );
-        },
-      );
-    }
-    return Image.network(
-      song.coverUrl,
-      fit: BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-      errorBuilder: (c, e, s) => Container(
-        color: Colors.grey.shade800,
-        child: CustomIcons.svgIcon(
-          CustomIcons.musicNote,
-          size: 32,
-          color: Colors.grey,
+        errorBuilder: (c, e, s) => Container(
+          color: Colors.grey.shade800,
+          child: CustomIcons.svgIcon(
+            CustomIcons.musicNote,
+            size: 32,
+            color: Colors.grey,
+          ),
         ),
       ),
     );
@@ -1262,28 +1206,50 @@ class _AddSongsSheetState extends State<AddSongsSheet> {
                                             File(
                                               song.localImagePath!,
                                             ).existsSync())
-                                        ? Image.file(
-                                            File(song.localImagePath!),
-                                            width: 50,
-                                            height: 50,
-                                            fit: BoxFit.cover,
+                                        ? Transform.scale(
+                                            scale:
+                                                (song.coverUrl.contains(
+                                                      'ytimg.com',
+                                                    ) ||
+                                                    song.coverUrl.contains(
+                                                      'youtube.com',
+                                                    ))
+                                                ? 1.35
+                                                : 1.0,
+                                            child: Image.file(
+                                              File(song.localImagePath!),
+                                              width: 50,
+                                              height: 50,
+                                              fit: BoxFit.cover,
+                                            ),
                                           )
-                                        : Image.network(
-                                            song.coverUrl,
-                                            width: 50,
-                                            height: 50,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (c, e, s) =>
-                                                Container(
-                                                  width: 50,
-                                                  height: 50,
-                                                  color: Colors.grey.shade800,
-                                                  child: CustomIcons.svgIcon(
-                                                    CustomIcons.musicNote,
-                                                    color: Colors.grey,
-                                                    size: 24,
+                                        : Transform.scale(
+                                            scale:
+                                                (song.coverUrl.contains(
+                                                      'ytimg.com',
+                                                    ) ||
+                                                    song.coverUrl.contains(
+                                                      'youtube.com',
+                                                    ))
+                                                ? 1.35
+                                                : 1.0,
+                                            child: Image.network(
+                                              song.coverUrl,
+                                              width: 50,
+                                              height: 50,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (c, e, s) =>
+                                                  Container(
+                                                    width: 50,
+                                                    height: 50,
+                                                    color: Colors.grey.shade800,
+                                                    child: CustomIcons.svgIcon(
+                                                      CustomIcons.musicNote,
+                                                      color: Colors.grey,
+                                                      size: 24,
+                                                    ),
                                                   ),
-                                                ),
+                                            ),
                                           ),
                                   ),
                                 ),

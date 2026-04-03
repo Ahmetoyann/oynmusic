@@ -9,12 +9,15 @@ import 'package:just_audio/just_audio.dart';
 import 'package:palette_generator/palette_generator.dart';
 import 'package:muzik_app/pages/login_page.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:dio/dio.dart';
 import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/widgets/custom_app_bar.dart';
 import 'package:muzik_app/widgets/custom_drop_down.dart';
 import 'package:muzik_app/widgets/custom_banner_ad.dart';
+import 'package:text_scroll/text_scroll.dart';
 
 class PlayerPage extends StatefulWidget {
   const PlayerPage({super.key});
@@ -147,9 +150,7 @@ class _PlayerPageState extends State<PlayerPage>
                 } else if (value == 1) {
                   _showQueueBottomSheet(context, songProvider);
                 } else if (value == 2) {
-                  Share.share(
-                    'OYN Müzik\n\n🎵 ${currentSong.title}\n👤 ${currentSong.artist}\n\nDinlemek için uygulamamızı indirin: https://play.google.com/store/apps/details?id=com.ahmed.oyn_music',
-                  );
+                  _shareSong(currentSong);
                 }
               },
               items: [
@@ -204,7 +205,10 @@ class _PlayerPageState extends State<PlayerPage>
                     errorBuilder: (ctx, err, stack) => Container(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [Colors.grey.shade800, Colors.black],
+                          colors: [
+                            Colors.grey.shade800,
+                            const Color(0xFF121212),
+                          ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
@@ -217,7 +221,10 @@ class _PlayerPageState extends State<PlayerPage>
                     errorBuilder: (ctx, err, stack) => Container(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [Colors.grey.shade800, Colors.black],
+                          colors: [
+                            Colors.grey.shade800,
+                            const Color(0xFF121212),
+                          ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
@@ -255,7 +262,7 @@ class _PlayerPageState extends State<PlayerPage>
                         )!,
                         colors: [
                           (_dominantColor ?? primaryColor).withOpacity(0.6),
-                          Colors.black.withOpacity(0.9),
+                          const Color(0xFF121212).withOpacity(0.9),
                         ],
                       ),
                     ),
@@ -286,6 +293,9 @@ class _PlayerPageState extends State<PlayerPage>
                     Center(
                       child: Container(
                         width: MediaQuery.of(context).size.width * 0.85,
+                        height:
+                            MediaQuery.of(context).size.width *
+                            0.85, // Kare görünüm için yüksekliği genişlikle aynı yapıyoruz
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
@@ -300,23 +310,41 @@ class _PlayerPageState extends State<PlayerPage>
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(20),
-                          child:
-                              (currentSong.localImagePath != null &&
-                                  File(
-                                    currentSong.localImagePath!,
-                                  ).existsSync())
-                              ? Image.file(
-                                  File(currentSong.localImagePath!),
-                                  width:
-                                      MediaQuery.of(context).size.width * 0.85,
-                                  fit: BoxFit.fitWidth,
-                                )
-                              : Image.network(
-                                  currentSong.coverUrl,
-                                  width:
-                                      MediaQuery.of(context).size.width * 0.85,
-                                  fit: BoxFit.fitWidth,
-                                ),
+                          child: Transform.scale(
+                            // YouTube resimlerindeki gömülü siyah şeritleri kırpmak için %35 zoom yapıyoruz.
+                            scale:
+                                (currentSong.coverUrl.contains('ytimg.com') ||
+                                    currentSong.coverUrl.contains(
+                                      'youtube.com',
+                                    ))
+                                ? 1.35
+                                : 1.0,
+                            child:
+                                (currentSong.localImagePath != null &&
+                                    File(
+                                      currentSong.localImagePath!,
+                                    ).existsSync())
+                                ? Image.file(
+                                    File(currentSong.localImagePath!),
+                                    width:
+                                        MediaQuery.of(context).size.width *
+                                        0.85,
+                                    height:
+                                        MediaQuery.of(context).size.width *
+                                        0.85,
+                                    fit: BoxFit.cover,
+                                  )
+                                : Image.network(
+                                    currentSong.coverUrl,
+                                    width:
+                                        MediaQuery.of(context).size.width *
+                                        0.85,
+                                    height:
+                                        MediaQuery.of(context).size.width *
+                                        0.85,
+                                    fit: BoxFit.cover,
+                                  ),
+                          ),
                         ),
                       ),
                     ),
@@ -339,16 +367,20 @@ class _PlayerPageState extends State<PlayerPage>
                           duration: const Duration(milliseconds: 400),
                           switchInCurve: Curves.easeOut,
                           switchOutCurve: Curves.easeIn,
-                          child: Text(
+                          child: TextScroll(
                             currentSong.title,
                             key: ValueKey('${currentSong.id}_title'),
+                            mode: TextScrollMode.bouncing,
+                            velocity: const Velocity(
+                              pixelsPerSecond: Offset(30, 0),
+                            ),
+                            delayBefore: const Duration(seconds: 2),
+                            pauseBetween: const Duration(seconds: 2),
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: (screenWidth * 0.06).clamp(20.0, 30.0),
                               fontWeight: FontWeight.bold,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -356,15 +388,19 @@ class _PlayerPageState extends State<PlayerPage>
                           duration: const Duration(milliseconds: 400),
                           switchInCurve: Curves.easeOut,
                           switchOutCurve: Curves.easeIn,
-                          child: Text(
+                          child: TextScroll(
                             currentSong.artist,
                             key: ValueKey('${currentSong.id}_artist'),
+                            mode: TextScrollMode.bouncing,
+                            velocity: const Velocity(
+                              pixelsPerSecond: Offset(30, 0),
+                            ),
+                            delayBefore: const Duration(seconds: 2),
+                            pauseBetween: const Duration(seconds: 2),
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.7),
                               fontSize: (screenWidth * 0.045).clamp(14.0, 22.0),
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -548,6 +584,44 @@ class _PlayerPageState extends State<PlayerPage>
         ),
       ),
     );
+  }
+
+  Future<void> _shareSong(Song song) async {
+    final shareText =
+        '${song.title} - ${song.artist}\n\n'
+        'OYN Müzik\'te dinle: https://play.google.com/store/apps/details?id=com.ahmed.oyn_music';
+
+    try {
+      String? imagePath;
+
+      // 1. Şarkı indirilmişse veya kapak resmi zaten yerelde varsa onu kullan
+      if (song.localImagePath != null &&
+          File(song.localImagePath!).existsSync()) {
+        imagePath = song.localImagePath!;
+      } else if (song.coverUrl.isNotEmpty) {
+        // 2. Yoksa kapak resmini hızlıca geçici klasöre indir
+        final tempDir = await getTemporaryDirectory();
+        imagePath = '${tempDir.path}/share_${song.id}.jpg';
+        final file = File(imagePath);
+
+        if (!file.existsSync()) {
+          final dio = Dio();
+          await dio.download(song.coverUrl, imagePath);
+        }
+      }
+
+      // 3. Resim hazırsa resim + metin olarak paylaş (WhatsApp vb. bunu harika gösterir)
+      if (imagePath != null && File(imagePath).existsSync()) {
+        await Share.shareXFiles([XFile(imagePath)], text: shareText);
+      } else {
+        await Share.share(shareText); // Resim bulunamazsa sadece metin paylaş
+      }
+    } catch (e) {
+      debugPrint("Paylaşım hatası: $e");
+      await Share.share(
+        shareText,
+      ); // Herhangi bir hata olursa uygulamanın çökmemesi için metinle devam et
+    }
   }
 
   /// Oynatma durumuna göre ikonları ve eylemi yöneten genel bir widget.
@@ -880,6 +954,7 @@ void _showQueueBottomSheet(BuildContext context, SongProvider songProvider) {
       initialChildSize: 0.6,
       minChildSize: 0.3,
       maxChildSize: 0.9,
+      expand: false,
       builder: (context, scrollController) {
         // Listeyi o anki şarkıya kaydırmak için
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -917,15 +992,21 @@ void _showQueueBottomSheet(BuildContext context, SongProvider songProvider) {
               ),
               const SizedBox(height: 16),
               Expanded(
-                child: ListView.builder(
-                  controller: scrollController,
+                child: ReorderableListView.builder(
+                  scrollController: scrollController,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
+                  buildDefaultDragHandles:
+                      false, // Uzun basarak sürüklemeyi kapatıp ikonla sürükleteceğiz
+                  onReorder: (oldIndex, newIndex) {
+                    songProvider.reorderPlaylist(oldIndex, newIndex);
+                  },
                   itemCount: songProvider.playlist.length,
                   itemBuilder: (context, index) {
                     final song = songProvider.playlist[index];
                     final isCurrent = song.id == songProvider.currentSong?.id;
 
                     return Padding(
+                      key: ValueKey(song.id),
                       padding: const EdgeInsets.only(bottom: 8.0),
                       child: Container(
                         decoration: BoxDecoration(
@@ -958,20 +1039,43 @@ void _showQueueBottomSheet(BuildContext context, SongProvider songProvider) {
                                           File(
                                             song.localImagePath!,
                                           ).existsSync())
-                                      ? Image.file(
-                                          File(song.localImagePath!),
-                                          fit: BoxFit.cover,
+                                      ? Transform.scale(
+                                          scale:
+                                              (song.coverUrl.contains(
+                                                    'ytimg.com',
+                                                  ) ||
+                                                  song.coverUrl.contains(
+                                                    'youtube.com',
+                                                  ))
+                                              ? 1.35
+                                              : 1.0,
+                                          child: Image.file(
+                                            File(song.localImagePath!),
+                                            fit: BoxFit.cover,
+                                          ),
                                         )
-                                      : Image.network(
-                                          song.coverUrl,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (c, e, s) => Container(
-                                            color: Colors.grey.shade800,
-                                            child: CustomIcons.svgIcon(
-                                              CustomIcons.musicNote,
-                                              color: Colors.white54,
-                                              size: 24,
-                                            ),
+                                      : Transform.scale(
+                                          scale:
+                                              (song.coverUrl.contains(
+                                                    'ytimg.com',
+                                                  ) ||
+                                                  song.coverUrl.contains(
+                                                    'youtube.com',
+                                                  ))
+                                              ? 1.35
+                                              : 1.0,
+                                          child: Image.network(
+                                            song.coverUrl,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (c, e, s) =>
+                                                Container(
+                                                  color: Colors.grey.shade800,
+                                                  child: CustomIcons.svgIcon(
+                                                    CustomIcons.musicNote,
+                                                    color: Colors.white54,
+                                                    size: 24,
+                                                  ),
+                                                ),
                                           ),
                                         ),
                                   if (isCurrent)
@@ -1012,6 +1116,17 @@ void _showQueueBottomSheet(BuildContext context, SongProvider songProvider) {
                                     ).primaryColor.withOpacity(0.7)
                                   : Colors.grey.shade400,
                               fontSize: 13,
+                            ),
+                          ),
+                          trailing: ReorderableDragStartListener(
+                            index: index,
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 8.0),
+                              child: Icon(
+                                Icons.drag_handle_rounded,
+                                color: Colors.grey.shade600,
+                                size: 24,
+                              ),
                             ),
                           ),
                           onTap: () {

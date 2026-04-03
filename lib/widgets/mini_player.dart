@@ -73,7 +73,10 @@ class _MiniPlayerState extends State<MiniPlayer>
         }
 
         return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 8,
+          ), // Yanlardan biraz daha içe çektik
           child: GestureDetector(
             onHorizontalDragEnd: (details) {
               // Sağa/Sola kaydırma ile şarkı değiştirme
@@ -100,7 +103,9 @@ class _MiniPlayerState extends State<MiniPlayer>
                 return Container(
                   padding: const EdgeInsets.all(2),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(26),
+                    borderRadius: BorderRadius.circular(
+                      32,
+                    ), // Dış çerçeve kavisi artırıldı
                     gradient: playing
                         ? SweepGradient(
                             colors: [
@@ -120,176 +125,296 @@ class _MiniPlayerState extends State<MiniPlayer>
                 );
               },
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(
+                  30,
+                ), // İç çerçeve (cam efekti) kavisi artırıldı
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                   child: Container(
-                    height: 65,
                     color: Colors.grey.shade900.withOpacity(0.6),
                     child: Stack(
                       children: [
-                        Row(
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            (song.localImagePath != null)
-                                ? Image.file(
-                                    File(song.localImagePath!),
-                                    height: 65,
-                                    width: 65,
-                                    fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (
-                                          context,
-                                          error,
-                                          stackTrace,
-                                        ) => Image.network(
-                                          song.coverUrl,
-                                          height: 65,
-                                          width: 65,
-                                          fit: BoxFit.cover,
-                                          errorBuilder:
-                                              (
-                                                context,
-                                                error,
-                                                stackTrace,
-                                              ) => Container(
-                                                height: 65,
-                                                width: 65,
-                                                decoration: BoxDecoration(
-                                                  gradient: LinearGradient(
-                                                    colors: [
-                                                      Colors.grey.shade800,
-                                                      Colors.black,
-                                                    ],
-                                                    begin: Alignment.topLeft,
-                                                    end: Alignment.bottomRight,
-                                                  ),
-                                                ),
-                                                child: CustomIcons.svgIcon(
-                                                  CustomIcons.musicNoteRounded,
-                                                  color: Colors.white24,
-                                                  size: 24,
-                                                ),
+                            // Üst Kat: Resim ve Şarkı Bilgileri
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                12,
+                                16,
+                                4,
+                              ), // Kavisli köşelere çarpmaması için iç boşluk
+                              child: Row(
+                                children: [
+                                  AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 300),
+                                    child: ClipRRect(
+                                      key: ValueKey('${song.id}_mini_img'),
+                                      borderRadius: BorderRadius.circular(
+                                        16,
+                                      ), // Şarkı kapak resmini de hap tasarıma uygun yuvarlattık
+                                      child: Transform.scale(
+                                        scale:
+                                            (song.coverUrl.contains(
+                                                  'ytimg.com',
+                                                ) ||
+                                                song.coverUrl.contains(
+                                                  'youtube.com',
+                                                ))
+                                            ? 1.35
+                                            : 1.0,
+                                        child:
+                                            (song.localImagePath != null &&
+                                                File(
+                                                  song.localImagePath!,
+                                                ).existsSync())
+                                            ? Image.file(
+                                                File(song.localImagePath!),
+                                                height: 48,
+                                                width: 48,
+                                                fit: BoxFit.cover,
+                                                errorBuilder:
+                                                    (
+                                                      context,
+                                                      error,
+                                                      stackTrace,
+                                                    ) => Image.network(
+                                                      song.coverUrl,
+                                                      height: 48,
+                                                      width: 48,
+                                                      fit: BoxFit.cover,
+                                                      errorBuilder:
+                                                          (
+                                                            context,
+                                                            error,
+                                                            stackTrace,
+                                                          ) => Container(
+                                                            height: 48,
+                                                            width: 48,
+                                                            decoration: BoxDecoration(
+                                                              gradient: LinearGradient(
+                                                                colors: [
+                                                                  Colors
+                                                                      .grey
+                                                                      .shade800,
+                                                                  const Color(
+                                                                    0xFF121212,
+                                                                  ),
+                                                                ],
+                                                                begin: Alignment
+                                                                    .topLeft,
+                                                                end: Alignment
+                                                                    .bottomRight,
+                                                              ),
+                                                            ),
+                                                            child: CustomIcons.svgIcon(
+                                                              CustomIcons
+                                                                  .musicNoteRounded,
+                                                              color: Colors
+                                                                  .white24,
+                                                              size: 24,
+                                                            ),
+                                                          ),
+                                                    ),
+                                              )
+                                            : Image.network(
+                                                song.coverUrl,
+                                                height: 48,
+                                                width: 48,
+                                                fit: BoxFit.cover,
+                                                errorBuilder:
+                                                    (
+                                                      context,
+                                                      error,
+                                                      stackTrace,
+                                                    ) => Container(
+                                                      height: 48,
+                                                      width: 48,
+                                                      decoration: BoxDecoration(
+                                                        gradient:
+                                                            LinearGradient(
+                                                              colors: [
+                                                                Colors
+                                                                    .grey
+                                                                    .shade800,
+                                                                const Color(
+                                                                  0xFF121212,
+                                                                ),
+                                                              ],
+                                                              begin: Alignment
+                                                                  .topLeft,
+                                                              end: Alignment
+                                                                  .bottomRight,
+                                                            ),
+                                                      ),
+                                                      child: CustomIcons.svgIcon(
+                                                        CustomIcons
+                                                            .musicNoteRounded,
+                                                        color: Colors.white24,
+                                                        size: 24,
+                                                      ),
+                                                    ),
                                               ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        AnimatedSwitcher(
+                                          duration: const Duration(
+                                            milliseconds: 300,
+                                          ),
+                                          child: Text(
+                                            song.title,
+                                            key: ValueKey(
+                                              '${song.id}_mini_title',
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                            ),
+                                          ),
                                         ),
-                                  )
-                                : Image.network(
-                                    song.coverUrl,
-                                    height: 65,
-                                    width: 65,
-                                    fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (context, error, stackTrace) =>
-                                            Container(
-                                              height: 65,
-                                              width: 65,
-                                              decoration: BoxDecoration(
-                                                gradient: LinearGradient(
-                                                  colors: [
-                                                    Colors.grey.shade800,
-                                                    Colors.black,
-                                                  ],
-                                                  begin: Alignment.topLeft,
-                                                  end: Alignment.bottomRight,
-                                                ),
-                                              ),
-                                              child: CustomIcons.svgIcon(
-                                                CustomIcons.musicNoteRounded,
-                                                color: Colors.white24,
-                                                size: 24,
+                                        const SizedBox(height: 4),
+                                        AnimatedSwitcher(
+                                          duration: const Duration(
+                                            milliseconds: 300,
+                                          ),
+                                          child: Text(
+                                            song.duration != null &&
+                                                    song.duration! > 0
+                                                ? "${song.artist} • ${song.formattedDuration}"
+                                                : song.artist,
+                                            key: ValueKey(
+                                              '${song.id}_mini_artist',
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: Colors.grey.shade400,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (songProvider.isSleepTimerActive &&
+                                      songProvider.sleepTimerEndTime != null)
+                                    _buildTimerDisplay(
+                                      context,
+                                      songProvider.sleepTimerEndTime!,
+                                    ),
+                                ],
+                              ),
+                            ),
+                            // Alt Kat: Butonlar
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                0,
+                                16,
+                                8,
+                              ), // Alt butonları da kavisli köşelerden koruduk
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      IconButton(
+                                        icon: CustomIcons.svgIcon(
+                                          song.isFavorite
+                                              ? CustomIcons.favorite
+                                              : CustomIcons.favoriteBorder,
+                                          color: song.isFavorite
+                                              ? Theme.of(context).primaryColor
+                                              : Colors.white,
+                                          size: 24,
+                                        ),
+                                        onPressed: () =>
+                                            songProvider.toggleFavorite(song),
+                                      ),
+                                      if (songProvider.isSongLoading)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            left: 8.0,
+                                          ),
+                                          child: Text(
+                                            'Hazırlanıyor...',
+                                            style: TextStyle(
+                                              color: Colors.grey.shade400,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  Row(
+                                    children: [
+                                      if (processingState ==
+                                              ProcessingState.loading ||
+                                          processingState ==
+                                              ProcessingState.buffering ||
+                                          songProvider.isSongLoading)
+                                        SizedBox(
+                                          width: 48,
+                                          height: 48,
+                                          child: Center(
+                                            child: SizedBox(
+                                              width: 24,
+                                              height: 24,
+                                              child: CircularProgressIndicator(
+                                                color: Theme.of(
+                                                  context,
+                                                ).primaryColor,
+                                                strokeWidth: 3,
                                               ),
                                             ),
-                                  ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    song.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  Text(
-                                    song.duration != null && song.duration! > 0
-                                        ? "${song.artist} • ${song.formattedDuration}"
-                                        : song.artist,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: Colors.grey.shade400,
-                                      fontSize: 12,
-                                    ),
+                                          ),
+                                        )
+                                      else
+                                        IconButton(
+                                          icon: CustomIcons.svgIcon(
+                                            playing
+                                                ? CustomIcons.pauseRounded
+                                                : CustomIcons.playArrowRounded,
+                                            color: Theme.of(
+                                              context,
+                                            ).primaryColor,
+                                            size: 32,
+                                          ),
+                                          onPressed: () {
+                                            if (playing) {
+                                              songProvider.audioPlayer.pause();
+                                            } else {
+                                              songProvider.audioPlayer.play();
+                                            }
+                                          },
+                                        ),
+                                      IconButton(
+                                        icon: CustomIcons.svgIcon(
+                                          CustomIcons.playerNext,
+                                          color: Colors.white,
+                                          size: 32,
+                                        ),
+                                        onPressed: songProvider.playNext,
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
                             ),
-                            if (songProvider.isSleepTimerActive &&
-                                songProvider.sleepTimerEndTime != null)
-                              _buildTimerDisplay(
-                                context,
-                                songProvider.sleepTimerEndTime!,
-                              ),
-                            IconButton(
-                              icon: CustomIcons.svgIcon(
-                                song.isFavorite
-                                    ? CustomIcons.favorite
-                                    : CustomIcons.favoriteBorder,
-                                color: song.isFavorite
-                                    ? Theme.of(context).primaryColor
-                                    : Colors.white,
-                                size: 24,
-                              ),
-                              onPressed: () =>
-                                  songProvider.toggleFavorite(song),
-                            ),
-                            if (processingState == ProcessingState.loading ||
-                                processingState == ProcessingState.buffering ||
-                                songProvider.isSongLoading)
-                              SizedBox(
-                                width: 48,
-                                height: 48,
-                                child: Center(
-                                  child: SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: CircularProgressIndicator(
-                                      color: Theme.of(context).primaryColor,
-                                      strokeWidth: 3,
-                                    ),
-                                  ),
-                                ),
-                              )
-                            else
-                              IconButton(
-                                icon: CustomIcons.svgIcon(
-                                  playing
-                                      ? CustomIcons.pauseRounded
-                                      : CustomIcons.playArrowRounded,
-                                  color: Theme.of(context).primaryColor,
-                                  size: 32,
-                                ),
-                                onPressed: () {
-                                  if (playing) {
-                                    songProvider.audioPlayer.pause();
-                                  } else {
-                                    songProvider.audioPlayer.play();
-                                  }
-                                },
-                              ),
-                            IconButton(
-                              icon: CustomIcons.svgIcon(
-                                CustomIcons.playerNext,
-                                color: Colors.white,
-                                size: 32,
-                              ),
-                              onPressed: songProvider.playNext,
-                            ),
-                            const SizedBox(width: 8),
                           ],
                         ),
                         Positioned(

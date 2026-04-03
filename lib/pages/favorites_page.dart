@@ -129,8 +129,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
                         ? Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              CustomIcons.svgIcon(
-                                CustomIcons.addPhotoAlternateRounded,
+                              Icon(
+                                Icons.add_a_photo_outlined,
                                 color: Theme.of(context).primaryColor,
                                 size: 48,
                               ),
@@ -402,20 +402,34 @@ class _FavoritesPageState extends State<FavoritesPage> {
                         final firstSong = folder.songs.first;
                         if (firstSong.localImagePath != null &&
                             File(firstSong.localImagePath!).existsSync()) {
-                          coverWidget = Image.file(
-                            File(firstSong.localImagePath!),
-                            fit: BoxFit.cover,
+                          coverWidget = Transform.scale(
+                            scale:
+                                (firstSong.coverUrl.contains('ytimg.com') ||
+                                    firstSong.coverUrl.contains('youtube.com'))
+                                ? 1.35
+                                : 1.0,
+                            child: Image.file(
+                              File(firstSong.localImagePath!),
+                              fit: BoxFit.cover,
+                            ),
                           );
                         } else {
-                          coverWidget = Image.network(
-                            firstSong.coverUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (c, e, s) => Container(
-                              color: Colors.grey.shade800,
-                              child: CustomIcons.svgIcon(
-                                CustomIcons.musicNote,
-                                color: Colors.white54,
-                                size: 24,
+                          coverWidget = Transform.scale(
+                            scale:
+                                (firstSong.coverUrl.contains('ytimg.com') ||
+                                    firstSong.coverUrl.contains('youtube.com'))
+                                ? 1.35
+                                : 1.0,
+                            child: Image.network(
+                              firstSong.coverUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (c, e, s) => Container(
+                                color: Colors.grey.shade800,
+                                child: CustomIcons.svgIcon(
+                                  CustomIcons.musicNote,
+                                  color: Colors.white54,
+                                  size: 24,
+                                ),
                               ),
                             ),
                           );
@@ -807,41 +821,50 @@ class _FavoritesPageState extends State<FavoritesPage> {
   }
 
   Widget _buildImage(Song song) {
-    if (song.localImagePath != null) {
-      return Image.file(
-        File(song.localImagePath!),
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        errorBuilder: (context, error, stackTrace) {
-          return Image.network(
-            song.coverUrl,
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-            errorBuilder: (c, e, s) => Container(
+    if (song.localImagePath != null &&
+        File(song.localImagePath!).existsSync()) {
+      return Transform.scale(
+        scale:
+            (song.coverUrl.contains('ytimg.com') ||
+                song.coverUrl.contains('youtube.com'))
+            ? 1.35
+            : 1.0,
+        child: Image.file(
+          File(song.localImagePath!),
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
               color: Colors.grey.shade800,
               child: CustomIcons.svgIcon(
                 CustomIcons.musicNote,
                 color: Colors.grey,
                 size: 24,
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       );
     }
-    return Image.network(
-      song.coverUrl,
-      fit: BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-      errorBuilder: (c, e, s) => Container(
-        color: Colors.grey.shade800,
-        child: CustomIcons.svgIcon(
-          CustomIcons.musicNote,
-          color: Colors.grey,
-          size: 24,
+    return Transform.scale(
+      scale:
+          (song.coverUrl.contains('ytimg.com') ||
+              song.coverUrl.contains('youtube.com'))
+          ? 1.35
+          : 1.0,
+      child: Image.network(
+        song.coverUrl,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (c, e, s) => Container(
+          color: Colors.grey.shade800,
+          child: CustomIcons.svgIcon(
+            CustomIcons.musicNote,
+            color: Colors.grey,
+            size: 24,
+          ),
         ),
       ),
     );
@@ -974,7 +997,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
           ],
         ],
       ),
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFF121212),
       body: Column(
         children: [
           if (favoriteSongs.isNotEmpty)
@@ -1068,7 +1091,6 @@ class _FavoritesPageState extends State<FavoritesPage> {
                                       size: 24,
                                     ),
                                   );
-                                  PlayerPage.show(context);
                                 }
                               },
                               borderRadius: BorderRadius.circular(30),
@@ -1151,7 +1173,6 @@ class _FavoritesPageState extends State<FavoritesPage> {
                                       size: 24,
                                     ),
                                   );
-                                  PlayerPage.show(context);
                                 }
                               },
                               borderRadius: BorderRadius.circular(30),
@@ -1348,6 +1369,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                         song: displaySong,
                         isSelected: isSelected,
                         showBorder: _isSelectionMode,
+                        showOptions: !_isSelectionMode,
                         trailing: _isSelectionMode
                             ? CustomIcons.svgIcon(
                                 isSelected
@@ -1358,15 +1380,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                                     : Colors.grey,
                                 size: 24,
                               )
-                            : IconButton(
-                                icon: CustomIcons.svgIcon(
-                                  CustomIcons.favorite,
-                                  color: Theme.of(context).primaryColor,
-                                  size: 24,
-                                ),
-                                onPressed: () =>
-                                    songProvider.toggleFavorite(song),
-                              ),
+                            : null,
                         onTap: () {
                           if (_isSelectionMode) {
                             _toggleSelection(song);
@@ -1381,7 +1395,6 @@ class _FavoritesPageState extends State<FavoritesPage> {
                             } else {
                               songProvider.playSong(song, favoriteSongs);
                             }
-                            PlayerPage.show(context);
                           }
                         },
                         onLongPress: () {

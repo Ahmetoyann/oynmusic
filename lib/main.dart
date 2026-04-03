@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/rendering.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:muzik_app/pages/lists_page.dart';
 import 'package:muzik_app/pages/search_page.dart';
@@ -23,6 +24,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:muzik_app/pages/splash_screen.dart';
 import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/pages/onboarding_page.dart';
+import 'package:muzik_app/pages/initial_artists_page.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 // Global Navigator Key
@@ -33,8 +35,18 @@ final GlobalKey<MainScreenState> mainScreenKey = GlobalKey<MainScreenState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Tam ekran modu (Alt navigasyon tuşlarını ve üst durum çubuğunu otomatik gizler)
-  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  // Durum çubuğu (şarj, saat vb.) görünür olsun ve arkaplanla uyumlu olsun
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: Color(0xFF121212),
+      systemNavigationBarIconBrightness: Brightness.light,
+    ),
+  );
+
+  // Hem üst durum çubuğunu hem de alt navigasyon tuşlarını gösterir
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
   if (Platform.isAndroid || Platform.isIOS) {
     await MobileAds.instance.initialize();
@@ -82,14 +94,14 @@ class MyApp extends StatelessWidget {
       theme: ThemeData.dark().copyWith(
         textTheme: GoogleFonts.montserratTextTheme(ThemeData.dark().textTheme),
         primaryColor: themeProvider.primaryColor,
-        scaffoldBackgroundColor: Colors.black,
+        scaffoldBackgroundColor: const Color(0xFF121212),
         colorScheme: ColorScheme.dark(
           primary: themeProvider.primaryColor,
           secondary: themeProvider.primaryColor,
           surface: Colors.grey.shade900,
         ),
         appBarTheme: AppBarTheme(
-          backgroundColor: Colors.black,
+          backgroundColor: const Color(0xFF121212),
           elevation: 0,
           titleTextStyle: GoogleFonts.montserrat(
             color: themeProvider.primaryColor,
@@ -300,7 +312,7 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     if (_seenOnboarding == null)
-      return const Scaffold(backgroundColor: Colors.black);
+      return const Scaffold(backgroundColor: Color(0xFF121212));
 
     if (!_seenOnboarding!) {
       return OnboardingPage(
@@ -314,8 +326,22 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
 
     final songProvider = context.watch<SongProvider>();
 
-    // Oturum açılmışsa veya misafir ise Ana Ekrana git
-    if (songProvider.isFirebaseLoggedIn || songProvider.isGuest) {
+    if (songProvider.isFirebaseLoggedIn) {
+      if (songProvider.isSyncingUserData) {
+        return const Scaffold(
+          backgroundColor: Color(0xFF121212),
+          body: Center(child: CircularProgressIndicator(color: Colors.white)),
+        );
+      }
+
+      if (!songProvider.seenInitialArtists) {
+        return InitialArtistsPage(onCompleted: () {});
+      }
+    }
+
+    // Oturum açılmışsa (ve sanatçı seçimi görülmüşse/eşlenmişse) VEYA misafir ise Ana Ekrana git
+    if ((songProvider.isFirebaseLoggedIn && songProvider.seenInitialArtists) ||
+        songProvider.isGuest) {
       return MainScreen(key: mainScreenKey);
     }
 
@@ -332,22 +358,60 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => MainScreenState();
 }
 
-class MainScreenState extends State<MainScreen> {
+class MainScreenState extends State<MainScreen>
+    with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
   bool _isRetrying = false;
+  bool _isBottomNavVisible = true;
+  late AnimationController _navAnimController;
+  late List<ScrollController> _scrollControllers;
+  late List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
+    _navAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+      value: 1.0,
+    );
+
+    _scrollControllers = [
+      ScrollController(),
+      ScrollController(),
+      ScrollController(),
+      ScrollController(),
+    ];
+
+    _pages = [
+      PrimaryScrollController(
+        controller: _scrollControllers[0],
+        child: TrendPage(),
+      ),
+      PrimaryScrollController(
+        controller: _scrollControllers[1],
+        child: SearchPage(),
+      ),
+      PrimaryScrollController(
+        controller: _scrollControllers[2],
+        child: FavoritesPage(),
+      ),
+      PrimaryScrollController(
+        controller: _scrollControllers[3],
+        child: ListelerPage(),
+      ),
+    ];
   }
 
-  final List<Widget> _pages = <Widget>[
-    TrendPage(),
-    SearchPage(),
-    FavoritesPage(),
-    ListelerPage(),
-  ];
+  @override
+  void dispose() {
+    _navAnimController.dispose();
+    for (var c in _scrollControllers) {
+      c.dispose();
+    }
+    super.dispose();
+  }
 
   void switchToTab(int index) {
     setState(() {
@@ -357,32 +421,73 @@ class MainScreenState extends State<MainScreen> {
 
   void _onItemTapped(int index) {
     debugPrint('BottomNav tapped: $index');
-    setState(() => _selectedIndex = index);
+    if (_selectedIndex == index) {
+      // Sayfa zaten aktifse pürüzsüz bir şekilde en tepeye kaydır
+      if (_scrollControllers[index].hasClients) {
+        _scrollControllers[index].animateTo(
+          0.0,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutQuart,
+        );
+      }
+    } else {
+      setState(() => _selectedIndex = index);
+    }
   }
 
-  Widget _buildActiveIcon(String svgIcon, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.withOpacity(0.5)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CustomIcons.svgIcon(
-            svgIcon,
-            color: color, // Active color
-            size: 30,
+  Widget _buildNavItem(
+    int index,
+    String label,
+    String svgIcon,
+    Color primaryColor,
+  ) {
+    final isSelected = _selectedIndex == index;
+    final color = isSelected ? primaryColor : Colors.grey.withOpacity(0.6);
+
+    return GestureDetector(
+      onTap: () => _onItemTapped(index),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutQuint,
+            padding: EdgeInsets.symmetric(
+              horizontal: isSelected ? 16 : 14,
+              vertical: 12,
+            ),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? primaryColor.withOpacity(0.2)
+                  : Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: isSelected
+                    ? primaryColor.withOpacity(0.5)
+                    : Colors.white.withOpacity(0.1),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CustomIcons.svgIcon(svgIcon, color: color, size: 24),
+                if (isSelected) ...[
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: primaryColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
-          const SizedBox(height: 4),
-          Container(
-            width: 5,
-            height: 5,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -396,107 +501,96 @@ class MainScreenState extends State<MainScreen> {
 
     return Scaffold(
       extendBody: true,
-      body: (!hasConnection && _selectedIndex != 3)
-          ? _buildNoConnectionView()
-          : IndexedStack(index: _selectedIndex, children: _pages),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          GestureDetector(
-            onTap: () => PlayerPage.show(context),
-            child: const MiniPlayer(),
+      body: NotificationListener<UserScrollNotification>(
+        onNotification: (notification) {
+          // Kullanıcı aşağı kaydırıyorsa gizle
+          if (notification.direction == ScrollDirection.reverse) {
+            if (_isBottomNavVisible) {
+              setState(() => _isBottomNavVisible = false);
+              _navAnimController.reverse();
+            }
+          }
+          // Kullanıcı yukarı kaydırıyorsa göster
+          else if (notification.direction == ScrollDirection.forward) {
+            if (!_isBottomNavVisible) {
+              setState(() => _isBottomNavVisible = true);
+              _navAnimController.forward();
+            }
+          }
+          return false;
+        },
+        child: (!hasConnection && _selectedIndex != 3)
+            ? _buildNoConnectionView()
+            : IndexedStack(index: _selectedIndex, children: _pages),
+      ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.bottomCenter,
+            end: Alignment.topCenter,
+            colors: [
+              const Color(0xFF121212),
+              const Color(0xFF121212).withOpacity(0.9),
+              const Color(0xFF121212).withOpacity(0.4),
+              Colors.transparent,
+            ],
+            stops: const [0.0, 0.4, 0.8, 1.0],
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(48, 8, 48, 12),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: primaryColor.withOpacity(0.25),
-                    blurRadius: 15,
-                    spreadRadius: 1,
-                  ),
-                ],
-                border: Border.all(
-                  color: primaryColor.withOpacity(0.3),
-                  width: 1,
-                ),
+        ),
+        child: SafeArea(
+          bottom: true,
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GestureDetector(
+                onTap: () => PlayerPage.show(context),
+                child: const MiniPlayer(),
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                  child: BottomNavigationBar(
-                    type: BottomNavigationBarType.fixed,
-                    items: <BottomNavigationBarItem>[
-                      BottomNavigationBarItem(
-                        icon: CustomIcons.svgIcon(
-                          CustomIcons.trending,
-                          size: 27,
-                          color: Colors.grey.withOpacity(0.5),
-                        ),
-                        activeIcon: _buildActiveIcon(
-                          CustomIcons.trending,
-                          primaryColor,
-                        ),
-                        label: 'Trendler',
+              SizeTransition(
+                sizeFactor: CurvedAnimation(
+                  parent: _navAnimController,
+                  curve: Curves.easeInOut,
+                ),
+                axisAlignment: -1.0,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    16,
+                    16,
+                    16,
+                    12, // SafeArea kullanıldığı için manuel bottom hesaplamasına gerek kalmadı
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildNavItem(
+                        0,
+                        'Trendler',
+                        CustomIcons.trending,
+                        primaryColor,
                       ),
-                      BottomNavigationBarItem(
-                        icon: CustomIcons.svgIcon(
-                          CustomIcons.search,
-                          size: 27,
-                          color: Colors.grey.withOpacity(0.5),
-                        ),
-                        activeIcon: _buildActiveIcon(
-                          CustomIcons.search,
-                          primaryColor,
-                        ),
-                        label: 'Ara',
+                      _buildNavItem(1, 'Ara', CustomIcons.search, primaryColor),
+                      _buildNavItem(
+                        2,
+                        'Favoriler',
+                        _selectedIndex == 2
+                            ? CustomIcons.favorite
+                            : CustomIcons.favoriteBorder,
+                        primaryColor,
                       ),
-                      BottomNavigationBarItem(
-                        icon: Icon(
-                          Icons.favorite_border,
-                          color: Colors.grey.withOpacity(0.5),
-                          size: 27,
-                        ),
-                        activeIcon: _buildActiveIcon(
-                          CustomIcons.favorite,
-                          primaryColor,
-                        ),
-                        label: 'Favoriler',
-                      ),
-                      BottomNavigationBarItem(
-                        icon: CustomIcons.svgIcon(
-                          CustomIcons.library,
-                          size: 27,
-                          color: Colors.grey.withOpacity(0.5),
-                        ),
-                        activeIcon: _buildActiveIcon(
-                          CustomIcons.library,
-                          primaryColor,
-                        ),
-                        label: 'Kitaplığım',
+                      _buildNavItem(
+                        3,
+                        'Kitaplığım',
+                        CustomIcons.library,
+                        primaryColor,
                       ),
                     ],
-                    currentIndex: _selectedIndex,
-                    onTap: _onItemTapped,
-                    backgroundColor: Colors.black.withValues(alpha: 0.3),
-                    selectedItemColor: primaryColor,
-                    unselectedItemColor: Colors.grey.withOpacity(0.5),
-                    selectedIconTheme: const IconThemeData(size: 27),
-                    unselectedIconTheme: const IconThemeData(size: 27),
-                    selectedFontSize: 1,
-                    unselectedFontSize: 1,
-                    showUnselectedLabels: false,
-                    showSelectedLabels: false,
-                    elevation: 0,
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -504,7 +598,7 @@ class MainScreenState extends State<MainScreen> {
   Widget _buildNoConnectionView() {
     return Container(
       width: double.infinity,
-      color: Colors.black,
+      color: const Color(0xFF121212),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [

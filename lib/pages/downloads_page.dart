@@ -164,8 +164,8 @@ class _DownloadsPageState extends State<DownloadsPage> {
                         ? Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              CustomIcons.svgIcon(
-                                CustomIcons.addPhotoAlternateRounded,
+                              Icon(
+                                Icons.add_a_photo_outlined,
                                 color: Theme.of(context).primaryColor,
                                 size: 48,
                               ),
@@ -626,73 +626,6 @@ class _DownloadsPageState extends State<DownloadsPage> {
     );
   }
 
-  void _showSongOptions(BuildContext context, Song song) {
-    final theme = Theme.of(context);
-    CustomBottomSheet.showContent(
-      context: context,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 8),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade700,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 16),
-          ListTile(
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: theme.primaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: CustomIcons.svgIcon(
-                CustomIcons.playlistPlay,
-                color: theme.primaryColor,
-                size: 24,
-              ),
-            ),
-            title: const Text(
-              'Sıradaki Çal',
-              style: TextStyle(color: Colors.white),
-            ),
-            onTap: () {
-              Navigator.pop(context);
-              context.read<SongProvider>().addSongToNext(song);
-            },
-          ),
-          ListTile(
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.redAccent.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: CustomIcons.svgIcon(
-                CustomIcons.delete,
-                color: Colors.redAccent,
-                size: 24,
-              ),
-            ),
-            title: const Text(
-              'Şarkıyı Sil',
-              style: TextStyle(color: Colors.redAccent),
-            ),
-            onTap: () {
-              Navigator.pop(context);
-              _showDeleteConfirmationDialog(context, song);
-            },
-          ),
-          const SizedBox(height: 16),
-        ],
-      ),
-    );
-  }
-
   void _showFolderOptions(BuildContext context, MusicFolder folder) {
     CustomBottomSheet.showContent(
       context: context,
@@ -959,41 +892,50 @@ class _DownloadsPageState extends State<DownloadsPage> {
   }
 
   Widget _buildImage(Song song) {
-    if (song.localImagePath != null) {
-      return Image.file(
-        File(song.localImagePath!),
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        errorBuilder: (context, error, stackTrace) {
-          return Image.network(
-            song.coverUrl,
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-            errorBuilder: (c, e, s) => Container(
+    if (song.localImagePath != null &&
+        File(song.localImagePath!).existsSync()) {
+      return Transform.scale(
+        scale:
+            (song.coverUrl.contains('ytimg.com') ||
+                song.coverUrl.contains('youtube.com'))
+            ? 1.35
+            : 1.0,
+        child: Image.file(
+          File(song.localImagePath!),
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
               color: Colors.grey.shade800,
               child: CustomIcons.svgIcon(
                 CustomIcons.musicNote,
                 color: Colors.grey,
                 size: 24,
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       );
     }
-    return Image.network(
-      song.coverUrl,
-      fit: BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-      errorBuilder: (c, e, s) => Container(
-        color: Colors.grey.shade800,
-        child: CustomIcons.svgIcon(
-          CustomIcons.musicNote,
-          color: Colors.grey,
-          size: 24,
+    return Transform.scale(
+      scale:
+          (song.coverUrl.contains('ytimg.com') ||
+              song.coverUrl.contains('youtube.com'))
+          ? 1.35
+          : 1.0,
+      child: Image.network(
+        song.coverUrl,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (c, e, s) => Container(
+          color: Colors.grey.shade800,
+          child: CustomIcons.svgIcon(
+            CustomIcons.musicNote,
+            color: Colors.grey,
+            size: 24,
+          ),
         ),
       ),
     );
@@ -1159,10 +1101,36 @@ class _DownloadsPageState extends State<DownloadsPage> {
             ],
           ],
         ),
+        extendBody: true,
         bottomNavigationBar: songProvider.currentSong != null
-            ? GestureDetector(
-                onTap: () => PlayerPage.show(context),
-                child: const MiniPlayer(),
+            ? Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      const Color(0xFF121212),
+                      const Color(0xFF121212).withOpacity(0.9),
+                      const Color(0xFF121212).withOpacity(0.4),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.4, 0.8, 1.0],
+                  ),
+                ),
+                child: SafeArea(
+                  bottom: true,
+                  top: false,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: () => PlayerPage.show(context),
+                        child: const MiniPlayer(),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  ),
+                ),
               )
             : null,
         body: Column(
@@ -1259,7 +1227,6 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                         size: 24,
                                       ),
                                     );
-                                    PlayerPage.show(context);
                                   }
                                 },
                                 borderRadius: BorderRadius.circular(30),
@@ -1342,7 +1309,6 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                         size: 24,
                                       ),
                                     );
-                                    PlayerPage.show(context);
                                   }
                                 },
                                 borderRadius: BorderRadius.circular(30),
@@ -1556,7 +1522,6 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                   songProvider.audioPlayer.play();
                                 }
                               }
-                              PlayerPage.show(context);
                             }
                           },
                           child: Stack(
@@ -1652,6 +1617,10 @@ class _DownloadsPageState extends State<DownloadsPage> {
                           song: displaySong,
                           isSelected: isSelected,
                           showBorder: _isSelectionMode,
+                          showOptions: !_isSelectionMode,
+                          onDeleteTap: () =>
+                              _showDeleteConfirmationDialog(context, song),
+                          deleteText: 'Cihazdan Sil',
                           trailing: _isSelectionMode
                               ? CustomIcons.svgIcon(
                                   isSelected
@@ -1662,27 +1631,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                       : Colors.grey,
                                   size: 24,
                                 )
-                              : GestureDetector(
-                                  onTap: () => _showSongOptions(context, song),
-                                  child: Container(
-                                    width: 32,
-                                    height: 32,
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(
-                                        context,
-                                      ).primaryColor.withOpacity(0.4),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color: Colors.white.withOpacity(0.1),
-                                      ),
-                                    ),
-                                    child: CustomIcons.svgIcon(
-                                      CustomIcons.moreHoriz,
-                                      size: 20,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ),
+                              : null,
                           onTap: () {
                             if (_isSelectionMode) {
                               _toggleSelection(song);
@@ -1698,7 +1647,6 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                   songProvider.audioPlayer.play();
                                 }
                               }
-                              PlayerPage.show(context);
                             }
                           },
                           onLongPress: () {

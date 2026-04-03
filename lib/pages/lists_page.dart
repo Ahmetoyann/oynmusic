@@ -17,8 +17,6 @@ import 'package:muzik_app/pages/folder_detail_page.dart';
 import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/widgets/custom_app_bar.dart';
-import 'package:muzik_app/pages/recently_played_page.dart';
-import 'package:muzik_app/widgets/song_grid_card.dart';
 import 'package:muzik_app/pages/player_page.dart';
 import 'package:muzik_app/widgets/custom_drop_down.dart';
 
@@ -65,15 +63,6 @@ class _ListelerPageState extends State<ListelerPage> {
         // Varsayılan sıralama (eklenme sırası)
         break;
     }
-
-    // En Son Dinlenenler için filtreleme
-    final validRecentlyPlayed = songProvider.recentlyPlayed
-        .where(
-          (s) =>
-              s.coverUrl.isNotEmpty &&
-              !s.coverUrl.contains('via.placeholder.com'),
-        )
-        .toList();
 
     return Scaffold(
       appBar: CustomAppBar(
@@ -153,105 +142,106 @@ class _ListelerPageState extends State<ListelerPage> {
               width: double.infinity,
               height: 110,
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFF405DE6), // Royal Blue
-                    const Color(0xFF833AB4), // Purple
-                    const Color(0xFFE1306C), // Dark Pink
-                    const Color(0xFFFD1D1D), // Red
-                    const Color(0xFFF56040), // Orange
-                    const Color(0xFFFCAF45), // Yellow
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
+                borderRadius: BorderRadius.circular(24),
               ),
-              child: Stack(
-                children: [
-                  Positioned(
-                    right: -20,
-                    bottom: -40,
-                    child: Transform.rotate(
-                      angle: -0.2,
-                      child: Icon(
-                        Icons.downloading,
-                        size: 140,
-                        color: Colors.white.withOpacity(0.1),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: BackdropFilter(
+                  filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).primaryColor.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.2),
+                        width: 1.5,
                       ),
                     ),
-                  ),
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(20),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const DownloadsPage(),
-                          ),
-                        );
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.downloading,
-                                color: Colors.white,
-                                size: 28,
-                              ),
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          right: -20,
+                          bottom: -40,
+                          child: Transform.rotate(
+                            angle: -0.2,
+                            child: Icon(
+                              Icons.downloading,
+                              size: 140,
+                              color: Colors.white.withOpacity(0.1),
                             ),
-                            const SizedBox(width: 20),
-                            const Expanded(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                          ),
+                        ),
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(24),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const DownloadsPage(),
+                                ),
+                              );
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                              ),
+                              child: Row(
                                 children: [
-                                  Text(
-                                    "İndirilenler",
-                                    style: TextStyle(
+                                  Container(
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.downloading,
                                       color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 22,
+                                      size: 28,
                                     ),
                                   ),
-                                  SizedBox(height: 4),
-                                  Text(
-                                    "Çevrimdışı dinle",
-                                    style: TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 15,
+                                  const SizedBox(width: 20),
+                                  const Expanded(
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          "İndirilenler",
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 22,
+                                          ),
+                                        ),
+                                        SizedBox(height: 4),
+                                        Text(
+                                          "Çevrimdışı dinle",
+                                          style: TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                      ],
                                     ),
+                                  ),
+                                  CustomIcons.svgIcon(
+                                    CustomIcons.arrowRight,
+                                    color: Colors.white54,
+                                    size: 20,
                                   ),
                                 ],
                               ),
                             ),
-                            CustomIcons.svgIcon(
-                              CustomIcons.arrowRight,
-                              color: Colors.white54,
-                              size: 20,
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -260,7 +250,12 @@ class _ListelerPageState extends State<ListelerPage> {
             child: (sortedFolders.isEmpty && !hasConnection)
                 ? _buildEmptyState(context, hasConnection)
                 : GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      16,
+                      16,
+                      songProvider.currentSong != null ? 160 : 100,
+                    ),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 4,
@@ -289,73 +284,6 @@ class _ListelerPageState extends State<ListelerPage> {
                   ),
           ),
 
-          if (validRecentlyPlayed.isNotEmpty) const SizedBox(height: 12),
-
-          // --- EN SON DİNLEDİKLERİN BÖLÜMÜ ---
-          if (validRecentlyPlayed.isNotEmpty)
-            Padding(
-              padding: EdgeInsets.only(
-                bottom: songProvider.currentSong != null ? 160 : 100,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const RecentlyPlayedPage(),
-                          ),
-                        );
-                      },
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            "En Son Dinlediklerin",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    height: 150,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      itemCount: validRecentlyPlayed.length > 10
-                          ? 11
-                          : validRecentlyPlayed.length,
-                      itemBuilder: (context, index) {
-                        if (validRecentlyPlayed.length > 10 && index == 10) {
-                          return Container(
-                            width: 110,
-                            margin: const EdgeInsets.only(right: 12),
-                            child: _buildSeeMoreCard(context),
-                          );
-                        }
-                        final song = validRecentlyPlayed[index];
-                        return Container(
-                          width: 110,
-                          margin: const EdgeInsets.only(right: 12),
-                          child: _buildRecentlyPlayedCard(context, song),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else
-            SizedBox(height: songProvider.currentSong != null ? 160 : 100),
         ],
       ),
     );
@@ -406,94 +334,6 @@ class _ListelerPageState extends State<ListelerPage> {
           ),
           const SizedBox(height: 2),
           const Text("", style: TextStyle(fontSize: 10)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRecentlyPlayedCard(BuildContext context, Song song) {
-    return SongGridCard(
-      song: song,
-      imageUrl: song.coverUrl,
-      title: song.title,
-      subtitle: song.artist,
-      onTap: () {
-        final provider = context.read<SongProvider>();
-        if (provider.currentSong?.id == song.id) {
-          if (provider.audioPlayer.playing) {
-            provider.audioPlayer.pause();
-          } else {
-            provider.audioPlayer.play();
-          }
-        } else {
-          provider.playSong(song, provider.recentlyPlayed);
-        }
-        PlayerPage.show(context);
-      },
-    );
-  }
-
-  Widget _buildSeeMoreCard(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const RecentlyPlayedPage()),
-        );
-      },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Theme.of(context).primaryColor.withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.arrow_forward_rounded,
-                      color: Theme.of(context).primaryColor,
-                      size: 32,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "Devamını\nGör",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Theme.of(context).primaryColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            "Tümü",
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            "Dinleme Geçmişi",
-            style: TextStyle(color: Colors.grey.shade500, fontSize: 10),
-          ),
         ],
       ),
     );
@@ -641,8 +481,39 @@ class _ListelerPageState extends State<ListelerPage> {
   Widget _buildGridImage(Song song) {
     if (song.localImagePath != null &&
         File(song.localImagePath!).existsSync()) {
-      return Image.file(
-        File(song.localImagePath!),
+      return Transform.scale(
+        scale:
+            (song.coverUrl.contains('ytimg.com') ||
+                song.coverUrl.contains('youtube.com'))
+            ? 1.35
+            : 1.0,
+        child: Image.file(
+          File(song.localImagePath!),
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.grey.shade800, Colors.grey.shade900],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
+    return Transform.scale(
+      scale:
+          (song.coverUrl.contains('ytimg.com') ||
+              song.coverUrl.contains('youtube.com'))
+          ? 1.35
+          : 1.0,
+      child: Image.network(
+        song.coverUrl,
         fit: BoxFit.cover,
         width: double.infinity,
         height: double.infinity,
@@ -657,24 +528,7 @@ class _ListelerPageState extends State<ListelerPage> {
             ),
           );
         },
-      );
-    }
-    return Image.network(
-      song.coverUrl,
-      fit: BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-      errorBuilder: (context, error, stackTrace) {
-        return Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.grey.shade800, Colors.grey.shade900],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        );
-      },
+      ),
     );
   }
 
@@ -1049,8 +903,8 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
                   ? Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        CustomIcons.svgIcon(
-                          CustomIcons.addPhotoAlternateRounded,
+                        Icon(
+                          Icons.add_a_photo_outlined,
                           color: Theme.of(context).primaryColor,
                           size: 48,
                         ),
@@ -1322,25 +1176,39 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
                     child:
                         (song.localImagePath != null &&
                             File(song.localImagePath!).existsSync())
-                        ? Image.file(
-                            File(song.localImagePath!),
-                            width: 50,
-                            height: 50,
-                            fit: BoxFit.cover,
-                          )
-                        : Image.network(
-                            song.coverUrl,
-                            width: 50,
-                            height: 50,
-                            fit: BoxFit.cover,
-                            errorBuilder: (c, e, s) => Container(
+                        ? Transform.scale(
+                            scale:
+                                (song.coverUrl.contains('ytimg.com') ||
+                                    song.coverUrl.contains('youtube.com'))
+                                ? 1.35
+                                : 1.0,
+                            child: Image.file(
+                              File(song.localImagePath!),
                               width: 50,
                               height: 50,
-                              color: Colors.grey.shade800,
-                              child: CustomIcons.svgIcon(
-                                CustomIcons.musicNote,
-                                color: Colors.grey,
-                                size: 24,
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        : Transform.scale(
+                            scale:
+                                (song.coverUrl.contains('ytimg.com') ||
+                                    song.coverUrl.contains('youtube.com'))
+                                ? 1.35
+                                : 1.0,
+                            child: Image.network(
+                              song.coverUrl,
+                              width: 50,
+                              height: 50,
+                              fit: BoxFit.cover,
+                              errorBuilder: (c, e, s) => Container(
+                                width: 50,
+                                height: 50,
+                                color: Colors.grey.shade800,
+                                child: CustomIcons.svgIcon(
+                                  CustomIcons.musicNote,
+                                  color: Colors.grey,
+                                  size: 24,
+                                ),
                               ),
                             ),
                           ),

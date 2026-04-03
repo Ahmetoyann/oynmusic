@@ -366,7 +366,6 @@ class _SearchPageState extends State<SearchPage> {
                     } else {
                       songProvider.playSong(song, suggestionsToDisplay);
                     }
-                    PlayerPage.show(context);
                   },
                 );
               }),
@@ -429,7 +428,6 @@ class _SearchPageState extends State<SearchPage> {
                             songProvider.audioPlayer.play();
                           }
                         }
-                        PlayerPage.show(context);
                       },
                     );
                   }, childCount: sonuclar.length),

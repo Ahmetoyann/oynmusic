@@ -11,6 +11,7 @@ import 'package:muzik_app/pages/artist_detail_page.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
+import 'package:text_scroll/text_scroll.dart';
 
 class SongCard extends StatelessWidget {
   final Song song;
@@ -21,6 +22,8 @@ class SongCard extends StatelessWidget {
   final bool isPlaying;
   final bool showBorder;
   final bool showOptions;
+  final VoidCallback? onDeleteTap;
+  final String? deleteText;
 
   const SongCard({
     super.key,
@@ -32,6 +35,8 @@ class SongCard extends StatelessWidget {
     this.isPlaying = false,
     this.showBorder = false,
     this.showOptions = false,
+    this.onDeleteTap,
+    this.deleteText,
   });
 
   @override
@@ -52,10 +57,10 @@ class SongCard extends StatelessWidget {
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        onTap: onTap,
+        onTap: showOptions ? () => _showOptionsBottomSheet(context) : onTap,
         onLongPress: onLongPress,
         leading: ClipRRect(
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(8),
           child: _buildImage(),
         ),
         title: Tooltip(
@@ -83,31 +88,53 @@ class SongCard extends StatelessWidget {
             fontWeight: FontWeight.w500,
           ),
         ),
-        trailing: showOptions ? _buildTrailingActions(context) : trailing,
+        trailing: showOptions
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildTrailingActions(context),
+                  if (trailing != null) trailing!,
+                ],
+              )
+            : trailing,
       ),
     );
   }
 
   Widget _buildImage() {
-    const double size = 40;
+    const double size = 46;
 
     if (song.localImagePath != null &&
         File(song.localImagePath!).existsSync()) {
-      return Image.file(
-        File(song.localImagePath!),
+      return Transform.scale(
+        scale:
+            (song.coverUrl.contains('ytimg.com') ||
+                song.coverUrl.contains('youtube.com'))
+            ? 1.35
+            : 1.0,
+        child: Image.file(
+          File(song.localImagePath!),
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (c, e, s) => _buildPlaceholder(size),
+        ),
+      );
+    }
+
+    return Transform.scale(
+      scale:
+          (song.coverUrl.contains('ytimg.com') ||
+              song.coverUrl.contains('youtube.com'))
+          ? 1.35
+          : 1.0,
+      child: Image.network(
+        song.coverUrl,
         width: size,
         height: size,
         fit: BoxFit.cover,
         errorBuilder: (c, e, s) => _buildPlaceholder(size),
-      );
-    }
-
-    return Image.network(
-      song.coverUrl,
-      width: size,
-      height: size,
-      fit: BoxFit.cover,
-      errorBuilder: (c, e, s) => _buildPlaceholder(size),
+      ),
     );
   }
 
@@ -138,13 +165,13 @@ class SongCard extends StatelessWidget {
             Widget downloadIcon;
             if (progress != null) {
               downloadIcon = SizedBox(
-                width: 20,
-                height: 20,
+                width: 24,
+                height: 24,
                 child: isPaused
                     ? Icon(
                         Icons.pause,
                         color: Theme.of(context).primaryColor,
-                        size: 20,
+                        size: 24,
                       )
                     : CircularProgressIndicator(
                         value: progress,
@@ -156,13 +183,13 @@ class SongCard extends StatelessWidget {
               downloadIcon = CustomIcons.svgIcon(
                 CustomIcons.checkCircle,
                 color: Theme.of(context).primaryColor,
-                size: 22,
+                size: 24,
               );
             } else {
               downloadIcon = Icon(
                 Icons.downloading,
                 color: Colors.grey.shade400,
-                size: 22,
+                size: 24,
               );
             }
 
@@ -190,8 +217,8 @@ class SongCard extends StatelessWidget {
                 }
               },
               child: Container(
-                width: 32,
-                height: 32,
+                width: 40,
+                height: 40,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: Theme.of(context).primaryColor.withOpacity(0.2),
@@ -204,34 +231,52 @@ class SongCard extends StatelessWidget {
           },
         ),
         const SizedBox(width: 8),
-        _buildOptionsButton(context),
+        _buildPlayButton(context),
       ],
     );
   }
 
-  Widget _buildOptionsButton(BuildContext context) {
+  Widget _buildPlayButton(BuildContext context) {
     return GestureDetector(
-      onTap: () => _showOptionsBottomSheet(context),
+      onTap: onTap,
       child: Container(
-        width: 32,
-        height: 32,
+        width: 40,
+        height: 40,
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: Theme.of(context).primaryColor.withOpacity(0.4),
+          color: Theme.of(context).primaryColor.withOpacity(0.2),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: Colors.white.withOpacity(0.1)),
         ),
         child: CustomIcons.svgIcon(
-          CustomIcons.moreHoriz,
-          size: 20,
-          color: Colors.grey,
+          isPlaying ? CustomIcons.pauseRounded : CustomIcons.playArrowRounded,
+          size: 24,
+          color: Theme.of(context).primaryColor,
         ),
       ),
     );
   }
 
   void _showOptionsBottomSheet(BuildContext context) {
+    showOptionsSheet(
+      context,
+      song,
+      onTap: onTap,
+      onDeleteTap: onDeleteTap,
+      deleteText: deleteText,
+    );
+  }
+
+  static void showOptionsSheet(
+    BuildContext context,
+    Song song, {
+    VoidCallback? onTap,
+    VoidCallback? onDeleteTap,
+    String? deleteText,
+  }) {
     CustomBottomSheet.showContent(
       context: context,
+      isScrollControlled: true,
       child: Consumer<SongProvider>(
         builder: (innerContext, provider, child) {
           final isFavorite = provider.favoriteSongs.any((s) => s.id == song.id);
@@ -262,7 +307,7 @@ class SongCard extends StatelessWidget {
                     children: [
                       Container(
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withOpacity(0.3),
@@ -272,20 +317,27 @@ class SongCard extends StatelessWidget {
                           ],
                         ),
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            song.coverUrl,
-                            width: 64,
-                            height: 64,
-                            fit: BoxFit.cover,
-                            errorBuilder: (c, e, s) => Container(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Transform.scale(
+                            scale:
+                                (song.coverUrl.contains('ytimg.com') ||
+                                    song.coverUrl.contains('youtube.com'))
+                                ? 1.35
+                                : 1.0,
+                            child: Image.network(
+                              song.coverUrl,
                               width: 64,
                               height: 64,
-                              color: Colors.grey.shade800,
-                              child: CustomIcons.svgIcon(
-                                CustomIcons.musicNote,
-                                color: Colors.white54,
-                                size: 24,
+                              fit: BoxFit.cover,
+                              errorBuilder: (c, e, s) => Container(
+                                width: 64,
+                                height: 64,
+                                color: Colors.grey.shade800,
+                                child: CustomIcons.svgIcon(
+                                  CustomIcons.musicNote,
+                                  color: Colors.white54,
+                                  size: 24,
+                                ),
                               ),
                             ),
                           ),
@@ -296,10 +348,14 @@ class SongCard extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            TextScroll(
                               song.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              mode: TextScrollMode.bouncing,
+                              velocity: const Velocity(
+                                pixelsPerSecond: Offset(30, 0),
+                              ),
+                              delayBefore: const Duration(seconds: 2),
+                              pauseBetween: const Duration(seconds: 2),
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
@@ -346,11 +402,60 @@ class SongCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
-                  const Divider(color: Colors.white10, height: 1),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 24),
 
                   // Seçenekler
+                  if (onTap != null)
+                    _buildOptionTile(
+                      innerContext,
+                      iconStr: CustomIcons.playArrowRounded,
+                      text: 'Şarkıyı Çal',
+                      onTap: () {
+                        Navigator.pop(context);
+                        onTap!(); // Kartın dışarıdan aldığı çalma fonksiyonunu tetikler
+                      },
+                    ),
+                  _buildOptionTile(
+                    innerContext,
+                    iconStr: CustomIcons.playlistPlay,
+                    text: 'Sıradaki Çal',
+                    onTap: () {
+                      Navigator.pop(context);
+                      provider.addSongToNext(song);
+                    },
+                  ),
+                  _buildOptionTile(
+                    innerContext,
+                    iconData: isDownloaded
+                        ? Icons.download_done_rounded
+                        : Icons.downloading,
+                    iconColor: isDownloaded
+                        ? Colors.greenAccent
+                        : theme.primaryColor,
+                    text: isDownloaded ? 'İndirildi' : 'Şarkıyı İndir',
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (isDownloaded) {
+                        CustomSnackBar.showInfo(
+                          context: context,
+                          message: "Bu şarkı zaten cihazınızda bulunuyor.",
+                        );
+                      } else {
+                        if (!provider.isFirebaseLoggedIn) {
+                          _showLoginBottomSheet(context);
+                        } else {
+                          provider.downloadSong(song).catchError((e) {
+                            if (context.mounted) {
+                              CustomSnackBar.showError(
+                                context: context,
+                                message: "İndirme başarısız: $e",
+                              );
+                            }
+                          });
+                        }
+                      }
+                    },
+                  ),
                   _buildOptionTile(
                     innerContext,
                     iconStr: isFavorite
@@ -385,7 +490,7 @@ class SongCard extends StatelessWidget {
                     text: 'Çalma Listesine Ekle',
                     onTap: () {
                       Navigator.pop(context);
-                      _showAddToPlaylistBottomSheet(context);
+                      _showAddToPlaylistBottomSheet(context, song);
                     },
                   ),
                   _buildOptionTile(
@@ -416,6 +521,18 @@ class SongCard extends StatelessWidget {
                       );
                     },
                   ),
+                  if (onDeleteTap != null)
+                    _buildOptionTile(
+                      innerContext,
+                      iconData: Icons.delete_outline_rounded,
+                      iconColor: Colors.redAccent,
+                      textColor: Colors.redAccent,
+                      text: deleteText ?? 'Sil',
+                      onTap: () {
+                        Navigator.pop(context);
+                        onDeleteTap!();
+                      },
+                    ),
                   const SizedBox(height: 16),
                 ],
               ),
@@ -426,48 +543,59 @@ class SongCard extends StatelessWidget {
     );
   }
 
-  Widget _buildOptionTile(
+  static Widget _buildOptionTile(
     BuildContext context, {
-    required String iconStr,
+    String? iconStr,
+    IconData? iconData,
     Color? iconColor,
+    Color? textColor,
     required String text,
     required VoidCallback onTap,
   }) {
     final theme = Theme.of(context);
 
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      leading: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: theme.primaryColor.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: ListTile(
+        tileColor: Colors.white.withOpacity(0.03),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: (iconColor ?? theme.primaryColor).withOpacity(0.15),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: iconData != null
+              ? Icon(iconData, color: iconColor ?? theme.primaryColor, size: 22)
+              : CustomIcons.svgIcon(
+                  iconStr ?? '',
+                  color: iconColor ?? theme.primaryColor,
+                  size: 22,
+                ),
         ),
-        child: CustomIcons.svgIcon(
-          iconStr,
-          color: iconColor ?? theme.primaryColor,
-          size: 22,
+        title: Text(
+          text,
+          style: TextStyle(
+            color: textColor ?? Colors.white,
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        trailing: CustomIcons.svgIcon(
+          CustomIcons.arrowForwardIosRounded,
+          color: theme.primaryColor.withOpacity(0.3),
+          size: 14,
+        ),
+        onTap: onTap,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: Colors.white.withOpacity(0.05)),
         ),
       ),
-      title: Text(
-        text,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 15,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-      trailing: CustomIcons.svgIcon(
-        CustomIcons.arrowForwardIosRounded,
-        color: theme.primaryColor.withOpacity(0.3),
-        size: 14,
-      ),
-      onTap: onTap,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     );
   }
 
-  void _showAddToPlaylistBottomSheet(BuildContext context) {
+  static void _showAddToPlaylistBottomSheet(BuildContext context, Song song) {
     CustomBottomSheet.showContent(
       context: context,
       child: Consumer<SongProvider>(
@@ -699,7 +827,7 @@ class SongCard extends StatelessWidget {
     );
   }
 
-  void _showCreatePlaylistBottomSheet(BuildContext context, Song song) {
+  static void _showCreatePlaylistBottomSheet(BuildContext context, Song song) {
     final TextEditingController controller = TextEditingController();
     String? selectedImagePath;
 
@@ -767,8 +895,8 @@ class SongCard extends StatelessWidget {
                         ? Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              CustomIcons.svgIcon(
-                                CustomIcons.addPhotoAlternateRounded,
+                              Icon(
+                                Icons.add_a_photo_outlined,
                                 color: Theme.of(context).primaryColor,
                                 size: 48,
                               ),
@@ -897,7 +1025,7 @@ class SongCard extends StatelessWidget {
     );
   }
 
-  void _showLoginBottomSheet(BuildContext context) {
+  static void _showLoginBottomSheet(BuildContext context) {
     CustomBottomSheet.show(
       context: context,
       title: "İndirmek için Giriş Yapın",

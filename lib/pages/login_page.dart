@@ -47,7 +47,9 @@ class _LoginPageState extends State<LoginPage>
     final primaryColor = Theme.of(context).primaryColor;
 
     return Scaffold(
-      backgroundColor: Colors.black, // veya ikonun baskın rengi
+      backgroundColor: const Color(
+        0xFF121212,
+      ), // Spotify benzeri koyu gri/siyah
       body: Stack(
         children: [
           // Arka Plan Parlaması (Onboarding'e uyumlu)
@@ -57,7 +59,10 @@ class _LoginPageState extends State<LoginPage>
               gradient: RadialGradient(
                 center: const Alignment(0, -0.2),
                 radius: 0.8,
-                colors: [primaryColor.withValues(alpha: 0.25), Colors.black],
+                colors: [
+                  primaryColor.withValues(alpha: 0.25),
+                  const Color(0xFF121212),
+                ],
               ),
             ),
           ),

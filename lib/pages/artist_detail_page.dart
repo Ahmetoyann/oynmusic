@@ -27,13 +27,17 @@ class ArtistDetailPage extends StatefulWidget {
   State<ArtistDetailPage> createState() => _ArtistDetailPageState();
 }
 
-class _ArtistDetailPageState extends State<ArtistDetailPage> {
+class _ArtistDetailPageState extends State<ArtistDetailPage>
+    with SingleTickerProviderStateMixin {
   late List<Song> _songs;
   String? _nextPageToken;
   bool _isLoadingMore = false;
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   String _searchText = '';
+  bool _showSearchBar = false;
+  late AnimationController _searchBarAnimController;
+  late Animation<double> _searchBarHeightAnimation;
 
   @override
   void initState() {
@@ -41,12 +45,28 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
     // Başlangıçta elimizdeki şarkıları gösteriyoruz
     _songs = List.from(widget.songs);
     _scrollController.addListener(_onScroll);
+
+    _searchBarAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _searchBarHeightAnimation =
+        Tween<double>(begin: 0.0, end: 72.0).animate(
+          CurvedAnimation(
+            parent: _searchBarAnimController,
+            curve: Curves.easeInOut,
+          ),
+        )..addListener(() {
+          setState(() {}); // Yükseklik değiştikçe Sliver'ı günceller
+        });
+
     // Arka planda sanatçının tüm şarkılarını çekiyoruz
     _fetchArtistSongs();
   }
 
   @override
   void dispose() {
+    _searchBarAnimController.dispose();
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -56,6 +76,17 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
       _loadMoreSongs();
+    }
+
+    // 120 piksel aşağı inildiğinde arama çubuğunu göster (Kapak resmi daralırken)
+    if (_scrollController.position.pixels > 120 && !_showSearchBar) {
+      _showSearchBar = true;
+      _searchBarAnimController.forward();
+    } else if (_scrollController.position.pixels <= 120 && _showSearchBar) {
+      _showSearchBar = false;
+      _searchController.clear();
+      setState(() => _searchText = '');
+      _searchBarAnimController.reverse();
     }
   }
 
@@ -114,10 +145,36 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
     }).toList();
 
     return Scaffold(
+      extendBody: true,
       bottomNavigationBar: songProvider.currentSong != null
-          ? GestureDetector(
-              onTap: () => PlayerPage.show(context),
-              child: const MiniPlayer(),
+          ? Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [
+                    const Color(0xFF121212),
+                    const Color(0xFF121212).withOpacity(0.9),
+                    const Color(0xFF121212).withOpacity(0.4),
+                    Colors.transparent,
+                  ],
+                  stops: const [0.0, 0.4, 0.8, 1.0],
+                ),
+              ),
+              child: SafeArea(
+                bottom: true,
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: () => PlayerPage.show(context),
+                      child: const MiniPlayer(),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
             )
           : null,
       body: CustomScrollView(
@@ -125,7 +182,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         slivers: [
           SliverAppBar(
-            expandedHeight: 300.0,
+            expandedHeight: 340.0,
             pinned: true,
             stretch: true,
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -166,15 +223,22 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
                 fit: StackFit.expand,
                 children: [
                   if (coverUrl.isNotEmpty)
-                    Image.network(
-                      coverUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Colors.grey.shade900, Colors.black],
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
+                    Transform.scale(
+                      scale:
+                          (coverUrl.contains('ytimg.com') ||
+                              coverUrl.contains('youtube.com'))
+                          ? 1.35
+                          : 1.0,
+                      child: Image.network(
+                        coverUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Colors.grey.shade900, Colors.black],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                            ),
                           ),
                         ),
                       ),
@@ -184,213 +248,231 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
                       filter: ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
                       child: Container(color: Colors.black.withOpacity(0.4)),
                     ),
-                  if (coverUrl.isNotEmpty)
-                    Center(
-                      child: Container(
-                        width: 160,
-                        height: 160,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.5),
-                              blurRadius: 20,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: Image.network(
-                            coverUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        Colors.grey.shade800,
-                                        Colors.black,
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (coverUrl.isNotEmpty)
+                        Container(
+                          width: 140,
+                          height: 140,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.5),
+                                blurRadius: 20,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Transform.scale(
+                              scale:
+                                  (coverUrl.contains('ytimg.com') ||
+                                      coverUrl.contains('youtube.com'))
+                                  ? 1.35
+                                  : 1.0,
+                              child: Image.network(
+                                coverUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            Colors.grey.shade800,
+                                            Colors.black,
+                                          ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: CustomIcons.svgIcon(
+                                          CustomIcons.person,
+                                          size: 60,
+                                          color: Colors.white24,
+                                        ),
+                                      ),
                                     ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                      Consumer<SongProvider>(
+                        builder: (context, provider, _) {
+                          final isFollowed = provider.isArtistFollowed(
+                            widget.artistName,
+                          );
+
+                          final primaryColor = Theme.of(context).primaryColor;
+                          Color borderColor;
+                          Color bgColor;
+                          Widget content;
+
+                          if (isFollowed) {
+                            borderColor = primaryColor.withOpacity(0.5);
+                            bgColor = primaryColor.withOpacity(0.1);
+                            content = Row(
+                              key: const ValueKey('followed'),
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.check_rounded,
+                                  color: primaryColor,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  "Takip Ediliyor",
+                                  style: TextStyle(
+                                    color: primaryColor,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
                                   ),
-                                  child: Center(
-                                    child: CustomIcons.svgIcon(
-                                      CustomIcons.person,
-                                      size: 60,
-                                      color: Colors.white24,
+                                ),
+                              ],
+                            );
+                          } else {
+                            borderColor = Colors.white.withOpacity(0.2);
+                            bgColor = Colors.black.withOpacity(0.4);
+                            content = Row(
+                              key: const ValueKey('follow'),
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.person_add_alt_1_rounded,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                const Text(
+                                  "Takip Et",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            );
+                          }
+
+                          return ClipRRect(
+                            borderRadius: BorderRadius.circular(30),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeInOut,
+                                decoration: BoxDecoration(
+                                  color: bgColor,
+                                  borderRadius: BorderRadius.circular(30),
+                                  border: Border.all(
+                                    color: borderColor,
+                                    width: 1.5,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: borderColor.withOpacity(0.2),
+                                      blurRadius: 15,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () {
+                                      if (!provider.isFirebaseLoggedIn) {
+                                        _showLoginBottomSheet(context);
+                                        return;
+                                      }
+                                      provider.toggleFollowArtist(
+                                        widget.artistName,
+                                      );
+                                      CustomSnackBar.showInfo(
+                                        context: context,
+                                        message: isFollowed
+                                            ? "${widget.artistName} takipten çıkarıldı."
+                                            : "${widget.artistName} takip ediliyor.",
+                                      );
+                                    },
+                                    borderRadius: BorderRadius.circular(30),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 24,
+                                        vertical: 14,
+                                      ),
+                                      child: AnimatedSwitcher(
+                                        duration: const Duration(
+                                          milliseconds: 300,
+                                        ),
+                                        child: content,
+                                      ),
                                     ),
                                   ),
                                 ),
-                          ),
-                        ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                    ),
+                    ],
+                  ),
                 ],
               ),
             ),
           ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 20.0, bottom: 8.0),
-              child: Center(
-                child: Consumer<SongProvider>(
-                  builder: (context, provider, _) {
-                    final isFollowed = provider.isArtistFollowed(
-                      widget.artistName,
-                    );
-
-                    final primaryColor = Theme.of(context).primaryColor;
-                    Color borderColor;
-                    Color bgColor;
-                    Widget content;
-
-                    if (isFollowed) {
-                      borderColor = primaryColor.withOpacity(0.5);
-                      bgColor = primaryColor.withOpacity(0.1);
-                      content = Row(
-                        key: const ValueKey('followed'),
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.check_rounded,
-                            color: primaryColor,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            "Takip Ediliyor",
-                            style: TextStyle(
-                              color: primaryColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      );
-                    } else {
-                      borderColor = Colors.white.withOpacity(0.2);
-                      bgColor = Colors.black.withOpacity(0.4);
-                      content = Row(
-                        key: const ValueKey('follow'),
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.person_add_alt_1_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          const Text(
-                            "Takip Et",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      );
-                    }
-
-                    return ClipRRect(
-                      borderRadius: BorderRadius.circular(30),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeInOut,
-                          decoration: BoxDecoration(
-                            color: bgColor,
-                            borderRadius: BorderRadius.circular(30),
-                            border: Border.all(color: borderColor, width: 1.5),
-                            boxShadow: [
-                              BoxShadow(
-                                color: borderColor.withOpacity(0.2),
-                                blurRadius: 15,
-                                spreadRadius: 1,
-                              ),
-                            ],
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () {
-                                if (!provider.isFirebaseLoggedIn) {
-                                  _showLoginBottomSheet(context);
-                                  return;
-                                }
-                                provider.toggleFollowArtist(widget.artistName);
-                                CustomSnackBar.showInfo(
-                                  context: context,
-                                  message: isFollowed
-                                      ? "${widget.artistName} takipten çıkarıldı."
-                                      : "${widget.artistName} takip ediliyor.",
-                                );
-                              },
-                              borderRadius: BorderRadius.circular(30),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 14,
-                                ),
-                                child: AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 300),
-                                  child: content,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
+          SliverPersistentHeader(
+            pinned: true, // Uygulama çubuğunun altında sabit kalmasını sağlar
+            delegate: _SearchBarDelegate(
+              height: _searchBarHeightAnimation.value,
+              child: Container(
+                color: Theme.of(
+                  context,
+                ).scaffoldBackgroundColor, // Üzerinden geçtiği elemanları gizler
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: TextField(
+                  controller: _searchController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: '${widget.artistName} içinde ara...',
+                    hintStyle: TextStyle(color: Colors.grey.shade400),
+                    prefixIcon: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: CustomIcons.svgIcon(
+                        CustomIcons.search,
+                        color: Colors.grey,
+                        size: 24,
                       ),
-                    );
-                  },
-                ),
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: TextField(
-                controller: _searchController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: '${widget.artistName} içinde ara...',
-                  hintStyle: TextStyle(color: Colors.grey.shade400),
-                  prefixIcon: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: CustomIcons.svgIcon(
-                      CustomIcons.search,
-                      color: Colors.grey,
-                      size: 24,
                     ),
+                    filled: true,
+                    fillColor: Colors.grey.shade900,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                    suffixIcon: _searchText.isNotEmpty
+                        ? IconButton(
+                            icon: CustomIcons.svgIcon(
+                              CustomIcons.clear,
+                              color: Colors.grey,
+                              size: 24,
+                            ),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _searchText = '');
+                            },
+                          )
+                        : null,
                   ),
-                  filled: true,
-                  fillColor: Colors.grey.shade900,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                  suffixIcon: _searchText.isNotEmpty
-                      ? IconButton(
-                          icon: CustomIcons.svgIcon(
-                            CustomIcons.clear,
-                            color: Colors.grey,
-                            size: 24,
-                          ),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() => _searchText = '');
-                          },
-                        )
-                      : null,
+                  onChanged: (value) => setState(() => _searchText = value),
+                  onSubmitted: (_) => FocusScope.of(context).unfocus(),
                 ),
-                onChanged: (value) => setState(() => _searchText = value),
-                onSubmitted: (_) => FocusScope.of(context).unfocus(),
               ),
             ),
           ),
@@ -442,7 +524,6 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
                                       size: 24,
                                     ),
                                   );
-                                  PlayerPage.show(context);
                                 }
                               },
                               borderRadius: BorderRadius.circular(30),
@@ -591,7 +672,6 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
                     } else {
                       songProvider.playSong(song, displayedSongs);
                     }
-                    PlayerPage.show(context);
                   },
                 ),
               );
@@ -608,7 +688,11 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
                 ),
               ),
             ),
-          const SliverPadding(padding: EdgeInsets.only(bottom: 20)),
+          SliverPadding(
+            padding: EdgeInsets.only(
+              bottom: songProvider.currentSong != null ? 160 : 40,
+            ),
+          ),
         ],
       ),
     );
@@ -674,5 +758,43 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
         );
       },
     );
+  }
+}
+
+class _SearchBarDelegate extends SliverPersistentHeaderDelegate {
+  final double height;
+  final Widget child;
+
+  _SearchBarDelegate({required this.height, required this.child});
+
+  @override
+  double get minExtent => height;
+
+  @override
+  double get maxExtent => height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return SizedBox.expand(
+      child: ClipRect(
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: SizedBox(
+            height:
+                72.0, // Animasyon sırasında formun ezilmesini önlemek için sabit yükseklik
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _SearchBarDelegate oldDelegate) {
+    return height != oldDelegate.height || child != oldDelegate.child;
   }
 }
