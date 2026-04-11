@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 
 /// Merkezi ve özelleştirilebilir açılır menü (Dropdown) bileşeni
@@ -21,12 +20,24 @@ class CustomDropDown<T> extends StatelessWidget {
     return PopupMenuButton<T>(
       icon: icon,
       tooltip: tooltip,
-      color: Colors.black.withOpacity(0.75),
-      elevation: 8,
+      color: const Color(
+        0xFF1C1C1E,
+      ).withOpacity(0.98), // Uygulamanın modern koyu temasıyla uyumlu
+      surfaceTintColor: Colors
+          .transparent, // Material 3'ün istenmeyen renk katmanını engeller
+      elevation: 12, // Derinlik hissini artırdık
       shadowColor: Colors.black.withOpacity(0.5),
+      position: PopupMenuPosition
+          .under, // Menünün tıklanan butonun altında açılmasını sağlar
+      clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.white.withOpacity(0.2), width: 1.5),
+        borderRadius: BorderRadius.circular(
+          20,
+        ), // Uygulamadaki diğer yuvarlatılmış köşelerle uyumlu
+        side: BorderSide(
+          color: Colors.white.withOpacity(0.1),
+          width: 1,
+        ), // Daha zarif bir kenarlık
       ),
       onSelected: onSelected,
       itemBuilder: (BuildContext context) => items,
@@ -45,33 +56,34 @@ class CustomDropdownItem {
   }) {
     return PopupMenuItem<T>(
       value: value,
+      padding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 8,
+      ), // Tıklama alanı ve boşluklar iyileştirildi
       child: Row(
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: Theme.of(context).primaryColor.withOpacity(0.5),
-                    width: 1,
-                  ),
-                ),
-                child: icon,
-              ),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Theme.of(
+                context,
+              ).primaryColor.withOpacity(0.15), // Daha soft bir arka plan
+              borderRadius: BorderRadius.circular(12),
             ),
+            child: icon,
           ),
-          const SizedBox(width: 12),
-          Text(
-            text,
-            style: TextStyle(
-              color: textColor,
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
+          const SizedBox(width: 16),
+          Expanded(
+            // Uzun metinlerin taşmasını engeller
+            child: Text(
+              text,
+              style: TextStyle(
+                color: textColor,
+                fontWeight: FontWeight
+                    .w600, // Aşırı kalın (bold) yerine daha zarif bir kalınlık
+                fontSize: 15,
+                letterSpacing: 0.3,
+              ),
             ),
           ),
         ],

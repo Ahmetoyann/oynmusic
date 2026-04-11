@@ -74,7 +74,7 @@ class _SearchPageState extends State<SearchPage> {
     final arananSarkilar = songProvider.searchedSongs;
     final aramaMetni = _searchController.text;
     final selectedTab = songProvider.searchFilter;
-    const tabs = ['Şarkılar', 'Sanatçılar', 'Albümler'];
+    const tabs = ['Şarkılar', 'Sanatçılar', 'Koleksiyonlar'];
 
     return Scaffold(
       appBar: CustomAppBar(title: 'Ara', showLeading: false),
@@ -233,9 +233,9 @@ class _SearchPageState extends State<SearchPage> {
     if (selectedTab == 'Sanatçılar') {
       suggestionsToDisplay = songProvider.suggestedArtists;
       suggestionTitle = 'Ayın Popüler Sanatçıları';
-    } else if (selectedTab == 'Albümler') {
+    } else if (selectedTab == 'Koleksiyonlar') {
       suggestionsToDisplay = songProvider.suggestedAlbums;
-      suggestionTitle = 'Ayın Popüler Albümleri';
+      suggestionTitle = 'Ayın Popüler Koleksiyonları';
     } else {
       suggestionsToDisplay = songProvider.suggestedSongs;
       suggestionTitle = 'Sizin İçin Önerilenler';
@@ -329,7 +329,7 @@ class _SearchPageState extends State<SearchPage> {
                 ),
               ),
             ),
-            if (selectedTab == 'Albümler')
+            if (selectedTab == 'Koleksiyonlar')
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: GridView.builder(
@@ -383,7 +383,7 @@ class _SearchPageState extends State<SearchPage> {
         controller: _scrollController,
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         slivers: [
-          selectedTab == 'Albümler'
+          selectedTab == 'Koleksiyonlar'
               ? SliverPadding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16.0,

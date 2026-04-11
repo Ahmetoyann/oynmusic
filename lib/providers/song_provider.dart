@@ -58,7 +58,8 @@ class SongProvider with ChangeNotifier {
   int _searchOffset = 0; // Arama sonuçları için sayfa takibi
   bool _isSearchLoadingMore = false; // Arama sonuçlarını yükleme durumu
   Timer? _searchDebounce;
-  String _searchFilter = 'Şarkılar'; // 'Şarkılar', 'Sanatçılar', 'Albümler'
+  String _searchFilter =
+      'Şarkılar'; // 'Şarkılar', 'Sanatçılar', 'Koleksiyonlar'
   bool _isLoadingMore = false; // Ekstra yükleme yapılıyor mu?
   List<Song> _recentlyPlayed = []; // Son dinlenenler listesi
   List<String> _searchHistory = [];
@@ -78,7 +79,7 @@ class SongProvider with ChangeNotifier {
   List<int> _shuffledIndices = []; // Karışık çalma sırası
   List<Song> _suggestedSongs = []; // Arama sayfası için önerilen şarkılar
   List<Song> _suggestedArtists = []; // Sanatçılar sekmesi için
-  List<Song> _suggestedAlbums = []; // Albümler sekmesi için
+  List<Song> _suggestedAlbums = []; // Koleksiyonlar sekmesi için
   bool _isSuggestionsLoading = false; // Önerilerin yüklenme durumu
   List<String> _followedArtists = []; // Takip edilen sanatçılar
 
@@ -1193,7 +1194,7 @@ class SongProvider with ChangeNotifier {
       String finalQuery = query;
       if (_searchFilter == 'Sanatçılar') {
         finalQuery = '$query sanatçı';
-      } else if (_searchFilter == 'Albümler') {
+      } else if (_searchFilter == 'Koleksiyonlar') {
         finalQuery = '$query full albüm';
       }
 
@@ -1371,7 +1372,7 @@ class SongProvider with ChangeNotifier {
       String finalQuery = _searchText;
       if (_searchFilter == 'Sanatçılar') {
         finalQuery = '$_searchText sanatçı';
-      } else if (_searchFilter == 'Albümler') {
+      } else if (_searchFilter == 'Koleksiyonlar') {
         finalQuery = '$_searchText full albüm';
       }
 

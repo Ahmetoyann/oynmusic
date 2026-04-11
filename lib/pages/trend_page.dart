@@ -30,7 +30,7 @@ class TrendPage extends StatefulWidget {
 
 class _TrendPageState extends State<TrendPage> {
   String _selectedFilter = 'TÜMÜ';
-  final List<String> _filters = ['TÜMÜ', 'ŞARKILAR', 'ALBÜMLER'];
+  final List<String> _filters = ['TÜMÜ', 'ŞARKILAR', 'KOLEKSİYONLAR'];
   ScrollController? _primaryScrollController;
 
   @override
@@ -124,7 +124,8 @@ class _TrendPageState extends State<TrendPage> {
           ),
         ),
         title: SizedBox(
-          height: 36,
+          height:
+              32, // Yüksekliği azaltıp daha zarif hale getirdik (Orijinalinden de küçük)
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: _filters.length,
@@ -139,23 +140,27 @@ class _TrendPageState extends State<TrendPage> {
                   });
                 },
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(
+                    16,
+                  ), // Yüksekliğe uygun daha dar kavis
                   child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                      ), // Yan boşlukları biraz kıstık
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: isSelected
                             ? Theme.of(context).primaryColor.withOpacity(0.2)
-                            : Colors.white.withOpacity(0.05),
+                            : Colors.white.withOpacity(0.08),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
                           color: isSelected
                               ? Theme.of(context).primaryColor.withOpacity(0.5)
-                              : Colors.white.withOpacity(0.1),
-                          width: 1,
+                              : Colors.white.withOpacity(0.15),
+                          width: 1.0, // Çerçeveyi incelttik
                         ),
                       ),
                       child: Text(
@@ -164,8 +169,10 @@ class _TrendPageState extends State<TrendPage> {
                           color: isSelected
                               ? Theme.of(context).primaryColor
                               : Colors.grey.shade400,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          fontSize:
+                              12, // Metin boyutunu daha minimal hale getirdik
+                          letterSpacing: 0.3,
                         ),
                       ),
                     ),
@@ -277,7 +284,7 @@ class _TrendPageState extends State<TrendPage> {
 
     final bool showAll = isSearch || _selectedFilter == 'TÜMÜ';
     final bool showSongs = !isSearch && _selectedFilter == 'ŞARKILAR';
-    final bool showAlbumsOnly = !isSearch && _selectedFilter == 'ALBÜMLER';
+    final bool showAlbumsOnly = !isSearch && _selectedFilter == 'KOLEKSİYONLAR';
 
     final List<MapEntry<String, List<Song>>> displayedAlbums;
     if (showAlbumsOnly) {
@@ -309,7 +316,7 @@ class _TrendPageState extends State<TrendPage> {
             child: _buildDailySongsList(context, validDailySongs),
           ),
 
-        // --- ALBÜMLER BÖLÜMÜ ---
+        // --- KOLEKSİYONLAR BÖLÜMÜ ---
         if (displayedAlbums.isNotEmpty)
           SliverToBoxAdapter(
             child: Padding(
@@ -318,7 +325,9 @@ class _TrendPageState extends State<TrendPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    showAlbumsOnly ? "Tüm Albümler" : "Öne Çıkan Albümler",
+                    showAlbumsOnly
+                        ? "Tüm Koleksiyonlar"
+                        : "Öne Çıkan Koleksiyonlar",
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
