@@ -58,3 +58,7 @@ git init
 youtubeapi.env
 
 assets/*.json
+
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Flutter/App.framework
