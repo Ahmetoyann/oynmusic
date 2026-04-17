@@ -1,5 +1,5 @@
 # ios/Podfile
-platform :ios, '13.0'
+platform :ios, '15.0'
 
 project 'Runner', {
   'Debug' => :debug,
