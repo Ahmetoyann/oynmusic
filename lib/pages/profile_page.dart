@@ -23,6 +23,8 @@ import 'package:muzik_app/pages/player_page.dart';
 import 'package:palette_generator/palette_generator.dart';
 import 'package:muzik_app/pages/artist_detail_page.dart';
 import 'package:muzik_app/services/audius_service.dart';
+import 'package:muzik_app/providers/language_provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -37,6 +39,9 @@ class _ProfilePageState extends State<ProfilePage>
   late AnimationController _controller;
   Color? _dominantColor;
   String? _currentSongId;
+
+  // Şarkı ID'sine göre çıkarılan renkleri önbellekte (RAM) tutarız
+  static final Map<String, Color> _colorCache = {};
 
   @override
   void initState() {
@@ -55,13 +60,21 @@ class _ProfilePageState extends State<ProfilePage>
 
   // Şarkının kapak resminden baskın rengi çıkaran fonksiyon
   Future<void> _extractColor(Song song) async {
+    // Eğer renk daha önce çıkarıldıysa tekrar hesaplama, cache'den al
+    if (_colorCache.containsKey(song.id)) {
+      if (mounted) {
+        setState(() => _dominantColor = _colorCache[song.id]);
+      }
+      return;
+    }
+
     try {
       ImageProvider imageProvider;
       if (song.localImagePath != null &&
           File(song.localImagePath!).existsSync()) {
         imageProvider = FileImage(File(song.localImagePath!));
       } else {
-        imageProvider = NetworkImage(song.coverUrl);
+        imageProvider = CachedNetworkImageProvider(song.coverUrl);
       }
 
       final generator = await PaletteGenerator.fromImageProvider(
@@ -70,11 +83,15 @@ class _ProfilePageState extends State<ProfilePage>
         maximumColorCount: 20,
       );
       if (mounted) {
+        final color =
+            generator.dominantColor?.color ??
+            generator.darkVibrantColor?.color ??
+            generator.vibrantColor?.color;
+
+        if (color != null) _colorCache[song.id] = color; // Rengi kaydet
+
         setState(() {
-          _dominantColor =
-              generator.dominantColor?.color ??
-              generator.darkVibrantColor?.color ??
-              generator.vibrantColor?.color;
+          _dominantColor = color;
         });
       }
     } catch (e) {
@@ -88,6 +105,7 @@ class _ProfilePageState extends State<ProfilePage>
     // AuthProvider'ın önbelleğinden ziyade her zaman en güncel Firebase kullanıcısını alıyoruz
     final user = FirebaseAuth.instance.currentUser ?? authProvider.user;
     final songProvider = context.watch<SongProvider>();
+    final langProvider = context.watch<LanguageProvider>();
     final currentSong = songProvider.currentSong;
 
     if (currentSong != null && currentSong.id != _currentSongId) {
@@ -98,7 +116,7 @@ class _ProfilePageState extends State<ProfilePage>
 
     return Scaffold(
       extendBody: true,
-      appBar: const CustomAppBar(title: "Profil"),
+      appBar: CustomAppBar(title: langProvider.t('profile')),
       body: user == null
           ? Center(child: _buildLoginButton(context, authProvider))
           : _buildUserProfile(context, authProvider, user),
@@ -138,6 +156,8 @@ class _ProfilePageState extends State<ProfilePage>
 
   // Giriş Yapılmamışsa Gösterilecek Kutu
   Widget _buildLoginButton(BuildContext context, AuthProvider provider) {
+    final langProvider = context.watch<LanguageProvider>();
+
     if (_isLoading) {
       return const CircularProgressIndicator();
     }
@@ -151,9 +171,9 @@ class _ProfilePageState extends State<ProfilePage>
           color: Colors.grey,
         ),
         const SizedBox(height: 24),
-        const Text(
-          "Devam etmek için giriş yapın",
-          style: TextStyle(color: Colors.grey, fontSize: 16),
+        Text(
+          langProvider.t('login_to_continue'),
+          style: const TextStyle(color: Colors.grey, fontSize: 16),
         ),
         const SizedBox(height: 24),
         Padding(
@@ -180,8 +200,12 @@ class _ProfilePageState extends State<ProfilePage>
                     Navigator.pop(context);
                     CustomSnackBar.showSuccess(
                       context: context,
-                      message:
-                          "Hoş Geldin, ${user.displayName ?? 'Kullanıcı'}!",
+                      message: langProvider
+                          .t('welcome_user')
+                          .replaceAll(
+                            '%s',
+                            user.displayName ?? langProvider.t('user'),
+                          ),
                     );
                   }
                 }
@@ -190,7 +214,7 @@ class _ProfilePageState extends State<ProfilePage>
                   setState(() => _isLoading = false);
                   CustomSnackBar.showError(
                     context: context,
-                    message: "Giriş başarısız: $e",
+                    message: "${langProvider.t('login_failed')}: $e",
                   );
                 }
               }
@@ -203,9 +227,12 @@ class _ProfilePageState extends State<ProfilePage>
                   painter: GoogleLogoPainter(),
                 ),
                 const SizedBox(width: 12),
-                const Text(
-                  'Google ile Giriş Yap',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                Text(
+                  langProvider.t('login_with_google'),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),
@@ -215,141 +242,44 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-  Widget _buildFolderLeading(MusicFolder folder) {
-    Widget imageWidget;
-    if (folder.customImagePath != null &&
-        File(folder.customImagePath!).existsSync()) {
-      imageWidget = Image.file(
-        File(folder.customImagePath!),
-        fit: BoxFit.cover,
-      );
-    } else if (folder.songs.isNotEmpty) {
-      final song = folder.songs.first;
-      if (song.localImagePath != null &&
-          File(song.localImagePath!).existsSync()) {
-        imageWidget = Transform.scale(
+  Widget _buildSingleImage(Song song) {
+    if (song.localImagePath != null &&
+        File(song.localImagePath!).existsSync()) {
+      return ClipRect(
+        child: Transform.scale(
           scale:
               (song.coverUrl.contains('ytimg.com') ||
                   song.coverUrl.contains('youtube.com'))
               ? 1.35
               : 1.0,
-          child: Image.file(File(song.localImagePath!), fit: BoxFit.cover),
-        );
-      } else {
-        imageWidget = Transform.scale(
-          scale:
-              (song.coverUrl.contains('ytimg.com') ||
-                  song.coverUrl.contains('youtube.com'))
-              ? 1.35
-              : 1.0,
-          child: Image.network(
-            song.coverUrl,
+          child: Image.file(
+            File(song.localImagePath!),
             fit: BoxFit.cover,
-            errorBuilder: (c, e, s) => Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.grey.shade800, Colors.grey.shade900],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-            ),
+            width: double.infinity,
+            height: double.infinity,
+            errorBuilder: (c, e, s) => Container(color: Colors.grey.shade800),
           ),
-        );
-      }
-    } else {
-      return Container(
-        width: 50,
-        height: 50,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.grey.shade800, Colors.grey.shade900],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(8),
         ),
       );
     }
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: SizedBox(width: 50, height: 50, child: imageWidget),
-    );
-  }
-
-  Widget _buildCircularStatCard(
-    BuildContext context,
-    String label,
-    num targetValue,
-    String Function(num) formatter,
-    String iconStr,
-    Color color,
-    BorderRadius borderRadius,
-    EdgeInsets paddingOffset,
-    VoidCallback onTap,
-  ) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.grey.shade900, color.withOpacity(0.15)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: borderRadius,
-          border: Border.all(color: color.withOpacity(0.3), width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.2),
-              blurRadius: 15,
-              spreadRadius: 1,
-            ),
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: paddingOffset,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-            ), // Yanlardan taşmayı önlemek için ek boşluk
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: CustomIcons.svgIcon(iconStr, color: color, size: 24),
-                ),
-                const SizedBox(height: 8),
-                TweenAnimationBuilder<num>(
-                  tween: Tween<num>(begin: 0, end: targetValue),
-                  duration: const Duration(seconds: 2),
-                  curve: Curves.easeOutCubic,
-                  builder: (context, value, child) {
-                    return FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        formatter(value),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ],
+    return ClipRect(
+      child: Transform.scale(
+        scale:
+            (song.coverUrl.contains('ytimg.com') ||
+                song.coverUrl.contains('youtube.com'))
+            ? 1.35
+            : 1.0,
+        child: CachedNetworkImage(
+          imageUrl: song.coverUrl,
+          width: double.infinity,
+          height: double.infinity,
+          errorWidget: (context, url, error) => Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.grey.shade800, Colors.grey.shade900],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
             ),
           ),
         ),
@@ -357,7 +287,189 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-  Widget _buildLastPlayedCard(BuildContext context, Song song) {
+  Widget _buildFolderGridCover(MusicFolder folder) {
+    final songs = folder.songs;
+
+    Widget buildDefaultCover() {
+      if (songs.isEmpty) {
+        return Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.grey.shade800, Colors.grey.shade900],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: const Icon(Icons.music_note, color: Colors.white54, size: 32),
+        );
+      }
+
+      if (songs.length < 4) {
+        return _buildSingleImage(songs.first);
+      }
+
+      return Column(
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(child: _buildSingleImage(songs[0])),
+                Expanded(child: _buildSingleImage(songs[1])),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(child: _buildSingleImage(songs[2])),
+                Expanded(child: _buildSingleImage(songs[3])),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (folder.customImagePath != null &&
+        File(folder.customImagePath!).existsSync()) {
+      return Image.file(
+        File(folder.customImagePath!),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (context, error, stackTrace) => buildDefaultCover(),
+      );
+    }
+    return buildDefaultCover();
+  }
+
+  Widget _buildStatCard(
+    BuildContext context,
+    String label,
+    num targetValue,
+    String Function(num) formatter,
+    String iconStr,
+    Color color,
+    BorderRadius borderRadius,
+    bool isLeftAlignment,
+    VoidCallback onTap,
+  ) {
+    final isGrey = color == Colors.grey;
+    final bgColor = isGrey
+        ? Colors.grey.shade800.withOpacity(0.3)
+        : color.withOpacity(0.2);
+    final borderColor = isGrey
+        ? Colors.grey.shade400.withOpacity(0.3)
+        : color.withOpacity(0.5);
+    final iconBgColor = Colors.grey.shade500.withOpacity(0.2);
+
+    return RepaintBoundary(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: borderRadius,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 15,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: borderRadius,
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: borderRadius,
+                  border: Border.all(color: borderColor, width: 1.5),
+                ),
+                child: Stack(
+                  children: [
+                    Positioned(
+                      top: 0,
+                      left: isLeftAlignment ? 0 : null,
+                      right: isLeftAlignment ? null : 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: iconBgColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.1),
+                            width: 1,
+                          ),
+                        ),
+                        child: CustomIcons.svgIcon(
+                          iconStr,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                    Center(
+                      child: Text(
+                        label,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      left: isLeftAlignment ? 0 : null,
+                      right: isLeftAlignment ? null : 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isGrey
+                              ? Colors.grey.shade700.withOpacity(0.8)
+                              : color.withOpacity(0.8),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: TweenAnimationBuilder<num>(
+                          tween: Tween<num>(begin: 0, end: targetValue),
+                          duration: const Duration(seconds: 2),
+                          curve: Curves.easeOutCubic,
+                          builder: (context, value, child) {
+                            return Text(
+                              formatter(value),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecentlyPlayedGridCard(BuildContext context, Song song) {
+    final langProvider = context.watch<LanguageProvider>();
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -365,122 +477,76 @@ class _ProfilePageState extends State<ProfilePage>
           MaterialPageRoute(builder: (context) => const RecentlyPlayedPage()),
         );
       },
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.grey.shade900,
-              Theme.of(context).primaryColor.withOpacity(0.1),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: Theme.of(context).primaryColor.withOpacity(0.3),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Theme.of(context).primaryColor.withOpacity(0.15),
-              blurRadius: 15,
-              spreadRadius: 1,
-            ),
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Transform.scale(
-                scale:
-                    (song.coverUrl.contains('ytimg.com') ||
-                        song.coverUrl.contains('youtube.com'))
-                    ? 1.35
-                    : 1.0,
-                child:
-                    song.localImagePath != null &&
-                        File(song.localImagePath!).existsSync()
-                    ? Image.file(
-                        File(song.localImagePath!),
-                        width: 64,
-                        height: 64,
-                        fit: BoxFit.cover,
-                      )
-                    : Image.network(
-                        song.coverUrl,
-                        width: 64,
-                        height: 64,
-                        fit: BoxFit.cover,
-                        errorBuilder: (c, e, s) => Container(
-                          width: 64,
-                          height: 64,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.grey.shade800,
-                                Colors.grey.shade900,
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                          ),
-                        ),
-                      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.1),
+                width: 1.5,
               ),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: _buildSingleImage(song),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      CustomIcons.svgIcon(
-                        CustomIcons.historyRounded,
-                        size: 14,
-                        color: Theme.of(context).primaryColor,
+                      Row(
+                        children: [
+                          CustomIcons.svgIcon(
+                            CustomIcons.historyRounded,
+                            size: 14,
+                            color: Theme.of(context).primaryColor,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              langProvider.t('recently_played'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Theme.of(context).primaryColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(height: 4),
                       Text(
-                        "SON DİNLENENLER",
-                        style: TextStyle(
-                          color: Theme.of(context).primaryColor,
-                          fontSize: 11,
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
                           fontWeight: FontWeight.bold,
-                          letterSpacing: 1,
+                          fontSize: 15,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    song.artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -493,6 +559,7 @@ class _ProfilePageState extends State<ProfilePage>
     dynamic user,
   ) {
     final songProvider = context.watch<SongProvider>();
+    final langProvider = context.watch<LanguageProvider>();
     final folders = songProvider.folders;
 
     final favoriteCount = songProvider.favoriteSongs.length;
@@ -501,6 +568,18 @@ class _ProfilePageState extends State<ProfilePage>
     final lastPlayedSong = songProvider.recentlyPlayed.isNotEmpty
         ? songProvider.recentlyPlayed.first
         : null;
+
+    // İstatistik kutularının boyutunu kare yapmak için hesaplamalar
+    final screenWidth = MediaQuery.of(context).size.width;
+    const gridSpacing = 16.0;
+    const crossAxisCount = 2;
+
+    final itemWidth =
+        (screenWidth - 32 - (gridSpacing * (crossAxisCount - 1))) /
+        crossAxisCount;
+    final itemHeight = itemWidth; // Kare
+    final totalWidth = screenWidth - 32;
+    final totalHeight = (itemHeight * 2) + gridSpacing;
 
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(
@@ -517,7 +596,7 @@ class _ProfilePageState extends State<ProfilePage>
           const SizedBox(height: 12),
           // --- Kullanıcı Bilgileri ve Düzenle Butonu ---
           Text(
-            user.displayName ?? "Kullanıcı",
+            user.displayName ?? langProvider.t('user'),
             style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -535,38 +614,13 @@ class _ProfilePageState extends State<ProfilePage>
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: () => _showEditProfileBottomSheet(
-              context,
-              provider,
-              user.displayName,
-              user.photoURL,
-            ),
-            icon: CustomIcons.svgIcon(
-              CustomIcons.edit,
-              size: 16,
-              color: Colors.white,
-            ),
-            label: const Text(
-              "Profili Düzenle",
-              style: TextStyle(color: Colors.white, fontSize: 13),
-            ),
-            style: OutlinedButton.styleFrom(
-              side: BorderSide(color: Colors.white.withOpacity(0.3)),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-          ),
           const SizedBox(height: 32),
 
           // --- Dairesel İstatistikler ve Merkez Avatar ---
           Center(
             child: SizedBox(
-              width: 330,
-              height: 330,
+              width: totalWidth,
+              height: totalHeight,
               child: Stack(
                 children: [
                   Column(
@@ -575,42 +629,32 @@ class _ProfilePageState extends State<ProfilePage>
                         child: Row(
                           children: [
                             Expanded(
-                              child: _buildCircularStatCard(
+                              child: _buildStatCard(
                                 context,
-                                "Favoriler",
+                                langProvider.t('favorites'),
                                 favoriteCount,
                                 (val) => val.toInt().toString(),
                                 CustomIcons.favoriteRounded,
-                                Colors.pinkAccent,
-                                const BorderRadius.only(
-                                  topLeft: Radius.circular(165),
-                                  topRight: Radius.circular(24),
-                                  bottomLeft: Radius.circular(24),
-                                  bottomRight: Radius.circular(24),
-                                ),
-                                const EdgeInsets.only(bottom: 20, right: 20),
+                                Colors.grey,
+                                BorderRadius.circular(24),
+                                true, // isLeftAlignment (Soldaki kutu için sol kenarlar)
                                 () => _showFavoritesBottomSheet(
                                   context,
                                   songProvider,
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: gridSpacing),
                             Expanded(
-                              child: _buildCircularStatCard(
+                              child: _buildStatCard(
                                 context,
-                                "Takip",
+                                langProvider.t('following'),
                                 songProvider.followedArtists.length,
                                 (val) => val.toInt().toString(),
                                 CustomIcons.person,
-                                Colors.blueAccent,
-                                const BorderRadius.only(
-                                  topRight: Radius.circular(165),
-                                  topLeft: Radius.circular(24),
-                                  bottomRight: Radius.circular(24),
-                                  bottomLeft: Radius.circular(24),
-                                ),
-                                const EdgeInsets.only(bottom: 20, left: 20),
+                                Colors.amber,
+                                BorderRadius.circular(24),
+                                false, // isLeftAlignment (Sağdaki kutu için sağ kenarlar)
                                 () => _showFollowedArtistsBottomSheet(
                                   context,
                                   songProvider,
@@ -620,14 +664,14 @@ class _ProfilePageState extends State<ProfilePage>
                           ],
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: gridSpacing),
                       Expanded(
                         child: Row(
                           children: [
                             Expanded(
-                              child: _buildCircularStatCard(
+                              child: _buildStatCard(
                                 context,
-                                "Süre",
+                                langProvider.t('duration'),
                                 totalSeconds,
                                 (val) {
                                   final s = val.toInt();
@@ -636,36 +680,26 @@ class _ProfilePageState extends State<ProfilePage>
                                   return "${(s / 3600).toStringAsFixed(1)}sa";
                                 },
                                 CustomIcons.timerRounded,
-                                Colors.orangeAccent,
-                                const BorderRadius.only(
-                                  bottomLeft: Radius.circular(165),
-                                  topLeft: Radius.circular(24),
-                                  bottomRight: Radius.circular(24),
-                                  topRight: Radius.circular(24),
-                                ),
-                                const EdgeInsets.only(top: 20, right: 20),
+                                Colors.amber,
+                                BorderRadius.circular(24),
+                                true, // isLeftAlignment (Soldaki kutu)
                                 () => _showListeningHistoryBottomSheet(
                                   context,
                                   songProvider,
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: gridSpacing),
                             Expanded(
-                              child: _buildCircularStatCard(
+                              child: _buildStatCard(
                                 context,
-                                "En Çok",
+                                langProvider.t('most_played'),
                                 songProvider.mostPlayed.length,
                                 (val) => val.toInt().toString(),
                                 CustomIcons.trending,
-                                Colors.purpleAccent,
-                                const BorderRadius.only(
-                                  bottomRight: Radius.circular(165),
-                                  topRight: Radius.circular(24),
-                                  bottomLeft: Radius.circular(24),
-                                  topLeft: Radius.circular(24),
-                                ),
-                                const EdgeInsets.only(top: 20, left: 20),
+                                Colors.grey,
+                                BorderRadius.circular(24),
+                                false, // isLeftAlignment (Sağdaki kutu)
                                 () => _showMostPlayedBottomSheet(
                                   context,
                                   songProvider,
@@ -721,22 +755,35 @@ class _ProfilePageState extends State<ProfilePage>
                               child: child,
                             );
                           },
-                          child: CircleAvatar(
-                            radius: 46,
-                            backgroundImage: user.photoURL != null
-                                ? (user.photoURL!.startsWith('http')
-                                          ? NetworkImage(user.photoURL!)
-                                          : FileImage(File(user.photoURL!)))
-                                      as ImageProvider
-                                : null,
-                            backgroundColor: Colors.grey.shade800,
-                            child: user.photoURL == null
-                                ? Icon(
-                                    Icons.person,
-                                    size: 50,
-                                    color: Colors.white.withOpacity(0.9),
-                                  )
-                                : null,
+                          child: GestureDetector(
+                            onTap: () {
+                              _showProfilePictureDialog(
+                                context,
+                                provider,
+                                user,
+                              );
+                            },
+                            child: Hero(
+                              tag: 'profilePic',
+                              child: CircleAvatar(
+                                radius: 64,
+                                backgroundImage: user.photoURL != null
+                                    ? (user.photoURL!.startsWith('http')
+                                              ? CachedNetworkImageProvider(
+                                                  user.photoURL!,
+                                                )
+                                              : FileImage(File(user.photoURL!)))
+                                          as ImageProvider
+                                    : null,
+                                child: user.photoURL == null
+                                    ? Icon(
+                                        Icons.person,
+                                        size: 70,
+                                        color: Colors.white.withOpacity(0.9),
+                                      )
+                                    : null,
+                              ),
+                            ),
                           ),
                         );
                       },
@@ -746,65 +793,107 @@ class _ProfilePageState extends State<ProfilePage>
               ),
             ),
           ),
+          const SizedBox(height: 32),
 
-          const SizedBox(height: 24),
-          if (lastPlayedSong != null)
-            _buildLastPlayedCard(context, lastPlayedSong),
-
-          const SizedBox(height: 24),
-
-          // Çalma Listeleri Bölümü
+          // Sadece Çalma Listeleri Bölümü
           if (folders.isNotEmpty) ...[
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                "Çalma Listelerim (${folders.length})",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).primaryColor,
-                ),
+            GridView.builder(
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 0.85,
               ),
-            ),
-            const SizedBox(height: 12),
-            _buildSettingsCard(
-              child: Column(
-                children: folders.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final folder = entry.value;
-                  return Column(
-                    children: [
-                      ListTile(
-                        leading: _buildFolderLeading(folder),
-                        title: Text(
-                          folder.name,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        subtitle: Text(
-                          '${folder.songs.length} şarkı',
-                          style: TextStyle(color: Colors.grey.shade400),
-                        ),
-                        trailing: CustomIcons.svgIcon(
-                          CustomIcons.arrowForwardIos,
-                          size: 16,
-                          color: Colors.grey,
-                        ),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  FolderDetailPage(folder: folder),
-                            ),
-                          );
-                        },
+              itemCount: folders.length,
+              itemBuilder: (context, index) {
+                final folder = folders[index];
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => FolderDetailPage(folder: folder),
                       ),
-                      if (index != folders.length - 1)
-                        const Divider(height: 1, color: Colors.white10),
-                    ],
-                  );
-                }).toList(),
-              ),
+                    );
+                  },
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.1),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: _buildFolderGridCover(folder),
+                                ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    folder.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${folder.songs.length} ${langProvider.t('song')}',
+                                    style: TextStyle(
+                                      color: Colors.grey.shade400,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 24),
+          ],
+
+          // Son Dinlenenler Kutusu (Grid yapısı korunarak tamamen ayrı bir bölüme alındı)
+          if (lastPlayedSong != null) ...[
+            GridView.count(
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount:
+                  2, // Çalma listeleriyle aynı genişlikte (yarım ekran) olmasını sağlar
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 0.85, // Birebir aynı yüksekliği verir
+              children: [_buildRecentlyPlayedGridCard(context, lastPlayedSong)],
             ),
             const SizedBox(height: 24),
           ],
@@ -850,9 +939,9 @@ class _ProfilePageState extends State<ProfilePage>
                               size: 22,
                             ),
                             const SizedBox(width: 12),
-                            const Text(
-                              'Çıkış Yap',
-                              style: TextStyle(
+                            Text(
+                              langProvider.t('sign_out'),
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 16,
@@ -870,6 +959,168 @@ class _ProfilePageState extends State<ProfilePage>
           const SizedBox(height: 20),
         ],
       ),
+    );
+  }
+
+  void _showProfilePictureDialog(
+    BuildContext context,
+    AuthProvider provider,
+    dynamic user,
+  ) {
+    final photoUrl = user.photoURL;
+    final langProvider = context.read<LanguageProvider>();
+    Offset offset = Offset.zero;
+    bool isDragging = false;
+
+    showDialog(
+      context: context,
+      useSafeArea:
+          false, // Arka plan bulanıklığının tüm ekranı (Durum çubuğu dahil) kaplamasını sağlar
+      barrierColor: Colors.black.withOpacity(0.4),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return GestureDetector(
+              onTap: () =>
+                  Navigator.pop(context), // Bulanık alana dokunulduğunda çıkış
+              behavior: HitTestBehavior.opaque,
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                child: Container(
+                  color: Colors.transparent,
+                  alignment: Alignment.center,
+                  child: GestureDetector(
+                    onTap:
+                        () {}, // Resme veya isme tıklandığında arka planın tetiklenmesini önler
+                    onPanUpdate: (details) {
+                      setState(() {
+                        offset += details.delta;
+                        isDragging = true;
+                      });
+                    },
+                    onPanEnd: (details) {
+                      // Eğer 100 pikselden fazla kaydırıldıysa veya hızlıca fırlatıldıysa pencereyi kapat
+                      if (offset.distance > 100 ||
+                          details.velocity.pixelsPerSecond.distance > 800) {
+                        Navigator.pop(context);
+                      } else {
+                        // Yeterince kaydırılmadıysa yaylanarak (bounce) geri dönsün
+                        setState(() {
+                          offset = Offset.zero;
+                          isDragging = false;
+                        });
+                      }
+                    },
+                    child: AnimatedContainer(
+                      duration: isDragging
+                          ? Duration.zero
+                          : const Duration(milliseconds: 300),
+                      curve: Curves.easeOutBack,
+                      transform: Matrix4.translationValues(
+                        offset.dx,
+                        offset.dy,
+                        0,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Hero(
+                            tag: 'profilePic',
+                            child: Container(
+                              width: MediaQuery.of(context).size.width * 0.85,
+                              height: MediaQuery.of(context).size.width * 0.85,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.grey.shade800,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.6),
+                                    blurRadius: 30,
+                                    spreadRadius: 5,
+                                  ),
+                                ],
+                              ),
+                              child: ClipOval(
+                                child: photoUrl != null
+                                    ? (photoUrl.startsWith('http')
+                                          ? CachedNetworkImage(
+                                              imageUrl: photoUrl,
+                                              fit: BoxFit.cover,
+                                            )
+                                          : Image.file(
+                                              File(photoUrl),
+                                              fit: BoxFit.cover,
+                                            ))
+                                    : Icon(
+                                        Icons.person,
+                                        size:
+                                            MediaQuery.of(context).size.width *
+                                            0.4,
+                                        color: Colors.white.withOpacity(0.9),
+                                      ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          Text(
+                            user.displayName ?? langProvider.t('user'),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black54,
+                                  blurRadius: 10,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Theme.of(
+                                context,
+                              ).primaryColor.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Theme.of(
+                                  context,
+                                ).primaryColor.withOpacity(0.5),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: IconButton(
+                              icon: CustomIcons.svgIcon(
+                                CustomIcons.edit,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _showEditProfileBottomSheet(
+                                  context,
+                                  provider,
+                                  user.displayName,
+                                  user.photoURL,
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -937,6 +1188,7 @@ class _ProfilePageState extends State<ProfilePage>
     String? currentName,
     String? currentPhotoUrl,
   ) {
+    final langProvider = context.read<LanguageProvider>();
     final TextEditingController controller = TextEditingController(
       text: currentName,
     );
@@ -957,19 +1209,9 @@ class _ProfilePageState extends State<ProfilePage>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade700,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 8),
               Text(
-                'Profili Düzenle',
+                langProvider.t('edit_profile'),
                 style: TextStyle(
                   color: Theme.of(context).primaryColor,
                   fontSize: 20,
@@ -993,7 +1235,7 @@ class _ProfilePageState extends State<ProfilePage>
                         ),
                         uiSettings: [
                           AndroidUiSettings(
-                            toolbarTitle: 'Fotoğrafı Kırp',
+                            toolbarTitle: langProvider.t('crop_photo'),
                             toolbarColor: Colors.grey.shade900,
                             toolbarWidgetColor: Colors.white,
                             initAspectRatio: CropAspectRatioPreset.square,
@@ -1004,7 +1246,7 @@ class _ProfilePageState extends State<ProfilePage>
                             ).primaryColor,
                           ),
                           IOSUiSettings(
-                            title: 'Fotoğrafı Kırp',
+                            title: langProvider.t('crop_photo'),
                             aspectRatioLockEnabled: true,
                             resetAspectRatioEnabled: false,
                           ),
@@ -1036,53 +1278,39 @@ class _ProfilePageState extends State<ProfilePage>
                                   height: 100,
                                 )
                               : (currentPhotoUrl != null &&
-                                        !currentPhotoUrl.contains(
-                                          'googleusercontent.com',
-                                        )
-                                    ? (currentPhotoUrl.startsWith('http')
-                                          ? Image.network(
-                                              currentPhotoUrl,
-                                              fit: BoxFit.cover,
-                                              width: 100,
-                                              height: 100,
-                                              loadingBuilder:
-                                                  (
-                                                    context,
-                                                    child,
-                                                    loadingProgress,
-                                                  ) {
-                                                    if (loadingProgress == null)
-                                                      return child;
-                                                    return Icon(
-                                                      Icons.person,
-                                                      size: 60,
-                                                      color: Colors.white
-                                                          .withOpacity(0.9),
-                                                    );
-                                                  },
-                                              errorBuilder:
-                                                  (
-                                                    context,
-                                                    error,
-                                                    stackTrace,
-                                                  ) => Icon(
-                                                    Icons.person,
-                                                    size: 60,
-                                                    color: Colors.white
-                                                        .withOpacity(0.9),
-                                                  ),
-                                            )
-                                          : Image.file(
-                                              File(currentPhotoUrl),
-                                              fit: BoxFit.cover,
-                                              width: 100,
-                                              height: 100,
-                                            ))
-                                    : Icon(
-                                        Icons.person,
-                                        size: 60,
-                                        color: Colors.white.withOpacity(0.9),
-                                      )),
+                                    !currentPhotoUrl.contains(
+                                      'googleusercontent.com',
+                                    ))
+                              ? (currentPhotoUrl.startsWith('http')
+                                    ? CachedNetworkImage(
+                                        imageUrl: currentPhotoUrl,
+                                        fit: BoxFit.cover,
+                                        width: 100,
+                                        height: 100,
+                                        placeholder: (context, url) =>
+                                            const Icon(
+                                              Icons.person,
+                                              size: 60,
+                                              color: Colors.white,
+                                            ),
+                                        errorWidget: (context, url, error) =>
+                                            const Icon(
+                                              Icons.person,
+                                              size: 60,
+                                              color: Colors.white,
+                                            ),
+                                      )
+                                    : Image.file(
+                                        File(currentPhotoUrl),
+                                        fit: BoxFit.cover,
+                                        width: 100,
+                                        height: 100,
+                                      ))
+                              : Icon(
+                                  Icons.person,
+                                  size: 60,
+                                  color: Colors.white.withOpacity(0.9),
+                                ),
                         ),
                       ),
                       Positioned(
@@ -1115,7 +1343,7 @@ class _ProfilePageState extends State<ProfilePage>
                 autofocus: true,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
-                  hintText: 'Yeni isim',
+                  hintText: langProvider.t('new_name'),
                   hintStyle: TextStyle(color: Colors.grey.shade500),
                   filled: true,
                   fillColor: Colors.grey.shade800,
@@ -1166,7 +1394,9 @@ class _ProfilePageState extends State<ProfilePage>
                                 if (context.mounted) {
                                   CustomSnackBar.showInfo(
                                     context: context,
-                                    message: "Profil resmi yükleniyor...",
+                                    message: langProvider.t(
+                                      'uploading_profile_picture',
+                                    ),
                                   );
                                 }
                                 String? cloudUrl = await _uploadToCloudinary(
@@ -1183,7 +1413,9 @@ class _ProfilePageState extends State<ProfilePage>
                                   if (context.mounted) {
                                     CustomSnackBar.showError(
                                       context: context,
-                                      message: "Resim yüklenirken hata oluştu.",
+                                      message: langProvider.t(
+                                        'error_uploading_picture',
+                                      ),
                                     );
                                   }
                                 }
@@ -1195,25 +1427,25 @@ class _ProfilePageState extends State<ProfilePage>
                                 ); // Tüm UI'ın yenilenmesini garantile
                                 CustomSnackBar.showSuccess(
                                   context: context,
-                                  message: "Profil başarıyla güncellendi.",
+                                  message: langProvider.t('profile_updated'),
                                 );
                               }
                             } catch (e) {
                               if (context.mounted) {
                                 CustomSnackBar.showError(
                                   context: context,
-                                  message: "Güncelleme başarısız: $e",
+                                  message: "${langProvider.t('error')}: $e",
                                 );
                               }
                             }
                           },
                           borderRadius: BorderRadius.circular(16),
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             child: Center(
                               child: Text(
-                                'Kaydet',
-                                style: TextStyle(
+                                langProvider.t('save'),
+                                style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -1236,17 +1468,21 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   void _showSignOutBottomSheet(BuildContext context, AuthProvider provider) {
+    final langProvider = context.read<LanguageProvider>();
     CustomBottomSheet.show(
       context: context,
-      title: 'Çıkış Yap',
-      message: 'Hesabınızdan çıkış yapmak istediğinize emin misiniz?',
-      primaryButtonText: 'Çıkış Yap',
+      title: langProvider.t('sign_out'),
+      message: langProvider.t('sign_out_desc'),
+      primaryButtonText: langProvider.t('sign_out'),
       primaryButtonColor: Colors.redAccent,
-      secondaryButtonText: 'İptal',
+      secondaryButtonText: langProvider.t('cancel'),
       onPrimaryButtonTap: () {
         Navigator.pop(context);
         provider.signOut();
-        CustomSnackBar.showInfo(context: context, message: 'Çıkış yapıldı.');
+        CustomSnackBar.showInfo(
+          context: context,
+          message: langProvider.t('signed_out'),
+        );
       },
     );
   }
@@ -1255,23 +1491,16 @@ class _ProfilePageState extends State<ProfilePage>
     BuildContext context,
     SongProvider provider,
   ) {
+    final langProvider = context.read<LanguageProvider>();
+
     CustomBottomSheet.showContent(
       context: context,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(height: 8),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade700,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           Text(
-            'Dinleme Geçmişi',
+            langProvider.t('recently_played'),
             style: TextStyle(
               color: Theme.of(context).primaryColor,
               fontSize: 20,
@@ -1280,10 +1509,10 @@ class _ProfilePageState extends State<ProfilePage>
           ),
           const SizedBox(height: 16),
           if (provider.recentlyPlayed.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(32.0),
+            Padding(
+              padding: const EdgeInsets.all(32.0),
               child: Text(
-                "Henüz bir şarkı dinlenmedi.",
+                langProvider.t('no_recently_played'),
                 style: TextStyle(color: Colors.grey),
               ),
             )
@@ -1313,12 +1542,12 @@ class _ProfilePageState extends State<ProfilePage>
                                 song.coverUrl.contains('youtube.com'))
                             ? 1.35
                             : 1.0,
-                        child: Image.network(
-                          song.coverUrl,
+                        child: CachedNetworkImage(
+                          imageUrl: song.coverUrl,
                           width: 40,
                           height: 40,
                           fit: BoxFit.cover,
-                          errorBuilder: (c, e, s) => Container(
+                          errorWidget: (context, url, error) => Container(
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
@@ -1348,10 +1577,7 @@ class _ProfilePageState extends State<ProfilePage>
                     ),
                     trailing: Text(
                       durationString,
-                      style: TextStyle(
-                        color: Theme.of(context).primaryColor,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: Theme.of(context).primaryColor),
                     ),
                   );
                 },
@@ -1364,23 +1590,16 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   void _showMostPlayedBottomSheet(BuildContext context, SongProvider provider) {
+    final langProvider = context.read<LanguageProvider>();
+
     CustomBottomSheet.showContent(
       context: context,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(height: 8),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade700,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           Text(
-            'En Çok Dinlenenler',
+            langProvider.t('most_played'),
             style: TextStyle(
               color: Theme.of(context).primaryColor,
               fontSize: 20,
@@ -1389,10 +1608,10 @@ class _ProfilePageState extends State<ProfilePage>
           ),
           const SizedBox(height: 16),
           if (provider.mostPlayed.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(32.0),
+            Padding(
+              padding: const EdgeInsets.all(32.0),
               child: Text(
-                "Henüz yeterli veri yok.",
+                langProvider.t('not_enough_data'),
                 style: TextStyle(color: Colors.grey),
               ),
             )
@@ -1475,13 +1694,17 @@ class _ProfilePageState extends State<ProfilePage>
                                                   ))
                                               ? 1.35
                                               : 1.0,
-                                          child: Image.network(
-                                            song.coverUrl,
+                                          child: CachedNetworkImage(
+                                            imageUrl: song.coverUrl,
                                             width: 70,
                                             height: 70,
                                             fit: BoxFit.cover,
-                                            errorBuilder: (c, e, s) =>
-                                                Container(
+                                            errorWidget:
+                                                (
+                                                  context,
+                                                  url,
+                                                  error,
+                                                ) => Container(
                                                   width: 70,
                                                   height: 70,
                                                   decoration: BoxDecoration(
@@ -1506,7 +1729,9 @@ class _ProfilePageState extends State<ProfilePage>
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        "EN ÇOK DİNLENEN",
+                                        langProvider
+                                            .t('most_played')
+                                            .toUpperCase(),
                                         style: TextStyle(
                                           color: Theme.of(context).primaryColor,
                                           fontSize: 10,
@@ -1538,7 +1763,7 @@ class _ProfilePageState extends State<ProfilePage>
                                   ),
                                 ),
                                 Text(
-                                  "$playCount Kez",
+                                  "$playCount ${langProvider.t('times')}",
                                   style: TextStyle(
                                     color: Theme.of(context).primaryColor,
                                     fontSize: 16,
@@ -1583,12 +1808,12 @@ class _ProfilePageState extends State<ProfilePage>
                                       song.coverUrl.contains('youtube.com'))
                                   ? 1.35
                                   : 1.0,
-                              child: Image.network(
-                                song.coverUrl,
+                              child: CachedNetworkImage(
+                                imageUrl: song.coverUrl,
                                 width: 40,
                                 height: 40,
                                 fit: BoxFit.cover,
-                                errorBuilder: (c, e, s) => Container(
+                                errorWidget: (context, url, error) => Container(
                                   width: 40,
                                   height: 40,
                                   decoration: BoxDecoration(
@@ -1617,10 +1842,9 @@ class _ProfilePageState extends State<ProfilePage>
                       style: TextStyle(color: Colors.grey.shade400),
                     ),
                     trailing: Text(
-                      "$playCount Kez",
+                      "$playCount ${langProvider.t('times')}",
                       style: TextStyle(
                         color: Theme.of(context).primaryColor,
-                        fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -1639,6 +1863,7 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   void _showFavoritesBottomSheet(BuildContext context, SongProvider provider) {
+    final langProvider = context.read<LanguageProvider>();
     CustomBottomSheet.showContent(
       context: context,
       child: Consumer<SongProvider>(
@@ -1646,18 +1871,9 @@ class _ProfilePageState extends State<ProfilePage>
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade700,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               Text(
-                'Favoriler',
+                langProvider.t('favorites'),
                 style: TextStyle(
                   color: Theme.of(context).primaryColor,
                   fontSize: 20,
@@ -1666,10 +1882,10 @@ class _ProfilePageState extends State<ProfilePage>
               ),
               const SizedBox(height: 16),
               if (songProvider.favoriteSongs.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(32.0),
+                Padding(
+                  padding: const EdgeInsets.all(32.0),
                   child: Text(
-                    "Henüz favori şarkınız yok.",
+                    langProvider.t('no_favorites_yet'),
                     style: TextStyle(color: Colors.grey),
                   ),
                 )
@@ -1690,30 +1906,45 @@ class _ProfilePageState extends State<ProfilePage>
                           child:
                               song.localImagePath != null &&
                                   File(song.localImagePath!).existsSync()
-                              ? Image.file(
-                                  File(song.localImagePath!),
-                                  width: 40,
-                                  height: 40,
-                                  fit: BoxFit.cover,
-                                )
-                              : Image.network(
-                                  song.coverUrl,
-                                  width: 40,
-                                  height: 40,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (c, e, s) => Container(
+                              ? Transform.scale(
+                                  scale:
+                                      (song.coverUrl.contains('ytimg.com') ||
+                                          song.coverUrl.contains('youtube.com'))
+                                      ? 1.35
+                                      : 1.0,
+                                  child: Image.file(
+                                    File(song.localImagePath!),
                                     width: 40,
                                     height: 40,
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          Colors.grey.shade800,
-                                          Colors.grey.shade900,
-                                        ],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                      ),
-                                    ),
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : Transform.scale(
+                                  scale:
+                                      (song.coverUrl.contains('ytimg.com') ||
+                                          song.coverUrl.contains('youtube.com'))
+                                      ? 1.35
+                                      : 1.0,
+                                  child: CachedNetworkImage(
+                                    imageUrl: song.coverUrl,
+                                    width: 40,
+                                    height: 40,
+                                    fit: BoxFit.cover,
+                                    errorWidget: (context, url, error) =>
+                                        Container(
+                                          width: 40,
+                                          height: 40,
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              colors: [
+                                                Colors.grey.shade800,
+                                                Colors.grey.shade900,
+                                              ],
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                            ),
+                                          ),
+                                        ),
                                   ),
                                 ),
                         ),
@@ -1735,7 +1966,6 @@ class _ProfilePageState extends State<ProfilePage>
                               durationString,
                               style: TextStyle(
                                 color: Theme.of(context).primaryColor,
-                                fontSize: 12,
                               ),
                             ),
                             IconButton(
@@ -1775,6 +2005,7 @@ class _ProfilePageState extends State<ProfilePage>
     BuildContext context,
     SongProvider provider,
   ) {
+    final langProvider = context.read<LanguageProvider>();
     CustomBottomSheet.showContent(
       context: context,
       child: Consumer<SongProvider>(
@@ -1782,18 +2013,9 @@ class _ProfilePageState extends State<ProfilePage>
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade700,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               Text(
-                'Takip Edilen Sanatçılar',
+                langProvider.t('following'),
                 style: TextStyle(
                   color: Theme.of(context).primaryColor,
                   fontSize: 20,
@@ -1802,10 +2024,10 @@ class _ProfilePageState extends State<ProfilePage>
               ),
               const SizedBox(height: 16),
               if (songProvider.followedArtists.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(32.0),
+                Padding(
+                  padding: const EdgeInsets.all(32.0),
                   child: Text(
-                    "Henüz takip ettiğiniz bir sanatçı yok.",
+                    langProvider.t('no_followed_artists'),
                     style: TextStyle(color: Colors.grey),
                   ),
                 )
@@ -1884,6 +2106,8 @@ class _FollowedArtistTileState extends State<_FollowedArtistTile> {
 
   @override
   Widget build(BuildContext context) {
+    final langProvider = context.watch<LanguageProvider>();
+
     return ListTile(
       leading: _isLoading || _imageUrl == null
           ? const _ProfileShimmer(width: 40, height: 40, borderRadius: 20)
@@ -1898,10 +2122,10 @@ class _FollowedArtistTileState extends State<_FollowedArtistTile> {
                           _imageUrl!.contains('youtube.com'))
                       ? 1.35
                       : 1.0,
-                  child: Image.network(
-                    _imageUrl!,
+                  child: CachedNetworkImage(
+                    imageUrl: _imageUrl!,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const SizedBox(),
+                    errorWidget: (context, url, error) => const SizedBox(),
                   ),
                 ),
               ),
@@ -1930,7 +2154,7 @@ class _FollowedArtistTileState extends State<_FollowedArtistTile> {
           minimumSize: const Size(0, 30),
         ),
         child: Text(
-          "Takipten Çık",
+          langProvider.t('unfollow'),
           style: TextStyle(color: Theme.of(context).primaryColor, fontSize: 12),
         ),
       ),
@@ -1941,7 +2165,7 @@ class _FollowedArtistTileState extends State<_FollowedArtistTile> {
           MaterialPageRoute(
             builder: (context) => ArtistDetailPage(
               artistName: widget.artistName,
-              songs: const [], // Sayfa kendi içerisinde yükleyecektir
+              songs: const [],
             ),
           ),
         );

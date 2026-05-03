@@ -13,6 +13,7 @@ import 'package:muzik_app/widgets/mini_player.dart';
 import 'package:provider/provider.dart';
 import 'package:muzik_app/pages/favorites_page.dart'; // TrendPage'deki import yapısına göre
 import 'package:muzik_app/providers/theme_provider.dart';
+import 'package:muzik_app/providers/language_provider.dart';
 import 'package:muzik_app/providers/auth_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -26,14 +27,40 @@ import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/pages/onboarding_page.dart';
 import 'package:muzik_app/pages/initial_artists_page.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:muzik_app/widgets/custom_snack_bar.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
+import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:firebase_remote_config/firebase_remote_config.dart';
 
 // Global Navigator Key
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 final GlobalKey<MainScreenState> mainScreenKey = GlobalKey<MainScreenState>();
 
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  // Arkaplanda gelen bildirim işlemleri
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Zaman dilimini (Timezone) başlatıyoruz (Planlanmış bildirimler için)
+  tz.initializeTimeZones();
+  try {
+    final dynamic localTz = await FlutterTimezone.getLocalTimezone();
+    // Eğer paket doğrudan String dönmüyorsa (yeni sürüm), TimezoneInfo nesnesinin içindeki 'name' değerini alıyoruz.
+    final String timeZoneName = localTz is String ? localTz : localTz.name;
+    tz.setLocalLocation(tz.getLocation(timeZoneName));
+  } catch (e) {
+    debugPrint("Zaman dilimi alınamadı: $e");
+  }
 
   // Durum çubuğu (şarj, saat vb.) görünür olsun ve arkaplanla uyumlu olsun
   SystemChrome.setSystemUIOverlayStyle(
@@ -60,6 +87,8 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform, // Güncel ayarları kullan
     );
+    // Arkaplan bildirim dinleyicisini kaydet
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   } catch (e) {
     debugPrint("Firebase başlatılamadı: $e");
   }
@@ -70,6 +99,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (context) => AuthProvider()),
         ChangeNotifierProvider(create: (context) => ThemeProvider(prefs)),
+        ChangeNotifierProvider(create: (context) => LanguageProvider(prefs)),
         ChangeNotifierProxyProvider<AuthProvider, SongProvider>(
           create: (context) => SongProvider(),
           update: (context, auth, songProvider) =>
@@ -87,6 +117,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
+    final languageProvider = context.watch<LanguageProvider>();
 
     return MaterialApp(
       title: 'OYN',
@@ -119,19 +150,21 @@ class MyApp extends StatelessWidget {
           ),
           hintStyle: TextStyle(color: Colors.grey.shade400),
         ),
-        snackBarTheme: SnackBarThemeData(
-          backgroundColor: Colors.grey.shade900,
-          contentTextStyle: GoogleFonts.montserrat(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          behavior: SnackBarBehavior.floating,
-          insetPadding: const EdgeInsets.all(16),
-        ),
       ),
+      supportedLocales: const [
+        Locale('en'),
+        Locale('tr'),
+        Locale('fr'),
+        Locale('de'),
+        Locale('es'),
+        Locale('ar'),
+      ],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      locale: Locale(languageProvider.currentLanguage),
       debugShowCheckedModeBanner: false,
       builder: (context, child) {
         // ConnectionManager ile sarmalıyoruz
@@ -145,7 +178,12 @@ class MyApp extends StatelessWidget {
           ),
           child: child!,
         );
-        return ConnectionManager(child: wrappedChild);
+        return Directionality(
+          textDirection: languageProvider.isRTL
+              ? TextDirection.rtl
+              : TextDirection.ltr,
+          child: ConnectionManager(child: wrappedChild),
+        );
       },
       home: const SplashScreen(),
     );
@@ -221,27 +259,29 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
         context: context,
         barrierDismissible: false, // Kullanıcı tıklayana kadar kapanmasın
         builder: (BuildContext context) {
+          final langProvider = context.read<LanguageProvider>();
+
           return AlertDialog(
             backgroundColor: Colors.grey.shade900,
-            title: const Text(
-              "İzin Gerekli",
-              style: TextStyle(
+            title: Text(
+              langProvider.t('permission_required'),
+              style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            content: const Text(
-              "Uygulamanın sorunsuz çalışabilmesi (şarkı indirme, arka planda çalma, bildirimler) için gerekli izinleri vermelisiniz. Lütfen uygulama ayarlarından izinleri etkinleştirin.",
-              style: TextStyle(color: Colors.white70),
+            content: Text(
+              langProvider.t('permission_desc'),
+              style: const TextStyle(color: Colors.white70),
             ),
             actions: [
               TextButton(
                 onPressed: () {
                   Navigator.of(context).pop();
                 },
-                child: const Text(
-                  "İptal",
-                  style: TextStyle(color: Colors.grey),
+                child: Text(
+                  langProvider.t('cancel'),
+                  style: const TextStyle(color: Colors.grey),
                 ),
               ),
               ElevatedButton(
@@ -256,7 +296,7 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
                   openAppSettings(); // Uygulama ayarlarına yönlendirir
                   // Dialog'u açık bırakıyoruz, ayarlardan dönünce lifecycle ile kapanacak
                 },
-                child: const Text("Ayarları Aç"),
+                child: Text(langProvider.t('open_settings')),
               ),
             ],
           );
@@ -395,13 +435,18 @@ class MainScreenState extends State<MainScreen>
       ),
       PrimaryScrollController(
         controller: _scrollControllers[2],
-        child: FavoritesPage(),
+        child: const DownloadsPage(),
       ),
       PrimaryScrollController(
         controller: _scrollControllers[3],
         child: ListelerPage(),
       ),
     ];
+
+    // Çerçeve çizimi (render) bittikten sonra güncelleme kontrolünü güvenle yapıyoruz (1. Madde)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkForUpdate();
+    });
   }
 
   @override
@@ -435,6 +480,139 @@ class MainScreenState extends State<MainScreen>
     }
   }
 
+  /// Firebase üzerinden güncelleme kontrolü yapar
+  Future<void> _checkForUpdate() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      final currentVersion = packageInfo.version;
+
+      final remoteConfig = FirebaseRemoteConfig.instance;
+      await remoteConfig.setConfigSettings(
+        RemoteConfigSettings(
+          fetchTimeout: const Duration(minutes: 1),
+          minimumFetchInterval: const Duration(
+            seconds: 0,
+          ), // Anında test edebilmek için 0 (Sıfır) yapıldı
+        ),
+      );
+
+      await remoteConfig.fetchAndActivate();
+
+      final latestVersion = remoteConfig.getString('latest_version');
+      final forceUpdate = remoteConfig.getBool('force_update');
+      final updateMessage = remoteConfig.getString('update_message');
+      final storeUrl = remoteConfig.getString('store_url');
+
+      if (latestVersion.isNotEmpty) {
+        final currentParts = currentVersion
+            .split('.')
+            .map((e) => int.tryParse(e) ?? 0)
+            .toList();
+        final latestParts = latestVersion
+            .split('.')
+            .map((e) => int.tryParse(e) ?? 0)
+            .toList();
+
+        bool hasUpdate = false;
+        for (int i = 0; i < latestParts.length; i++) {
+          final c = i < currentParts.length ? currentParts[i] : 0;
+          final l = latestParts[i];
+          if (l > c) {
+            hasUpdate = true;
+            break;
+          }
+          if (l < c) break;
+        }
+
+        if (hasUpdate && mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible:
+                !forceUpdate, // Zorunluysa dışarı tıklayarak kapatılamaz
+            builder: (context) => PopScope(
+              canPop: !forceUpdate, // Zorunluysa geri tuşuyla da kapatılamaz
+              child: AlertDialog(
+                backgroundColor: Colors.grey.shade900,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                title: Row(
+                  children: [
+                    const Icon(
+                      Icons.system_update_rounded,
+                      color: Colors.greenAccent,
+                      size: 28,
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Güncelleme Mevcut',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                content: Text(
+                  updateMessage.isNotEmpty
+                      ? updateMessage
+                      : 'Uygulamanın yeni bir sürümü yayınlandı. Daha iyi bir deneyim için lütfen güncelleyin.',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    height: 1.5,
+                    fontSize: 14,
+                  ),
+                ),
+                actions: [
+                  if (!forceUpdate)
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text(
+                        'Daha Sonra',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).primaryColor,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () async {
+                      final url = storeUrl.isNotEmpty
+                          ? storeUrl
+                          : 'https://play.google.com/store/apps/details?id=com.ahmed.oyn_music';
+                      final uri = Uri.parse(url);
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(
+                          uri,
+                          mode: LaunchMode.externalApplication,
+                        );
+                      }
+                    },
+                    child: const Text(
+                      'Şimdi Güncelle',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Güncelleme kontrol hatası: $e");
+    }
+  }
+
   Widget _buildNavItem(
     int index,
     String label,
@@ -442,7 +620,7 @@ class MainScreenState extends State<MainScreen>
     Color primaryColor,
   ) {
     final isSelected = _selectedIndex == index;
-    final color = isSelected ? primaryColor : Colors.grey.withOpacity(0.6);
+    final color = isSelected ? Colors.white : Colors.grey.withOpacity(0.6);
 
     return GestureDetector(
       onTap: () => _onItemTapped(index),
@@ -478,7 +656,7 @@ class MainScreenState extends State<MainScreen>
                   Text(
                     label,
                     style: TextStyle(
-                      color: primaryColor,
+                      color: Colors.white,
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),
@@ -498,6 +676,7 @@ class MainScreenState extends State<MainScreen>
     final hasConnection = context.select<SongProvider, bool>(
       (p) => p.hasConnection,
     );
+    final langProvider = context.watch<LanguageProvider>();
 
     return Scaffold(
       extendBody: true,
@@ -565,22 +744,27 @@ class MainScreenState extends State<MainScreen>
                     children: [
                       _buildNavItem(
                         0,
-                        'Trendler',
+                        langProvider.t('trends'),
                         CustomIcons.trending,
                         primaryColor,
                       ),
-                      _buildNavItem(1, 'Ara', CustomIcons.search, primaryColor),
+                      _buildNavItem(
+                        1,
+                        langProvider.t('search'),
+                        CustomIcons.search,
+                        primaryColor,
+                      ),
                       _buildNavItem(
                         2,
-                        'Favoriler',
+                        langProvider.t('downloads'),
                         _selectedIndex == 2
-                            ? CustomIcons.favorite
-                            : CustomIcons.favoriteBorder,
+                            ? CustomIcons.downloadingRounded
+                            : CustomIcons.downloadingRounded,
                         primaryColor,
                       ),
                       _buildNavItem(
                         3,
-                        'Kitaplığım',
+                        langProvider.t('library'),
                         CustomIcons.library,
                         primaryColor,
                       ),
@@ -596,6 +780,8 @@ class MainScreenState extends State<MainScreen>
   }
 
   Widget _buildNoConnectionView() {
+    final langProvider = context.watch<LanguageProvider>();
+
     return Container(
       width: double.infinity,
       color: const Color(0xFF121212),
@@ -611,9 +797,9 @@ class MainScreenState extends State<MainScreen>
             child: Icon(Icons.wifi_off, size: 60, color: Colors.grey.shade600),
           ),
           const SizedBox(height: 24),
-          const Text(
-            "İnternet Bağlantısı Yok",
-            style: TextStyle(
+          Text(
+            langProvider.t('no_connection'),
+            style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
               color: Colors.white,
@@ -621,7 +807,7 @@ class MainScreenState extends State<MainScreen>
           ),
           const SizedBox(height: 12),
           Text(
-            "Bu sayfaya erişmek için internet\nbağlantısı gereklidir.",
+            langProvider.t('internet_required'),
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
           ),
@@ -658,9 +844,12 @@ class MainScreenState extends State<MainScreen>
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    "Tekrar Dene",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  child: Text(
+                    langProvider.t('retry'),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -687,9 +876,12 @@ class MainScreenState extends State<MainScreen>
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    "Çevrimdışı Dinle",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  child: Text(
+                    langProvider.t('listen_offline'),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -718,6 +910,7 @@ class _ConnectionManagerState extends State<ConnectionManager> {
     final hasConnection = context.select<SongProvider, bool>(
       (p) => p.hasConnection,
     );
+    final langProvider = context.watch<LanguageProvider>();
 
     if (!hasConnection) {
       _wasDisconnected = true;
@@ -726,25 +919,9 @@ class _ConnectionManagerState extends State<ConnectionManager> {
       // Bağlantı geri geldiğinde modern snackbar göster
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (navigatorKey.currentContext != null) {
-          ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  CustomIcons.svgIcon(
-                    CustomIcons.wifi,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                  const SizedBox(width: 12),
-                  const Text(
-                    "Bağlantı sağlandı",
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.green.shade700,
-              duration: const Duration(seconds: 2),
-            ),
+          CustomSnackBar.showSuccess(
+            context: navigatorKey.currentContext!,
+            message: langProvider.t('connection_restored'),
           );
         }
       });

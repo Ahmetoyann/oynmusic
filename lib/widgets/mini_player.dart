@@ -9,6 +9,8 @@ import 'package:muzik_app/models/song_model.dart';
 import 'package:provider/provider.dart';
 import 'package:muzik_app/pages/player_page.dart';
 import 'package:muzik_app/custom_icons.dart';
+import 'package:muzik_app/providers/language_provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class MiniPlayer extends StatefulWidget {
   const MiniPlayer({super.key});
@@ -21,6 +23,29 @@ class _MiniPlayerState extends State<MiniPlayer>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   Timer? _timer;
+
+  // Global state'ler: MiniPlayer'ın tüm sayfalarda aynı durumu (açık/kapalı) ve aynı konumu korumasını sağlar
+  static final ValueNotifier<bool> isGloballyMinimized = ValueNotifier<bool>(
+    false,
+  );
+  static Offset globalFloatingPosition = const Offset(
+    -1,
+    -1,
+  ); // Dinamik hesaplama için varsayılan işaretçi
+  static OverlayEntry? floatingEntry;
+
+  static void showFloatingPlayer(BuildContext context) {
+    if (floatingEntry != null) return;
+    floatingEntry = OverlayEntry(
+      builder: (context) => const _FloatingMiniPlayer(),
+    );
+    Overlay.of(context, rootOverlay: true).insert(floatingEntry!);
+  }
+
+  static void hideFloatingPlayer() {
+    floatingEntry?.remove();
+    floatingEntry = null;
+  }
 
   @override
   void initState() {
@@ -53,59 +78,99 @@ class _MiniPlayerState extends State<MiniPlayer>
   @override
   Widget build(BuildContext context) {
     final songProvider = context.watch<SongProvider>();
+    final langProvider = context.watch<LanguageProvider>();
     final song = songProvider.currentSong;
 
-    if (song == null) {
-      return const SizedBox.shrink();
-    }
+    if (song == null) return const SizedBox.shrink();
 
-    return StreamBuilder<PlayerState>(
-      stream: songProvider.playerStateStream,
-      builder: (context, snapshot) {
-        final playerState = snapshot.data;
-        final playing = playerState?.playing ?? false;
-        final processingState = playerState?.processingState;
+    return ValueListenableBuilder<bool>(
+      valueListenable: isGloballyMinimized,
+      builder: (context, isMinimized, child) {
+        if (isMinimized) {
+          // Eğer küçültüldüyse, normal MiniPlayer'ı gizle ve yüzen player'ı başlat
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            showFloatingPlayer(context);
+          });
+          return const SizedBox.shrink();
+        } else {
+          // Büyütüldüyse yüzen player'ı kapat ve alt menüdekini geri getir
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            hideFloatingPlayer();
+          });
 
-        if (playing && !_controller.isAnimating) {
-          _controller.repeat();
-        } else if (!playing && _controller.isAnimating) {
-          _controller.stop();
+          return StreamBuilder<PlayerState>(
+            stream: songProvider.playerStateStream,
+            builder: (context, snapshot) {
+              final playerState = snapshot.data;
+              final playing = playerState?.playing ?? false;
+              final processingState = playerState?.processingState;
+              final isLoading =
+                  processingState == ProcessingState.loading ||
+                  processingState == ProcessingState.buffering ||
+                  songProvider.isSongLoading;
+
+              if (playing && !_controller.isAnimating) {
+                _controller.repeat();
+              } else if (!playing && _controller.isAnimating) {
+                _controller.stop();
+              }
+
+              return _buildExpandedPlayer(
+                context,
+                songProvider,
+                langProvider,
+                song,
+                playing,
+                processingState,
+                isLoading,
+              );
+            },
+          );
         }
+      },
+    );
+  }
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 24,
-            vertical: 8,
-          ), // Yanlardan biraz daha içe çektik
-          child: GestureDetector(
-            onHorizontalDragEnd: (details) {
-              // Sağa/Sola kaydırma ile şarkı değiştirme
-              // Hassasiyet için 100 eşik değeri kullanıldı
-              if ((details.primaryVelocity ?? 0) < -100) {
-                // Sola kaydırma -> Sonraki şarkı
-                songProvider.playNext();
-              } else if ((details.primaryVelocity ?? 0) > 100) {
-                // Sağa kaydırma -> Önceki şarkı
-                songProvider.playPrevious();
-              }
-            },
-            onVerticalDragEnd: (details) {
-              if ((details.primaryVelocity ?? 0) < -100) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const PlayerPage()),
-                );
-              }
-            },
+  /// Alt navigasyon barındaki normal geniş görünümlü oynatıcı
+  Widget _buildExpandedPlayer(
+    BuildContext context,
+    SongProvider songProvider,
+    LanguageProvider langProvider,
+    Song song,
+    bool playing,
+    ProcessingState? processingState,
+    bool isLoading,
+  ) {
+    return Align(
+      alignment: Alignment.bottomRight,
+      child: Padding(
+        padding: const EdgeInsets.only(right: 24, left: 24, bottom: 8, top: 8),
+        child: GestureDetector(
+          onHorizontalDragEnd: (details) {
+            // Sağa/sola kaydırma ile artık sadece şarkı değiştiriliyor
+            if ((details.primaryVelocity ?? 0) < -100) {
+              songProvider.playNext();
+            } else if ((details.primaryVelocity ?? 0) > 100) {
+              songProvider.playPrevious();
+            }
+          },
+          onVerticalDragEnd: (details) {
+            if ((details.primaryVelocity ?? 0) < -100) {
+              PlayerPage.show(context);
+            }
+          },
+          onTap: () {
+            PlayerPage.show(context);
+          },
+          child: Container(
+            width: MediaQuery.of(context).size.width - 48,
             child: AnimatedBuilder(
               animation: _controller,
               builder: (context, child) {
                 return Container(
                   padding: const EdgeInsets.all(2),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(
-                      32,
-                    ), // Dış çerçeve kavisi artırıldı
+                    borderRadius: BorderRadius.circular(32),
                     gradient: playing
                         ? SweepGradient(
                             colors: [
@@ -125,9 +190,7 @@ class _MiniPlayerState extends State<MiniPlayer>
                 );
               },
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(
-                  30,
-                ), // İç çerçeve (cam efekti) kavisi artırıldı
+                borderRadius: BorderRadius.circular(30),
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                   child: Container(
@@ -139,101 +202,53 @@ class _MiniPlayerState extends State<MiniPlayer>
                           children: [
                             // Üst Kat: Resim ve Şarkı Bilgileri
                             Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                16,
-                                12,
-                                16,
-                                4,
-                              ), // Kavisli köşelere çarpmaması için iç boşluk
+                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                               child: Row(
                                 children: [
-                                  AnimatedSwitcher(
-                                    duration: const Duration(milliseconds: 300),
-                                    child: ClipRRect(
-                                      key: ValueKey('${song.id}_mini_img'),
-                                      borderRadius: BorderRadius.circular(
-                                        16,
-                                      ), // Şarkı kapak resmini de hap tasarıma uygun yuvarlattık
-                                      child: Transform.scale(
-                                        scale:
-                                            (song.coverUrl.contains(
-                                                  'ytimg.com',
-                                                ) ||
-                                                song.coverUrl.contains(
-                                                  'youtube.com',
-                                                ))
-                                            ? 1.35
-                                            : 1.0,
-                                        child:
-                                            (song.localImagePath != null &&
-                                                File(
-                                                  song.localImagePath!,
-                                                ).existsSync())
-                                            ? Image.file(
-                                                File(song.localImagePath!),
-                                                height: 48,
-                                                width: 48,
-                                                fit: BoxFit.cover,
-                                                errorBuilder:
-                                                    (
-                                                      context,
-                                                      error,
-                                                      stackTrace,
-                                                    ) => Image.network(
-                                                      song.coverUrl,
-                                                      height: 48,
-                                                      width: 48,
-                                                      fit: BoxFit.cover,
-                                                      errorBuilder:
-                                                          (
-                                                            context,
-                                                            error,
-                                                            stackTrace,
-                                                          ) => Container(
-                                                            height: 48,
-                                                            width: 48,
-                                                            decoration: BoxDecoration(
-                                                              gradient: LinearGradient(
-                                                                colors: [
-                                                                  Colors
-                                                                      .grey
-                                                                      .shade800,
-                                                                  const Color(
-                                                                    0xFF121212,
-                                                                  ),
-                                                                ],
-                                                                begin: Alignment
-                                                                    .topLeft,
-                                                                end: Alignment
-                                                                    .bottomRight,
-                                                              ),
-                                                            ),
-                                                            child: CustomIcons.svgIcon(
-                                                              CustomIcons
-                                                                  .musicNoteRounded,
-                                                              color: Colors
-                                                                  .white24,
-                                                              size: 24,
-                                                            ),
-                                                          ),
-                                                    ),
-                                              )
-                                            : Image.network(
-                                                song.coverUrl,
-                                                height: 48,
-                                                width: 48,
-                                                fit: BoxFit.cover,
-                                                errorBuilder:
-                                                    (
-                                                      context,
-                                                      error,
-                                                      stackTrace,
-                                                    ) => Container(
-                                                      height: 48,
-                                                      width: 48,
-                                                      decoration: BoxDecoration(
-                                                        gradient:
-                                                            LinearGradient(
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Transform.scale(
+                                      scale:
+                                          (song.coverUrl.contains(
+                                                'ytimg.com',
+                                              ) ||
+                                              song.coverUrl.contains(
+                                                'youtube.com',
+                                              ))
+                                          ? 1.35
+                                          : 1.0,
+                                      child:
+                                          (song.localImagePath != null &&
+                                              File(
+                                                song.localImagePath!,
+                                              ).existsSync())
+                                          ? Image.file(
+                                              File(song.localImagePath!),
+                                              height: 48,
+                                              width: 48,
+                                              fit: BoxFit.cover,
+                                              cacheHeight: 200,
+                                              errorBuilder:
+                                                  (
+                                                    context,
+                                                    error,
+                                                    stackTrace,
+                                                  ) => CachedNetworkImage(
+                                                    imageUrl: song.coverUrl,
+                                                    height: 48,
+                                                    width: 48,
+                                                    fit: BoxFit.cover,
+                                                    memCacheHeight: 200,
+                                                    errorWidget:
+                                                        (
+                                                          context,
+                                                          url,
+                                                          error,
+                                                        ) => Container(
+                                                          height: 48,
+                                                          width: 48,
+                                                          decoration: BoxDecoration(
+                                                            gradient: LinearGradient(
                                                               colors: [
                                                                 Colors
                                                                     .grey
@@ -247,16 +262,52 @@ class _MiniPlayerState extends State<MiniPlayer>
                                                               end: Alignment
                                                                   .bottomRight,
                                                             ),
-                                                      ),
-                                                      child: CustomIcons.svgIcon(
-                                                        CustomIcons
-                                                            .musicNoteRounded,
-                                                        color: Colors.white24,
-                                                        size: 24,
+                                                          ),
+                                                          child: CustomIcons.svgIcon(
+                                                            CustomIcons
+                                                                .musicNoteRounded,
+                                                            color:
+                                                                Colors.white24,
+                                                            size: 24,
+                                                          ),
+                                                        ),
+                                                  ),
+                                            )
+                                          : Image.network(
+                                              song.coverUrl,
+                                              height: 48,
+                                              width: 48,
+                                              fit: BoxFit.cover,
+                                              errorBuilder:
+                                                  (
+                                                    context,
+                                                    error,
+                                                    stackTrace,
+                                                  ) => Container(
+                                                    height: 48,
+                                                    width: 48,
+                                                    decoration: BoxDecoration(
+                                                      gradient: LinearGradient(
+                                                        colors: [
+                                                          Colors.grey.shade800,
+                                                          const Color(
+                                                            0xFF121212,
+                                                          ),
+                                                        ],
+                                                        begin:
+                                                            Alignment.topLeft,
+                                                        end: Alignment
+                                                            .bottomRight,
                                                       ),
                                                     ),
-                                              ),
-                                      ),
+                                                    child: CustomIcons.svgIcon(
+                                                      CustomIcons
+                                                          .musicNoteRounded,
+                                                      color: Colors.white24,
+                                                      size: 24,
+                                                    ),
+                                                  ),
+                                            ),
                                     ),
                                   ),
                                   const SizedBox(width: 12),
@@ -267,43 +318,27 @@ class _MiniPlayerState extends State<MiniPlayer>
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        AnimatedSwitcher(
-                                          duration: const Duration(
-                                            milliseconds: 300,
-                                          ),
-                                          child: Text(
-                                            song.title,
-                                            key: ValueKey(
-                                              '${song.id}_mini_title',
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 14,
-                                            ),
+                                        Text(
+                                          song.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
                                           ),
                                         ),
                                         const SizedBox(height: 4),
-                                        AnimatedSwitcher(
-                                          duration: const Duration(
-                                            milliseconds: 300,
-                                          ),
-                                          child: Text(
-                                            song.duration != null &&
-                                                    song.duration! > 0
-                                                ? "${song.artist} • ${song.formattedDuration}"
-                                                : song.artist,
-                                            key: ValueKey(
-                                              '${song.id}_mini_artist',
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              color: Colors.grey.shade400,
-                                              fontSize: 12,
-                                            ),
+                                        Text(
+                                          song.duration != null &&
+                                                  song.duration! > 0
+                                              ? "${song.artist} • ${song.formattedDuration}"
+                                              : song.artist,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: Colors.grey.shade400,
+                                            fontSize: 12,
                                           ),
                                         ),
                                       ],
@@ -320,12 +355,7 @@ class _MiniPlayerState extends State<MiniPlayer>
                             ),
                             // Alt Kat: Butonlar
                             Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                16,
-                                0,
-                                16,
-                                8,
-                              ), // Alt butonları da kavisli köşelerden koruduk
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                               child: Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
@@ -346,27 +376,15 @@ class _MiniPlayerState extends State<MiniPlayer>
                                             songProvider.toggleFavorite(song),
                                       ),
                                       if (songProvider.isSongLoading)
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            left: 8.0,
-                                          ),
-                                          child: Text(
-                                            'Hazırlanıyor...',
-                                            style: TextStyle(
-                                              color: Colors.grey.shade400,
-                                              fontSize: 12,
-                                            ),
-                                          ),
+                                        const Padding(
+                                          padding: EdgeInsets.only(left: 8.0),
+                                          child: _MiniPlayerLoadingText(),
                                         ),
                                     ],
                                   ),
                                   Row(
                                     children: [
-                                      if (processingState ==
-                                              ProcessingState.loading ||
-                                          processingState ==
-                                              ProcessingState.buffering ||
-                                          songProvider.isSongLoading)
+                                      if (isLoading)
                                         SizedBox(
                                           width: 48,
                                           height: 48,
@@ -395,11 +413,10 @@ class _MiniPlayerState extends State<MiniPlayer>
                                             size: 32,
                                           ),
                                           onPressed: () {
-                                            if (playing) {
+                                            if (playing)
                                               songProvider.audioPlayer.pause();
-                                            } else {
+                                            else
                                               songProvider.audioPlayer.play();
-                                            }
                                           },
                                         ),
                                       IconButton(
@@ -421,29 +438,52 @@ class _MiniPlayerState extends State<MiniPlayer>
                           bottom: 0,
                           left: 0,
                           right: 0,
-                          child: StreamBuilder<Duration>(
-                            stream: songProvider.audioPlayer.positionStream,
-                            builder: (context, snapshot) {
-                              final position = snapshot.data ?? Duration.zero;
-                              final duration =
-                                  songProvider.audioPlayer.duration ??
-                                  Duration.zero;
-                              double value = 0.0;
-                              if (duration.inMilliseconds > 0) {
-                                value =
-                                    (position.inMilliseconds /
-                                            duration.inMilliseconds)
-                                        .clamp(0.0, 1.0);
-                              }
-                              return LinearProgressIndicator(
-                                value: value,
-                                minHeight: 2,
-                                backgroundColor: Colors.transparent,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Theme.of(context).primaryColor,
-                                ),
-                              );
-                            },
+                          child: RepaintBoundary(
+                            child: StreamBuilder<Duration>(
+                              stream: songProvider.audioPlayer.positionStream,
+                              builder: (context, snapshot) {
+                                final position = snapshot.data ?? Duration.zero;
+                                final duration =
+                                    songProvider.audioPlayer.duration ??
+                                    Duration.zero;
+                                double value = 0.0;
+                                if (duration.inMilliseconds > 0) {
+                                  value =
+                                      (position.inMilliseconds /
+                                              duration.inMilliseconds)
+                                          .clamp(0.0, 1.0);
+                                }
+                                return LinearProgressIndicator(
+                                  value: value,
+                                  minHeight: 2,
+                                  backgroundColor: Colors.transparent,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Theme.of(context).primaryColor,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                        // YENİ: İçe bakan ok (Küçültme İkonu)
+                        Positioned(
+                          top: 10,
+                          right: 12,
+                          child: GestureDetector(
+                            onTap: () => isGloballyMinimized.value = true,
+                            behavior: HitTestBehavior.opaque,
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.3),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close_fullscreen_rounded,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -453,8 +493,8 @@ class _MiniPlayerState extends State<MiniPlayer>
               ),
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -491,6 +531,352 @@ class _MiniPlayerState extends State<MiniPlayer>
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Sürüklenebilir Yüzen (PiP) Mini Oynatıcı Widget'ı
+class _FloatingMiniPlayer extends StatefulWidget {
+  const _FloatingMiniPlayer({Key? key}) : super(key: key);
+
+  @override
+  State<_FloatingMiniPlayer> createState() => _FloatingMiniPlayerState();
+}
+
+class _FloatingMiniPlayerState extends State<_FloatingMiniPlayer>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  Offset position = _MiniPlayerState.globalFloatingPosition;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Eğer pozisyon henüz hesaplanmadıysa (ilk kez açılıyorsa)
+    if (position == const Offset(-1, -1)) {
+      final size = MediaQuery.of(context).size;
+      final bottomPadding = MediaQuery.of(context).padding.bottom;
+      // Sağ alt köşe, BottomNavigationBar'ın hemen üstüne konumlandırır
+      position = Offset(
+        size.width -
+            140 -
+            24, // Ekran genişliği - Kutu Genişliği - Sağ boşluk (24px)
+        size.height -
+            140 -
+            bottomPadding -
+            90, // Ekran yüksekliği - Kutu Yüksekliği - Alt Menü Yüksekliği
+      );
+      _MiniPlayerState.globalFloatingPosition = position;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<SongProvider>();
+    final song = provider.currentSong;
+    if (song == null) return const SizedBox.shrink();
+
+    return StreamBuilder<PlayerState>(
+      stream: provider.playerStateStream,
+      builder: (context, snapshot) {
+        final playing = snapshot.data?.playing ?? false;
+        final processingState = snapshot.data?.processingState;
+        final isLoading =
+            processingState == ProcessingState.loading ||
+            processingState == ProcessingState.buffering ||
+            provider.isSongLoading;
+
+        if (playing && !_controller.isAnimating) {
+          _controller.repeat();
+        } else if (!playing && _controller.isAnimating) {
+          _controller.stop();
+        }
+
+        return Positioned(
+          left: position.dx,
+          top: position.dy,
+          child: GestureDetector(
+            onPanUpdate: (details) {
+              setState(() {
+                // Ekran sınırlarının dışına çıkmaması için pozisyonu kısıtla
+                final size = MediaQuery.of(context).size;
+                position = Offset(
+                  (position.dx + details.delta.dx).clamp(
+                    0.0,
+                    size.width - 140.0,
+                  ),
+                  (position.dy + details.delta.dy).clamp(
+                    0.0,
+                    size.height - 140.0,
+                  ),
+                );
+                // En son bırakıldığı konumu global state'e kaydet ki sayfa değiştiğinde unutmasın
+                _MiniPlayerState.globalFloatingPosition = position;
+              });
+            },
+            onTap: () {
+              // Üstüne tıklanınca PiP arkada kapansın ve direkt tam ekran oynatıcı açılsın
+              PlayerPage.show(context);
+              _MiniPlayerState.isGloballyMinimized.value = false;
+            },
+            child: Material(
+              type: MaterialType
+                  .transparency, // Overlay içinde tap efektinin çalışması için
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, child) {
+                  return Container(
+                    width: 140, // Karenin yeni boyutu 140x140
+                    height: 140,
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(24),
+                      gradient: playing
+                          ? SweepGradient(
+                              colors: [
+                                Colors.transparent,
+                                Theme.of(context).primaryColor,
+                                Colors.transparent,
+                              ],
+                              stops: const [0.0, 0.5, 1.0],
+                              transform: GradientRotation(
+                                _controller.value * 2 * math.pi,
+                              ),
+                            )
+                          : null,
+                      color: playing ? null : Colors.transparent,
+                    ),
+                    child: child,
+                  );
+                },
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(22),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: Container(
+                      color: Colors.grey.shade900.withOpacity(0.85),
+                      padding: const EdgeInsets.all(12),
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Column(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              // Üst Kısım: Küçük kapak ve bilgiler
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Transform.scale(
+                                      scale:
+                                          (song.coverUrl.contains(
+                                                'ytimg.com',
+                                              ) ||
+                                              song.coverUrl.contains(
+                                                'youtube.com',
+                                              ))
+                                          ? 1.35
+                                          : 1.0,
+                                      child:
+                                          (song.localImagePath != null &&
+                                              File(
+                                                song.localImagePath!,
+                                              ).existsSync())
+                                          ? Image.file(
+                                              File(song.localImagePath!),
+                                              width: 45,
+                                              height: 45,
+                                              fit: BoxFit.cover,
+                                              cacheHeight: 200,
+                                            )
+                                          : CachedNetworkImage(
+                                              imageUrl: song.coverUrl,
+                                              width: 45,
+                                              height: 45,
+                                              fit: BoxFit.cover,
+                                              memCacheHeight: 200,
+                                              errorWidget:
+                                                  (
+                                                    context,
+                                                    url,
+                                                    error,
+                                                  ) => Container(
+                                                    width: 45,
+                                                    height: 45,
+                                                    color: Colors.grey.shade800,
+                                                  ),
+                                            ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              // Alt Kısım: Yan yana Play/Pause ve Geçiş Butonları
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceEvenly,
+                                children: [
+                                  if (isLoading)
+                                    const Padding(
+                                      padding: EdgeInsets.all(4.0),
+                                      child: SizedBox(
+                                        width: 30,
+                                        height: 30,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2.5,
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    GestureDetector(
+                                      onTap: () {
+                                        if (playing)
+                                          provider.audioPlayer.pause();
+                                        else
+                                          provider.audioPlayer.play();
+                                      },
+                                      behavior: HitTestBehavior.opaque,
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(4.0),
+                                        child: CustomIcons.svgIcon(
+                                          playing
+                                              ? CustomIcons.pauseRounded
+                                              : CustomIcons.playArrowRounded,
+                                          color: Colors.white,
+                                          size: 30,
+                                        ),
+                                      ),
+                                    ),
+                                  GestureDetector(
+                                    onTap: () => provider.playNext(),
+                                    behavior: HitTestBehavior.opaque,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(4.0),
+                                      child: CustomIcons.svgIcon(
+                                        CustomIcons.playerNext,
+                                        color: Colors.white,
+                                        size: 30,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          // YENİ: Dışa bakan ok (Büyütme İkonu)
+                          Positioned(
+                            top: -4,
+                            right: -4,
+                            child: GestureDetector(
+                              onTap: () =>
+                                  _MiniPlayerState.isGloballyMinimized.value =
+                                      false,
+                              behavior: HitTestBehavior.opaque,
+                              child: Container(
+                                padding: const EdgeInsets.all(5),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.4),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.open_in_full_rounded,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Mini player'da şarkı yüklenirken dönen animasyonlu metin
+class _MiniPlayerLoadingText extends StatefulWidget {
+  const _MiniPlayerLoadingText({Key? key}) : super(key: key);
+
+  @override
+  State<_MiniPlayerLoadingText> createState() => _MiniPlayerLoadingTextState();
+}
+
+class _MiniPlayerLoadingTextState extends State<_MiniPlayerLoadingText> {
+  int _currentIndex = 0;
+  Timer? _timer;
+  final List<String> _loadingTexts = [
+    "Hazırlanıyor...",
+    "Bağlanıyor...",
+    "Oynatılıyor...",
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(milliseconds: 3000), (timer) {
+      if (mounted) {
+        if (_currentIndex < _loadingTexts.length - 1) {
+          setState(() {
+            _currentIndex++;
+          });
+        } else {
+          timer.cancel();
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 400),
+      switchInCurve: Curves.easeOutBack,
+      switchOutCurve: Curves.easeIn,
+      transitionBuilder: (Widget child, Animation<double> animation) {
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0.0, 0.4),
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          ),
+        );
+      },
+      child: Text(
+        _loadingTexts[_currentIndex],
+        key: ValueKey<String>(_loadingTexts[_currentIndex]),
+        style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
       ),
     );
   }

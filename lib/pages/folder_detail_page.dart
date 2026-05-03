@@ -18,6 +18,8 @@ import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/widgets/custom_app_bar.dart';
 import 'package:muzik_app/widgets/custom_drop_down.dart';
+import 'package:muzik_app/providers/language_provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 enum FolderSortOption { titleAZ, titleZA, artistAZ, artistZA }
 
@@ -32,9 +34,57 @@ class FolderDetailPage extends StatefulWidget {
   State<FolderDetailPage> createState() => _FolderDetailPageState();
 }
 
-class _FolderDetailPageState extends State<FolderDetailPage> {
+class _FolderDetailPageState extends State<FolderDetailPage>
+    with SingleTickerProviderStateMixin {
   bool _isSelectionMode = false;
+  bool _isReorderMode = false;
   final Set<String> _selectedSongIds = {};
+  final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+  String _searchText = '';
+  bool _showSearchBar = false;
+  late AnimationController _searchBarAnimController;
+  late Animation<double> _searchBarHeightAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+
+    _searchBarAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _searchBarHeightAnimation =
+        Tween<double>(begin: 0.0, end: 72.0).animate(
+          CurvedAnimation(
+            parent: _searchBarAnimController,
+            curve: Curves.easeInOut,
+          ),
+        )..addListener(() {
+          setState(() {});
+        });
+  }
+
+  @override
+  void dispose() {
+    _searchBarAnimController.dispose();
+    _scrollController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels > 120 && !_showSearchBar) {
+      _showSearchBar = true;
+      _searchBarAnimController.forward();
+    } else if (_scrollController.position.pixels <= 120 && _showSearchBar) {
+      _showSearchBar = false;
+      _searchController.clear();
+      setState(() => _searchText = '');
+      _searchBarAnimController.reverse();
+    }
+  }
 
   void _toggleSelection(String id) {
     setState(() {
@@ -63,18 +113,30 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
   Widget build(BuildContext context) {
     // Provider'ı izleyerek değişikliklerde sayfanın yenilenmesini sağlıyoruz.
     final songProvider = context.watch<SongProvider>();
+    final langProvider = context.watch<LanguageProvider>();
     final folder = widget.folder;
+
+    final displayedSongs = folder.songs.where((song) {
+      if (_searchText.isEmpty) return true;
+      final query = _searchText.toLowerCase();
+      return song.title.toLowerCase().contains(query) ||
+          song.artist.toLowerCase().contains(query);
+    }).toList();
 
     return Scaffold(
       extendBody: true,
       body: CustomScrollView(
+        controller: _scrollController,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         slivers: [
           SliverAppBar(
-            expandedHeight: 300.0,
+            expandedHeight: 340.0,
             pinned: true,
             stretch: true,
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            leading: _isSelectionMode
+            surfaceTintColor: Colors.transparent,
+            scrolledUnderElevation: 0,
+            leading: (_isSelectionMode || _isReorderMode)
                 ? Center(
                     child: Container(
                       width: 46,
@@ -82,7 +144,7 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: Colors.black.withOpacity(0.4),
-                        borderRadius: BorderRadius.circular(12),
+                        shape: BoxShape.circle,
                         border: Border.all(color: Colors.grey.withOpacity(0.2)),
                       ),
                       child: IconButton(
@@ -91,6 +153,7 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                         onPressed: () {
                           setState(() {
                             _isSelectionMode = false;
+                            _isReorderMode = false;
                             _selectedSongIds.clear();
                           });
                         },
@@ -104,13 +167,13 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: Colors.black.withOpacity(0.4),
-                        borderRadius: BorderRadius.circular(12),
+                        shape: BoxShape.circle,
                         border: Border.all(color: Colors.grey.withOpacity(0.2)),
                       ),
                       child: IconButton(
                         padding: EdgeInsets.zero,
                         icon: const BackButtonIcon(),
-                        color: Theme.of(context).primaryColor,
+                        color: Colors.white,
                         iconSize: 27,
                         onPressed: () => Navigator.pop(context),
                       ),
@@ -119,7 +182,7 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
             title: Text(
               _isSelectionMode
                   ? '${_selectedSongIds.length} Seçildi'
-                  : folder.name,
+                  : (_isReorderMode ? 'Sıralamayı Düzenle' : folder.name),
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -137,7 +200,7 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: Colors.black.withOpacity(0.4),
-                          borderRadius: BorderRadius.circular(12),
+                          shape: BoxShape.circle,
                           border: Border.all(
                             color: Colors.grey.withOpacity(0.2),
                           ),
@@ -148,7 +211,7 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                             CustomIcons.selectAll,
                             size: 24,
                           ),
-                          tooltip: "Tümünü Seç",
+                          tooltip: langProvider.t('all'),
                           onPressed: _selectAll,
                         ),
                       ),
@@ -161,7 +224,7 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: Colors.black.withOpacity(0.4),
-                          borderRadius: BorderRadius.circular(12),
+                          shape: BoxShape.circle,
                           border: Border.all(
                             color: Colors.grey.withOpacity(0.2),
                           ),
@@ -172,7 +235,7 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                             CustomIcons.playlistPlay,
                             size: 24,
                           ),
-                          tooltip: "Sıraya Ekle",
+                          tooltip: langProvider.t('add_to_playlist'),
                           onPressed: _selectedSongIds.isEmpty
                               ? null
                               : () {
@@ -198,7 +261,7 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: Colors.black.withOpacity(0.4),
-                          borderRadius: BorderRadius.circular(12),
+                          shape: BoxShape.circle,
                           border: Border.all(
                             color: Colors.grey.withOpacity(0.2),
                           ),
@@ -209,7 +272,7 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                             CustomIcons.delete,
                             color: Colors.redAccent,
                           ),
-                          tooltip: "Sil",
+                          tooltip: langProvider.t('delete_list'),
                           onPressed: _selectedSongIds.isEmpty
                               ? null
                               : () {
@@ -219,126 +282,7 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                       ),
                     ),
                   ]
-                : [
-                    Center(
-                      child: Container(
-                        width: 46,
-                        height: 46,
-                        margin: const EdgeInsets.only(right: 8),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.4),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.grey.withOpacity(0.2),
-                          ),
-                        ),
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          icon: CustomIcons.svgIcon(
-                            CustomIcons.addRounded,
-                            size: 24,
-                          ),
-                          tooltip: "Şarkı Ekle",
-                          onPressed: () => _showAddSongsSheet(context),
-                        ),
-                      ),
-                    ),
-                    if (folder.songs.isNotEmpty)
-                      Center(
-                        child: Container(
-                          width: 46,
-                          height: 46,
-                          margin: const EdgeInsets.only(right: 8),
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.4),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.grey.withOpacity(0.2),
-                            ),
-                          ),
-                          child: CustomDropDown<FolderSortOption>(
-                            icon: CustomIcons.svgIcon(
-                              CustomIcons.sortRounded,
-                              size: 24,
-                            ),
-                            tooltip: "Sırala",
-                            onSelected: (option) {
-                              final provider = context.read<SongProvider>();
-                              switch (option) {
-                                case FolderSortOption.titleAZ:
-                                  provider.sortFolderSongs(
-                                    folder,
-                                    (a, b) => a.title.compareTo(b.title),
-                                  );
-                                  break;
-                                case FolderSortOption.titleZA:
-                                  provider.sortFolderSongs(
-                                    folder,
-                                    (a, b) => b.title.compareTo(a.title),
-                                  );
-                                  break;
-                                case FolderSortOption.artistAZ:
-                                  provider.sortFolderSongs(
-                                    folder,
-                                    (a, b) => a.artist.compareTo(b.artist),
-                                  );
-                                  break;
-                                case FolderSortOption.artistZA:
-                                  provider.sortFolderSongs(
-                                    folder,
-                                    (a, b) => b.artist.compareTo(a.artist),
-                                  );
-                                  break;
-                              }
-                            },
-                            items: [
-                              CustomDropdownItem.build<FolderSortOption>(
-                                context: context,
-                                value: FolderSortOption.titleAZ,
-                                icon: Icon(
-                                  Icons.sort_by_alpha_rounded,
-                                  size: 20,
-                                  color: Theme.of(context).primaryColor,
-                                ),
-                                text: 'Başlık (A-Z)',
-                              ),
-                              CustomDropdownItem.build<FolderSortOption>(
-                                context: context,
-                                value: FolderSortOption.titleZA,
-                                icon: Icon(
-                                  Icons.sort_by_alpha_rounded,
-                                  size: 20,
-                                  color: Theme.of(context).primaryColor,
-                                ),
-                                text: 'Başlık (Z-A)',
-                              ),
-                              CustomDropdownItem.build<FolderSortOption>(
-                                context: context,
-                                value: FolderSortOption.artistAZ,
-                                icon: Icon(
-                                  Icons.person_outline_rounded,
-                                  size: 20,
-                                  color: Theme.of(context).primaryColor,
-                                ),
-                                text: 'Sanatçı (A-Z)',
-                              ),
-                              CustomDropdownItem.build<FolderSortOption>(
-                                context: context,
-                                value: FolderSortOption.artistZA,
-                                icon: Icon(
-                                  Icons.person_outline_rounded,
-                                  size: 20,
-                                  color: Theme.of(context).primaryColor,
-                                ),
-                                text: 'Sanatçı (Z-A)',
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                  ],
+                : [],
             flexibleSpace: FlexibleSpaceBar(
               background: Stack(
                 fit: StackFit.expand,
@@ -354,6 +298,24 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                   BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
                     child: Container(color: Colors.black.withOpacity(0.4)),
+                  ),
+
+                  // Alt kısımdan yukarı doğru kararan (fade) degrade geçişi
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Theme.of(
+                            context,
+                          ).scaffoldBackgroundColor.withOpacity(0.6),
+                          Theme.of(context).scaffoldBackgroundColor,
+                        ],
+                        stops: const [0.5, 0.85, 1.0],
+                      ),
+                    ),
                   ),
 
                   Center(
@@ -405,181 +367,384 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                       ),
                     ),
                   ),
+                  if (folder.songs.isNotEmpty)
+                    Positioned(
+                      bottom: 16,
+                      left: 16,
+                      right: 16,
+                      child: Row(
+                        children: [
+                          // 1. Karışık Çal Butonu
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(30),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                              child: Container(
+                                width: 56,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(30),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.2),
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () {
+                                      if (folder.songs.isNotEmpty) {
+                                        if (!songProvider.isShuffleEnabled) {
+                                          songProvider.toggleShuffle();
+                                        }
+                                        final random = Random();
+                                        final randomSong =
+                                            folder.songs[random.nextInt(
+                                              folder.songs.length,
+                                            )];
+                                        songProvider.playSong(
+                                          randomSong,
+                                          folder.songs,
+                                        );
+                                        CustomSnackBar.showInfo(
+                                          context: context,
+                                          message: "Liste karışık çalınıyor.",
+                                          icon: CustomIcons.svgIcon(
+                                            CustomIcons.shuffle,
+                                            color: Colors.white,
+                                            size: 24,
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    borderRadius: BorderRadius.circular(30),
+                                    child: Center(
+                                      child: CustomIcons.svgIcon(
+                                        CustomIcons.shuffleRounded,
+                                        color: Colors.white,
+                                        size: 24,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          // 2. Oynat Butonu
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(30),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                              child: Container(
+                                width: 56,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  color: Theme.of(
+                                    context,
+                                  ).primaryColor.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(30),
+                                  border: Border.all(
+                                    color: Theme.of(
+                                      context,
+                                    ).primaryColor.withOpacity(0.5),
+                                    width: 1.5,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Theme.of(
+                                        context,
+                                      ).primaryColor.withOpacity(0.2),
+                                      blurRadius: 15,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () {
+                                      if (folder.songs.isNotEmpty) {
+                                        if (songProvider.isShuffleEnabled) {
+                                          songProvider.toggleShuffle();
+                                        }
+                                        songProvider.playSong(
+                                          folder.songs.first,
+                                          folder.songs,
+                                        );
+                                        CustomSnackBar.showInfo(
+                                          context: context,
+                                          message: "Liste oynatılıyor.",
+                                          icon: CustomIcons.svgIcon(
+                                            CustomIcons.playArrow,
+                                            color: Colors.white,
+                                            size: 24,
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    borderRadius: BorderRadius.circular(30),
+                                    child: Center(
+                                      child: CustomIcons.svgIcon(
+                                        CustomIcons.playArrowRounded,
+                                        color: Colors.white,
+                                        size: 28,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const Spacer(),
+                          // 3. Sıralama (Reorder) Modu Butonu
+                          IconButton(
+                            icon: Icon(
+                              Icons.drag_handle_rounded,
+                              color: _isReorderMode
+                                  ? Theme.of(context).primaryColor
+                                  : Colors.white.withOpacity(0.8),
+                            ),
+                            iconSize: 32,
+                            onPressed: () {
+                              setState(() {
+                                _isReorderMode = !_isReorderMode;
+                                if (_isReorderMode) {
+                                  _isSelectionMode = false;
+                                  _selectedSongIds.clear();
+                                }
+                              });
+                            },
+                          ),
+                          const SizedBox(width: 16),
+                          // 4. Ekle (+) Butonu
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(30),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                              child: Container(
+                                width: 56,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(30),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.2),
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () => _showAddSongsSheet(context),
+                                    borderRadius: BorderRadius.circular(30),
+                                    child: Center(
+                                      child: CustomIcons.svgIcon(
+                                        CustomIcons.addRounded,
+                                        color: Colors.white,
+                                        size: 28,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),
           ),
 
-          if (folder.songs.isNotEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16.0, 24.0, 16.0, 8.0),
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _SearchBarDelegate(
+              height: _searchBarHeightAnimation.value,
+              child: Container(
+                color: Theme.of(context).scaffoldBackgroundColor,
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                 child: Row(
                   children: [
                     Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(30),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(30),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.2),
-                                width: 1.5,
-                              ),
-                            ),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: () {
-                                  if (folder.songs.isNotEmpty) {
-                                    if (!songProvider.isShuffleEnabled) {
-                                      songProvider.toggleShuffle();
-                                    }
-                                    final random = Random();
-                                    final randomSong =
-                                        folder.songs[random.nextInt(
-                                          folder.songs.length,
-                                        )];
-                                    songProvider.playSong(
-                                      randomSong,
-                                      folder.songs,
-                                    );
-                                    CustomSnackBar.showInfo(
-                                      context: context,
-                                      message: "Liste karışık çalınıyor.",
-                                      icon: CustomIcons.svgIcon(
-                                        CustomIcons.shuffle,
-                                        color: Colors.white,
-                                        size: 24,
-                                      ),
-                                    );
-                                  }
-                                },
-                                borderRadius: BorderRadius.circular(30),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      CustomIcons.svgIcon(
-                                        CustomIcons.shuffleRounded,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      const Text(
-                                        "Karışık",
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 15,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
+                      child: TextField(
+                        controller: _searchController,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: langProvider
+                              .t('search_in_artist')
+                              .replaceAll('%s', folder.name),
+                          hintStyle: TextStyle(color: Colors.grey.shade400),
+                          prefixIcon: Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: CustomIcons.svgIcon(
+                              CustomIcons.search,
+                              color: Colors.grey,
+                              size: 24,
                             ),
                           ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(30),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Theme.of(
-                                context,
-                              ).primaryColor.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(30),
-                              border: Border.all(
-                                color: Theme.of(
-                                  context,
-                                ).primaryColor.withOpacity(0.5),
-                                width: 1.5,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Theme.of(
-                                    context,
-                                  ).primaryColor.withOpacity(0.2),
-                                  blurRadius: 15,
-                                  spreadRadius: 1,
-                                ),
-                              ],
-                            ),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: () {
-                                  if (folder.songs.isNotEmpty) {
-                                    if (songProvider.isShuffleEnabled) {
-                                      songProvider.toggleShuffle();
-                                    }
-                                    songProvider.playSong(
-                                      folder.songs.first,
-                                      folder.songs,
-                                    );
-                                    CustomSnackBar.showInfo(
-                                      context: context,
-                                      message: "Liste oynatılıyor.",
-                                      icon: CustomIcons.svgIcon(
-                                        CustomIcons.playArrow,
-                                        color: Colors.white,
-                                        size: 24,
-                                      ),
-                                    );
-                                  }
-                                },
-                                borderRadius: BorderRadius.circular(30),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      CustomIcons.svgIcon(
-                                        CustomIcons.playArrowRounded,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      const Text(
-                                        "Oynat",
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 15,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
+                          filled: true,
+                          fillColor: Colors.grey.shade900,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
                           ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 0,
+                          ),
+                          suffixIcon: _searchText.isNotEmpty
+                              ? IconButton(
+                                  icon: CustomIcons.svgIcon(
+                                    CustomIcons.clear,
+                                    color: Colors.grey,
+                                    size: 24,
+                                  ),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() => _searchText = '');
+                                  },
+                                )
+                              : null,
                         ),
+                        onChanged: (value) =>
+                            setState(() => _searchText = value),
+                        onSubmitted: (_) => FocusScope.of(context).unfocus(),
                       ),
                     ),
+                    if (folder.songs.isNotEmpty) ...[
+                      const SizedBox(width: 12),
+                      Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade900,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: CustomDropDown<FolderSortOption>(
+                          icon: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                langProvider.t('sort') ?? "Sırala",
+                                style: TextStyle(
+                                  color: Colors.grey.shade400,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                            ],
+                          ),
+                          tooltip: langProvider.t('sort') ?? "Sırala",
+                          onSelected: (option) {
+                            final provider = context.read<SongProvider>();
+                            switch (option) {
+                              case FolderSortOption.titleAZ:
+                                provider.sortFolderSongs(
+                                  folder,
+                                  (a, b) => a.title.compareTo(b.title),
+                                );
+                                break;
+                              case FolderSortOption.titleZA:
+                                provider.sortFolderSongs(
+                                  folder,
+                                  (a, b) => b.title.compareTo(a.title),
+                                );
+                                break;
+                              case FolderSortOption.artistAZ:
+                                provider.sortFolderSongs(
+                                  folder,
+                                  (a, b) => a.artist.compareTo(b.artist),
+                                );
+                                break;
+                              case FolderSortOption.artistZA:
+                                provider.sortFolderSongs(
+                                  folder,
+                                  (a, b) => b.artist.compareTo(a.artist),
+                                );
+                                break;
+                            }
+                          },
+                          items: [
+                            CustomDropdownItem.build<FolderSortOption>(
+                              context: context,
+                              value: FolderSortOption.titleAZ,
+                              icon: Icon(
+                                Icons.sort_by_alpha_rounded,
+                                size: 20,
+                                color: Theme.of(context).primaryColor,
+                              ),
+                              text: 'Başlık (A-Z)',
+                            ),
+                            CustomDropdownItem.build<FolderSortOption>(
+                              context: context,
+                              value: FolderSortOption.titleZA,
+                              icon: Icon(
+                                Icons.sort_by_alpha_rounded,
+                                size: 20,
+                                color: Theme.of(context).primaryColor,
+                              ),
+                              text: 'Başlık (Z-A)',
+                            ),
+                            CustomDropdownItem.build<FolderSortOption>(
+                              context: context,
+                              value: FolderSortOption.artistAZ,
+                              icon: Icon(
+                                Icons.person_outline_rounded,
+                                size: 20,
+                                color: Theme.of(context).primaryColor,
+                              ),
+                              text: 'Sanatçı (A-Z)',
+                            ),
+                            CustomDropdownItem.build<FolderSortOption>(
+                              context: context,
+                              value: FolderSortOption.artistZA,
+                              icon: Icon(
+                                Icons.person_outline_rounded,
+                                size: 20,
+                                color: Theme.of(context).primaryColor,
+                              ),
+                              text: 'Sanatçı (Z-A)',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
             ),
+          ),
 
           if (folder.songs.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
               child: _buildEmptyState(context),
+            )
+          else if (displayedSongs.isEmpty && _searchText.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 50.0),
+                child: _buildNoResultsState(context),
+              ),
+            )
+          else if (_searchText.isNotEmpty)
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final song = displayedSongs[index];
+                  final isSelected = _selectedSongIds.contains(song.id);
+                  return _buildSongItem(
+                    context,
+                    song,
+                    isSelected,
+                    index,
+                    songProvider,
+                  );
+                }, childCount: displayedSongs.length),
+              ),
             )
           else
             SliverPadding(
@@ -598,80 +763,12 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
                 itemBuilder: (context, index) {
                   final song = folder.songs[index];
                   final isSelected = _selectedSongIds.contains(song.id);
-
-                  return Material(
-                    key: ValueKey(song.id),
-                    color: isSelected
-                        ? Theme.of(context).primaryColor.withOpacity(0.1)
-                        : Colors.transparent,
-                    child: Row(
-                      children: [
-                        if (_isSelectionMode)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 16),
-                            child: Checkbox(
-                              value: isSelected,
-                              activeColor: Theme.of(context).primaryColor,
-                              onChanged: (v) => _toggleSelection(song.id),
-                            ),
-                          ),
-                        Expanded(
-                          child: GestureDetector(
-                            onLongPress: () {
-                              if (!_isSelectionMode) {
-                                setState(() {
-                                  _isSelectionMode = true;
-                                  _selectedSongIds.add(song.id);
-                                });
-                              }
-                            },
-                            child: SongCard(
-                              song: song,
-                              showOptions: !_isSelectionMode,
-                              onDeleteTap: () => _showDeleteDialog(
-                                context,
-                                songProvider,
-                                song,
-                              ),
-                              deleteText: 'Listeden Çıkar',
-                              trailing: _isSelectionMode
-                                  ? null
-                                  : ReorderableDragStartListener(
-                                      index: index,
-                                      child: Padding(
-                                        padding: const EdgeInsets.only(
-                                          left: 8.0,
-                                        ),
-                                        child: CustomIcons.svgIcon(
-                                          CustomIcons.dragHandle,
-                                          color: Colors.grey,
-                                          size: 24,
-                                        ),
-                                      ),
-                                    ),
-                              onTap: () {
-                                if (_isSelectionMode) {
-                                  _toggleSelection(song.id);
-                                } else {
-                                  final isCurrent =
-                                      songProvider.currentSong?.id == song.id;
-
-                                  if (isCurrent) {
-                                    if (songProvider.audioPlayer.playing) {
-                                      songProvider.audioPlayer.pause();
-                                    } else {
-                                      songProvider.audioPlayer.play();
-                                    }
-                                  } else {
-                                    songProvider.playSong(song, folder.songs);
-                                  }
-                                }
-                              },
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                  return _buildSongItem(
+                    context,
+                    song,
+                    isSelected,
+                    index,
+                    songProvider,
                   );
                 },
               ),
@@ -736,30 +833,23 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
   }
 
   void _showImageOptions(BuildContext context, SongProvider provider) {
+    final langProvider = context.read<LanguageProvider>();
+
     CustomBottomSheet.showContent(
       context: context,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(height: 8),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade700,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           ListTile(
             leading: CustomIcons.svgIcon(
               CustomIcons.image,
               color: Colors.white,
               size: 24,
             ),
-            title: const Text(
-              'Resmi Değiştir',
-              style: TextStyle(color: Colors.white),
+            title: Text(
+              langProvider.t('change_cover'),
+              style: const TextStyle(color: Colors.white),
             ),
             onTap: () {
               Navigator.pop(context);
@@ -771,9 +861,9 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
               CustomIcons.delete,
               color: Colors.redAccent,
             ),
-            title: const Text(
-              'Resmi Kaldır',
-              style: TextStyle(color: Colors.redAccent),
+            title: Text(
+              langProvider.t('remove_cover'),
+              style: const TextStyle(color: Colors.redAccent),
             ),
             onTap: () {
               Navigator.pop(context);
@@ -843,47 +933,51 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
   Widget _buildImage(Song song) {
     if (song.localImagePath != null &&
         File(song.localImagePath!).existsSync()) {
-      return Transform.scale(
+      return ClipRect(
+        child: Transform.scale(
+          scale:
+              (song.coverUrl.contains('ytimg.com') ||
+                  song.coverUrl.contains('youtube.com'))
+              ? 1.35
+              : 1.0,
+          child: Image.file(
+            File(song.localImagePath!),
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                color: Colors.grey.shade900,
+                child: CustomIcons.svgIcon(
+                  CustomIcons.musicNote,
+                  size: 32,
+                  color: Colors.grey,
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    }
+    return ClipRect(
+      child: Transform.scale(
         scale:
             (song.coverUrl.contains('ytimg.com') ||
                 song.coverUrl.contains('youtube.com'))
             ? 1.35
             : 1.0,
-        child: Image.file(
-          File(song.localImagePath!),
+        child: CachedNetworkImage(
+          imageUrl: song.coverUrl,
           fit: BoxFit.cover,
           width: double.infinity,
           height: double.infinity,
-          errorBuilder: (context, error, stackTrace) {
-            return Container(
-              color: Colors.grey.shade900,
-              child: CustomIcons.svgIcon(
-                CustomIcons.musicNote,
-                size: 32,
-                color: Colors.grey,
-              ),
-            );
-          },
-        ),
-      );
-    }
-    return Transform.scale(
-      scale:
-          (song.coverUrl.contains('ytimg.com') ||
-              song.coverUrl.contains('youtube.com'))
-          ? 1.35
-          : 1.0,
-      child: Image.network(
-        song.coverUrl,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        errorBuilder: (c, e, s) => Container(
-          color: Colors.grey.shade800,
-          child: CustomIcons.svgIcon(
-            CustomIcons.musicNote,
-            size: 32,
-            color: Colors.grey,
+          errorWidget: (context, url, error) => Container(
+            color: Colors.grey.shade800,
+            child: CustomIcons.svgIcon(
+              CustomIcons.musicNote,
+              size: 32,
+              color: Colors.grey,
+            ),
           ),
         ),
       ),
@@ -939,7 +1033,132 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
     );
   }
 
+  Widget _buildSongItem(
+    BuildContext context,
+    Song song,
+    bool isSelected,
+    int index,
+    SongProvider songProvider,
+  ) {
+    final langProvider = context.read<LanguageProvider>();
+    final isCurrentSong = songProvider.currentSong?.id == song.id;
+    return Material(
+      key: ValueKey(song.id),
+      color: isSelected
+          ? Theme.of(context).primaryColor.withOpacity(0.1)
+          : Colors.transparent,
+      child: Row(
+        children: [
+          if (_isSelectionMode)
+            Padding(
+              padding: const EdgeInsets.only(left: 16),
+              child: Checkbox(
+                value: isSelected,
+                activeColor: Theme.of(context).primaryColor,
+                onChanged: (v) => _toggleSelection(song.id),
+              ),
+            ),
+          Expanded(
+            child: GestureDetector(
+              onLongPress: () {
+                if (!_isSelectionMode && !_isReorderMode) {
+                  setState(() {
+                    _isSelectionMode = true;
+                    _selectedSongIds.add(song.id);
+                  });
+                }
+              },
+              child: SongCard(
+                song: song,
+                isPlaying: isCurrentSong,
+                showOptions: !_isSelectionMode && !_isReorderMode,
+                onDeleteTap: () =>
+                    _showDeleteDialog(context, songProvider, song),
+                deleteText: langProvider.t('remove_from_list'),
+                trailing:
+                    _isSelectionMode ||
+                        _searchText.isNotEmpty ||
+                        !_isReorderMode
+                    ? null
+                    : ReorderableDragStartListener(
+                        index: index,
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 8.0),
+                          child: Icon(
+                            Icons.drag_handle_rounded,
+                            color: Theme.of(context).primaryColor,
+                            size: 28,
+                          ),
+                        ),
+                      ),
+                onTap: () {
+                  if (_isSelectionMode) {
+                    _toggleSelection(song.id);
+                  } else if (_isReorderMode) {
+                    // Reorder modundayken normal şarkı tıklaması pasif olur.
+                  } else {
+                    final isCurrent = songProvider.currentSong?.id == song.id;
+
+                    if (isCurrent) {
+                      if (songProvider.audioPlayer.playing) {
+                        songProvider.audioPlayer.pause();
+                      } else {
+                        songProvider.audioPlayer.play();
+                      }
+                    } else {
+                      songProvider.playSong(song, widget.folder.songs);
+                    }
+                  }
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoResultsState(BuildContext context) {
+    final langProvider = context.watch<LanguageProvider>();
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade900,
+              shape: BoxShape.circle,
+            ),
+            child: CustomIcons.svgIcon(
+              CustomIcons.searchOff,
+              size: 64,
+              color: Theme.of(context).primaryColor.withOpacity(0.5),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            langProvider.t('no_results'),
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            langProvider.t('try_different_search'),
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEmptyState(BuildContext context) {
+    final langProvider = context.watch<LanguageProvider>();
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -957,9 +1176,9 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
             ),
           ),
           const SizedBox(height: 24),
-          const Text(
-            'Liste Boş',
-            style: TextStyle(
+          Text(
+            langProvider.t('list_empty'),
+            style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
               color: Colors.white,
@@ -967,7 +1186,7 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Bu listede henüz hiç şarkı yok.',
+            langProvider.t('no_song_in_list'),
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
           ),
@@ -979,7 +1198,7 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
               color: Colors.white,
               size: 24,
             ),
-            label: const Text("Şarkı Ekle"),
+            label: Text(langProvider.t('add_song')),
             style: ElevatedButton.styleFrom(
               backgroundColor: Theme.of(context).primaryColor,
               foregroundColor: Colors.white,
@@ -1000,6 +1219,40 @@ class _FolderDetailPageState extends State<FolderDetailPage> {
       isScrollControlled: true,
       child: AddSongsSheet(folder: widget.folder),
     );
+  }
+}
+
+class _SearchBarDelegate extends SliverPersistentHeaderDelegate {
+  final double height;
+  final Widget child;
+
+  _SearchBarDelegate({required this.height, required this.child});
+
+  @override
+  double get minExtent => height;
+
+  @override
+  double get maxExtent => height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return SizedBox.expand(
+      child: ClipRect(
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: SizedBox(height: 72.0, child: child),
+        ),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _SearchBarDelegate oldDelegate) {
+    return height != oldDelegate.height || child != oldDelegate.child;
   }
 }
 
@@ -1103,16 +1356,7 @@ class _AddSongsSheetState extends State<AddSongsSheet> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(height: 12),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade700,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           const Text(
             'Şarkı Ekle',
             style: TextStyle(
@@ -1233,13 +1477,17 @@ class _AddSongsSheetState extends State<AddSongsSheet> {
                                                     ))
                                                 ? 1.35
                                                 : 1.0,
-                                            child: Image.network(
-                                              song.coverUrl,
+                                            child: CachedNetworkImage(
+                                              imageUrl: song.coverUrl,
                                               width: 50,
                                               height: 50,
                                               fit: BoxFit.cover,
-                                              errorBuilder: (c, e, s) =>
-                                                  Container(
+                                              errorWidget:
+                                                  (
+                                                    context,
+                                                    url,
+                                                    error,
+                                                  ) => Container(
                                                     width: 50,
                                                     height: 50,
                                                     color: Colors.grey.shade800,

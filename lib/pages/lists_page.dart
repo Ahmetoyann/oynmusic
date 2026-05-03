@@ -11,6 +11,8 @@ import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/pages/downloads_page.dart';
 import 'package:muzik_app/providers/auth_provider.dart';
 import 'package:muzik_app/pages/settings_page.dart';
+import 'package:muzik_app/pages/recently_played_page.dart';
+import 'package:muzik_app/pages/favorites_page.dart';
 
 // 1. YENİ SAYFAYI IMPORT EDİYORUZ
 import 'package:muzik_app/pages/folder_detail_page.dart';
@@ -19,8 +21,8 @@ import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/widgets/custom_app_bar.dart';
 import 'package:muzik_app/pages/player_page.dart';
 import 'package:muzik_app/widgets/custom_drop_down.dart';
-
-enum SortOption { dateNewest, dateOldest, nameAZ, nameZA }
+import 'package:muzik_app/providers/language_provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ListelerPage extends StatefulWidget {
   const ListelerPage({super.key});
@@ -30,13 +32,12 @@ class ListelerPage extends StatefulWidget {
 }
 
 class _ListelerPageState extends State<ListelerPage> {
-  SortOption _sortOption = SortOption.dateNewest;
-
   @override
   Widget build(BuildContext context) {
     // SongProvider'a bağlanarak oluşturulan klasörleri alıyoruz.
     final songProvider = context.watch<SongProvider>();
     final authProvider = context.watch<AuthProvider>();
+    final langProvider = context.watch<LanguageProvider>();
     final folders = songProvider.folders;
     final hasConnection = songProvider.hasConnection;
 
@@ -45,28 +46,12 @@ class _ListelerPageState extends State<ListelerPage> {
         ? folders
         : folders.where((f) => f.isFromDownloads).toList();
 
-    // Sıralama için kopyasını alıyoruz
-    var sortedFolders = List<MusicFolder>.from(displayFolders);
-
-    // Sıralama işlemi
-    switch (_sortOption) {
-      case SortOption.nameAZ:
-        sortedFolders.sort((a, b) => a.name.compareTo(b.name));
-        break;
-      case SortOption.nameZA:
-        sortedFolders.sort((a, b) => b.name.compareTo(a.name));
-        break;
-      case SortOption.dateNewest:
-        sortedFolders = sortedFolders.reversed.toList();
-        break;
-      case SortOption.dateOldest:
-        // Varsayılan sıralama (eklenme sırası)
-        break;
-    }
+    // Varsayılan olarak en yeni eklenen klasörler üstte görünsün
+    final sortedFolders = displayFolders.reversed.toList();
 
     return Scaffold(
       appBar: CustomAppBar(
-        title: 'Kitaplığım',
+        title: langProvider.t('library'),
         showLeading: false,
         actions: [
           IconButton(
@@ -78,171 +63,20 @@ class _ListelerPageState extends State<ListelerPage> {
               );
             },
           ),
-          if (sortedFolders.isNotEmpty)
-            CustomDropDown<SortOption>(
-              icon: CustomIcons.svgIcon(CustomIcons.sort, size: 24),
-              tooltip: "Sırala",
-              onSelected: (SortOption result) {
-                setState(() {
-                  _sortOption = result;
-                });
-              },
-              items: [
-                CustomDropdownItem.build<SortOption>(
-                  context: context,
-                  value: SortOption.dateNewest,
-                  icon: Icon(
-                    Icons.arrow_downward_rounded,
-                    size: 20,
-                    color: Theme.of(context).primaryColor,
-                  ),
-                  text: 'Tarihe Göre (En Yeni)',
-                ),
-                CustomDropdownItem.build<SortOption>(
-                  context: context,
-                  value: SortOption.dateOldest,
-                  icon: Icon(
-                    Icons.arrow_upward_rounded,
-                    size: 20,
-                    color: Theme.of(context).primaryColor,
-                  ),
-                  text: 'Tarihe Göre (En Eski)',
-                ),
-                CustomDropdownItem.build<SortOption>(
-                  context: context,
-                  value: SortOption.nameAZ,
-                  icon: Icon(
-                    Icons.sort_by_alpha_rounded,
-                    size: 20,
-                    color: Theme.of(context).primaryColor,
-                  ),
-                  text: 'İsme Göre (A-Z)',
-                ),
-                CustomDropdownItem.build<SortOption>(
-                  context: context,
-                  value: SortOption.nameZA,
-                  icon: Icon(
-                    Icons.sort_by_alpha_rounded,
-                    size: 20,
-                    color: Theme.of(context).primaryColor,
-                  ),
-                  text: 'İsme Göre (Z-A)',
-                ),
-              ],
-            ),
         ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // İndirilenler Kartı
+          // Üst İkili Kartlar (İndirilenler ve Son Dinlenenler)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-            child: Container(
-              width: double.infinity,
-              height: 110,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: BackdropFilter(
-                  filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).primaryColor.withOpacity(0.6),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.2),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Stack(
-                      children: [
-                        Positioned(
-                          right: -20,
-                          bottom: -40,
-                          child: Transform.rotate(
-                            angle: -0.2,
-                            child: Icon(
-                              Icons.downloading,
-                              size: 140,
-                              color: Colors.white.withOpacity(0.1),
-                            ),
-                          ),
-                        ),
-                        Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(24),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const DownloadsPage(),
-                                ),
-                              );
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.1),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.downloading,
-                                      color: Colors.white,
-                                      size: 28,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 20),
-                                  const Expanded(
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          "İndirilenler",
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 22,
-                                          ),
-                                        ),
-                                        SizedBox(height: 4),
-                                        Text(
-                                          "Çevrimdışı dinle",
-                                          style: TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 15,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  CustomIcons.svgIcon(
-                                    CustomIcons.arrowRight,
-                                    color: Colors.white54,
-                                    size: 20,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildFavoritesSquareCard(context),
+                _buildRecentlyPlayedSquareCard(context),
+              ],
             ),
           ),
 
@@ -289,6 +123,7 @@ class _ListelerPageState extends State<ListelerPage> {
   }
 
   Widget _buildCreateListGridCard(BuildContext context) {
+    final langProvider = context.watch<LanguageProvider>();
     return GestureDetector(
       onTap: () => _showCreateListSheet(context),
       child: Column(
@@ -322,7 +157,7 @@ class _ListelerPageState extends State<ListelerPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            "Yeni Liste",
+            langProvider.t('new_list'),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
@@ -339,6 +174,7 @@ class _ListelerPageState extends State<ListelerPage> {
   }
 
   Widget _buildFolderGridCard(BuildContext context, MusicFolder folder) {
+    final langProvider = context.watch<LanguageProvider>();
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -380,8 +216,8 @@ class _ListelerPageState extends State<ListelerPage> {
                             color: Colors.black.withOpacity(0.6),
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(
-                            Icons.downloading,
+                          child: CustomIcons.svgIcon(
+                            CustomIcons.downloadingRounded,
                             size: 16,
                             color: Theme.of(context).primaryColor,
                           ),
@@ -405,7 +241,7 @@ class _ListelerPageState extends State<ListelerPage> {
           ),
           const SizedBox(height: 2),
           Text(
-            '${folder.songs.length} şarkı',
+            '${folder.songs.length} ${langProvider.t('song')}',
             style: TextStyle(color: Colors.grey.shade500, fontSize: 10),
           ),
         ],
@@ -436,8 +272,8 @@ class _ListelerPageState extends State<ListelerPage> {
         ),
         child: Center(
           child: folder.isFromDownloads
-              ? Icon(
-                  Icons.downloading,
+              ? CustomIcons.svgIcon(
+                  CustomIcons.downloadingRounded,
                   color: Colors.white,
                   size: isGrid ? 28 : 24,
                 )
@@ -480,18 +316,48 @@ class _ListelerPageState extends State<ListelerPage> {
   Widget _buildGridImage(Song song) {
     if (song.localImagePath != null &&
         File(song.localImagePath!).existsSync()) {
-      return Transform.scale(
+      return ClipRect(
+        child: Transform.scale(
+          scale:
+              (song.coverUrl.contains('ytimg.com') ||
+                  song.coverUrl.contains('youtube.com'))
+              ? 1.35
+              : 1.0,
+          child: Image.file(
+            File(song.localImagePath!),
+            fit: BoxFit.cover,
+            cacheHeight: 400,
+            width: double.infinity,
+            height: double.infinity,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.grey.shade800, Colors.grey.shade900],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    }
+    return ClipRect(
+      child: Transform.scale(
         scale:
             (song.coverUrl.contains('ytimg.com') ||
                 song.coverUrl.contains('youtube.com'))
             ? 1.35
             : 1.0,
-        child: Image.file(
-          File(song.localImagePath!),
+        child: CachedNetworkImage(
+          imageUrl: song.coverUrl,
           fit: BoxFit.cover,
+          memCacheHeight: 400,
           width: double.infinity,
           height: double.infinity,
-          errorBuilder: (context, error, stackTrace) {
+          errorWidget: (context, url, error) {
             return Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -503,35 +369,400 @@ class _ListelerPageState extends State<ListelerPage> {
             );
           },
         ),
-      );
-    }
-    return Transform.scale(
-      scale:
-          (song.coverUrl.contains('ytimg.com') ||
-              song.coverUrl.contains('youtube.com'))
-          ? 1.35
-          : 1.0,
-      child: Image.network(
-        song.coverUrl,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        errorBuilder: (context, error, stackTrace) {
-          return Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.grey.shade800, Colors.grey.shade900],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-          );
-        },
       ),
     );
   }
 
+  Widget _buildFavoritesSquareCard(BuildContext context) {
+    final langProvider = context.watch<LanguageProvider>();
+    final songProvider = context.watch<SongProvider>();
+    final favorites = songProvider.favoriteSongs;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final cardSize =
+        (screenWidth - 44) / 2; // Daha geniş kare, aradaki boşluk 12px'e düştü
+
+    return RepaintBoundary(
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const FavoritesPage()),
+          );
+        },
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+            child: Container(
+              width: cardSize,
+              height: cardSize,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Theme.of(context).primaryColor.withOpacity(0.5),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Theme.of(context).primaryColor.withOpacity(0.1),
+                    blurRadius: 15,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Üst Kısım
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              langProvider.t('favorites'),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              langProvider.t('songs'),
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.7),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      ClipOval(
+                        child: BackdropFilter(
+                          filter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade500.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.1),
+                                width: 1,
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              size: 10,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  // Alt Kısım
+                  if (favorites.isNotEmpty)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        if (favorites.isNotEmpty)
+                          Expanded(child: _buildMiniSong(favorites[0])),
+                        if (favorites.length > 1) ...[
+                          const SizedBox(width: 8),
+                          Expanded(child: _buildMiniSong(favorites[1])),
+                        ] else ...[
+                          const Spacer(),
+                        ],
+                        const SizedBox(width: 8),
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: Theme.of(
+                              context,
+                            ).primaryColor.withOpacity(0.8),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              "+${favorites.length}",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.05),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.add_circle_outline_rounded,
+                            size: 16,
+                            color: Colors.white.withOpacity(0.7),
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              langProvider.t('discover_songs'),
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.7),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecentlyPlayedSquareCard(BuildContext context) {
+    final langProvider = context.watch<LanguageProvider>();
+    final songProvider = context.watch<SongProvider>();
+    final history = songProvider.recentlyPlayed;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final cardSize =
+        (screenWidth - 44) / 2; // Daha geniş kare, aradaki boşluk 12px
+
+    return RepaintBoundary(
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const RecentlyPlayedPage()),
+          );
+        },
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+            child: Container(
+              width: cardSize,
+              height: cardSize,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade800.withOpacity(
+                  0.3,
+                ), // Gri glassmorphism
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Colors.grey.shade400.withOpacity(0.3),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 15,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Üst Kısım
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              langProvider.t('recently_played'),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              langProvider.t('songs'),
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.7),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      ClipOval(
+                        child: BackdropFilter(
+                          filter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade500.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.1),
+                                width: 1,
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              size: 10,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  // Alt Kısım
+                  if (history.isNotEmpty)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        if (history.isNotEmpty)
+                          Expanded(child: _buildMiniSong(history[0])),
+                        if (history.length > 1) ...[
+                          const SizedBox(width: 8),
+                          Expanded(child: _buildMiniSong(history[1])),
+                        ] else ...[
+                          const Spacer(),
+                        ],
+                        const SizedBox(width: 8),
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade700.withOpacity(0.8),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              "+${history.length}",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.05),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.music_note_rounded,
+                            size: 16,
+                            color: Colors.white.withOpacity(0.7),
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              langProvider.t('no_history') ?? 'Geçmiş Boş',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.7),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMiniSong(Song song) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: AspectRatio(aspectRatio: 1, child: _buildGridImage(song)),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          song.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
   void _showFolderOptions(BuildContext context, MusicFolder folder) {
+    final langProvider = context.read<LanguageProvider>();
     CustomBottomSheet.showContent(
       context: context,
       child: Column(
@@ -553,9 +784,9 @@ class _ListelerPageState extends State<ListelerPage> {
               color: Colors.white,
               size: 24,
             ),
-            title: const Text(
-              'Yeniden Adlandır',
-              style: TextStyle(color: Colors.white),
+            title: Text(
+              langProvider.t('rename'),
+              style: const TextStyle(color: Colors.white),
             ),
             onTap: () {
               Navigator.pop(context);
@@ -564,10 +795,28 @@ class _ListelerPageState extends State<ListelerPage> {
           ),
           ListTile(
             leading: CustomIcons.svgIcon(
+              CustomIcons.image,
+              color: Colors.white,
+              size: 24,
+            ),
+            title: Text(
+              langProvider.t('change_cover'),
+              style: const TextStyle(color: Colors.white),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              _pickFolderImage(context, folder);
+            },
+          ),
+          ListTile(
+            leading: CustomIcons.svgIcon(
               CustomIcons.delete,
               color: Colors.redAccent,
             ),
-            title: const Text('Sil', style: TextStyle(color: Colors.redAccent)),
+            title: Text(
+              langProvider.t('delete'),
+              style: const TextStyle(color: Colors.redAccent),
+            ),
             onTap: () {
               Navigator.pop(context);
               _showDeleteConfirmation(context, folder);
@@ -579,20 +828,40 @@ class _ListelerPageState extends State<ListelerPage> {
     );
   }
 
+  Future<void> _pickFolderImage(
+    BuildContext context,
+    MusicFolder folder,
+  ) async {
+    final ImagePicker picker = ImagePicker();
+    final langProvider = context.read<LanguageProvider>();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+
+    if (image != null) {
+      context.read<SongProvider>().updateFolderImage(folder, image.path);
+      if (mounted) {
+        CustomSnackBar.showSuccess(
+          context: context,
+          message: langProvider.t('cover_updated'),
+        );
+      }
+    }
+  }
+
   void _showDeleteConfirmation(BuildContext context, MusicFolder folder) {
+    final langProvider = context.read<LanguageProvider>();
     CustomBottomSheet.show(
       context: context,
-      title: 'Listeyi Sil',
-      message: '${folder.name} listesi silinsin mi?',
-      primaryButtonText: 'Sil',
+      title: langProvider.t('delete_list'),
+      message: '${folder.name} ${langProvider.t('delete_list_desc')}',
+      primaryButtonText: langProvider.t('delete'),
       primaryButtonColor: Colors.redAccent,
-      secondaryButtonText: 'İptal',
+      secondaryButtonText: langProvider.t('cancel'),
       onPrimaryButtonTap: () {
         context.read<SongProvider>().deleteFolder(folder);
         Navigator.pop(context);
         CustomSnackBar.showError(
           context: context,
-          message: '${folder.name} silindi.',
+          message: '${folder.name} ${langProvider.t('deleted')}',
         );
       },
     );
@@ -615,6 +884,7 @@ class _ListelerPageState extends State<ListelerPage> {
   }
 
   Widget _buildEmptyState(BuildContext context, bool hasConnection) {
+    final langProvider = context.watch<LanguageProvider>();
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -639,7 +909,9 @@ class _ListelerPageState extends State<ListelerPage> {
           ),
           const SizedBox(height: 24),
           Text(
-            hasConnection ? 'Henüz Liste Yok' : 'Çevrimdışı Mod',
+            hasConnection
+                ? langProvider.t('no_lists')
+                : langProvider.t('offline_mode'),
             style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -649,8 +921,8 @@ class _ListelerPageState extends State<ListelerPage> {
           const SizedBox(height: 12),
           Text(
             hasConnection
-                ? 'Oluşturduğunuz çalma listeleri burada görünecek.'
-                : 'Çevrimdışı modda görüntülenecek liste yok.',
+                ? langProvider.t('no_lists_desc')
+                : langProvider.t('no_offline_lists'),
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
           ),
@@ -733,6 +1005,7 @@ class _RenameListSheetState extends State<_RenameListSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final langProvider = context.watch<LanguageProvider>();
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -756,7 +1029,7 @@ class _RenameListSheetState extends State<_RenameListSheet> {
           ),
           const SizedBox(height: 20),
           Text(
-            'Listeyi Yeniden Adlandır',
+            langProvider.t('rename_list'),
             style: TextStyle(
               color: Theme.of(context).primaryColor,
               fontSize: 20,
@@ -769,7 +1042,7 @@ class _RenameListSheetState extends State<_RenameListSheet> {
             autofocus: true,
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
-              hintText: 'Yeni isim girin',
+              hintText: langProvider.t('new_name_hint'),
               hintStyle: TextStyle(color: Colors.grey.shade500),
               filled: true,
               fillColor: Colors.grey.shade800,
@@ -790,6 +1063,11 @@ class _RenameListSheetState extends State<_RenameListSheet> {
                     _controller.text,
                   );
                   Navigator.pop(context);
+                } else {
+                  CustomSnackBar.showError(
+                    context: context,
+                    message: 'Lütfen bir liste adı girin.',
+                  );
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -800,9 +1078,12 @@ class _RenameListSheetState extends State<_RenameListSheet> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text(
-                'Kaydet',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              child: Text(
+                langProvider.t('save'),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
@@ -853,6 +1134,7 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
 
   @override
   Widget build(BuildContext context) {
+    final langProvider = context.watch<LanguageProvider>();
     final songProvider = context.watch<SongProvider>();
     final favorites = songProvider.favoriteSongs;
     final downloads = songProvider.downloadedSongs;
@@ -909,7 +1191,7 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          "Kapak Seç",
+                          langProvider.t('choose_cover'),
                           style: TextStyle(
                             color: Colors.grey.shade500,
                             fontSize: 12,
@@ -929,7 +1211,7 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
               controller: _nameController,
               textAlign: TextAlign.center,
               decoration: InputDecoration(
-                hintText: 'Liste adı',
+                hintText: langProvider.t('list_name'),
                 hintStyle: TextStyle(
                   color: Colors.grey.shade500,
                   fontSize: 20,
@@ -993,9 +1275,9 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
                       fontWeight: FontWeight.bold,
                       fontSize: 13,
                     ),
-                    tabs: const [
-                      Tab(text: 'Favoriler'),
-                      Tab(text: 'İndirilenler'),
+                    tabs: [
+                      Tab(text: langProvider.t('favorites')),
+                      Tab(text: langProvider.t('downloads')),
                     ],
                   ),
                 ),
@@ -1056,7 +1338,9 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
                           if (_selectedSongIds.isEmpty) {
                             CustomSnackBar.showError(
                               context: context,
-                              message: 'Lütfen en az bir şarkı seçin.',
+                              message: langProvider.t(
+                                'select_at_least_one_song',
+                              ),
                             );
                             return;
                           }
@@ -1093,7 +1377,7 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           child: Center(
                             child: Text(
-                              'Oluştur (${_selectedSongIds.length})',
+                              '${langProvider.t('create')} (${_selectedSongIds.length})',
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
@@ -1115,6 +1399,8 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
   }
 
   Widget _buildSongList(List<Song> songs) {
+    final langProvider = context.watch<LanguageProvider>();
+
     if (songs.isEmpty) {
       return Center(
         child: Column(
@@ -1126,9 +1412,9 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
               color: Colors.grey.shade800,
             ),
             const SizedBox(height: 16),
-            const Text(
-              "Şarkı bulunamadı",
-              style: TextStyle(color: Colors.grey),
+            Text(
+              langProvider.t('no_results'),
+              style: const TextStyle(color: Colors.grey),
             ),
           ],
         ),
@@ -1194,12 +1480,12 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
                                     song.coverUrl.contains('youtube.com'))
                                 ? 1.35
                                 : 1.0,
-                            child: Image.network(
-                              song.coverUrl,
+                            child: CachedNetworkImage(
+                              imageUrl: song.coverUrl,
                               width: 50,
                               height: 50,
                               fit: BoxFit.cover,
-                              errorBuilder: (c, e, s) => Container(
+                              errorWidget: (context, url, error) => Container(
                                 width: 50,
                                 height: 50,
                                 color: Colors.grey.shade800,

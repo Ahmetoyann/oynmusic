@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:muzik_app/main.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -66,21 +69,146 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward().then((_) {
       Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            PageRouteBuilder(
-              pageBuilder: (context, animation, secondaryAnimation) =>
-                  const AuthWrapper(),
-              transitionsBuilder:
-                  (context, animation, secondaryAnimation, child) {
-                    return FadeTransition(opacity: animation, child: child);
-                  },
-              transitionDuration: const Duration(milliseconds: 800),
-            ),
-          );
-        }
+        _checkUpdateAndNavigate();
       });
     });
+  }
+
+  Future<void> _checkUpdateAndNavigate() async {
+    try {
+      final remoteConfig = FirebaseRemoteConfig.instance;
+      await remoteConfig.setConfigSettings(
+        RemoteConfigSettings(
+          fetchTimeout: const Duration(seconds: 10),
+          minimumFetchInterval: const Duration(
+            hours: 1,
+          ), // Canlıda 1 saat idealdir. Test ederken 0 yapabilirsiniz.
+        ),
+      );
+
+      // Firebase'e ulaşılamazsa kullanılacak varsayılan değerler
+      await remoteConfig.setDefaults({
+        "latest_version": "1.0.0",
+        "force_update": false,
+        "update_message":
+            "Uygulamamızın yeni bir sürümü yayınlandı! Daha iyi bir deneyim için lütfen güncelleyin.",
+        "store_url":
+            "https://play.google.com/store/apps/details?id=com.ahmed.oyn_music",
+      });
+
+      await remoteConfig.fetchAndActivate();
+
+      final requiredVersion = remoteConfig.getString('latest_version');
+      final forceUpdate = remoteConfig.getBool('force_update');
+      final updateMessage = remoteConfig.getString('update_message');
+      final storeUrl = remoteConfig.getString('store_url');
+
+      final packageInfo = await PackageInfo.fromPlatform();
+      final currentVersion = packageInfo.version; // Örn: "1.0.0"
+
+      if (_isUpdateRequired(currentVersion, requiredVersion)) {
+        if (mounted) {
+          _showUpdateDialog(updateMessage, storeUrl, forceUpdate);
+        }
+        if (forceUpdate)
+          return; // Zorunlu güncelleme ise ana ekrana (AuthWrapper) geçişi engelle!
+      }
+    } catch (e) {
+      debugPrint("Güncelleme kontrolü başarısız: $e");
+    }
+
+    _navigateToHome(); // Güncelleme gerekmiyorsa veya hata olduysa normal akışa devam et
+  }
+
+  bool _isUpdateRequired(String current, String required) {
+    final currentParts = current.split('.').map(int.parse).toList();
+    final requiredParts = required.split('.').map(int.parse).toList();
+
+    for (int i = 0; i < requiredParts.length; i++) {
+      if (i >= currentParts.length) return true;
+      if (requiredParts[i] > currentParts[i]) return true;
+      if (requiredParts[i] < currentParts[i]) return false;
+    }
+    return false;
+  }
+
+  void _showUpdateDialog(String message, String url, bool isForced) {
+    showDialog(
+      context: context,
+      barrierDismissible: !isForced, // Zorunluysa dışarı tıklanarak kapatılamaz
+      builder: (context) {
+        return PopScope(
+          canPop: !isForced, // Zorunluysa geri tuşuyla kapatılamaz
+          child: AlertDialog(
+            backgroundColor: Colors.grey.shade900,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: [
+                Icon(
+                  Icons.system_update_rounded,
+                  color: Theme.of(context).primaryColor,
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Güncelleme Mevcut',
+                  style: TextStyle(color: Colors.white, fontSize: 18),
+                ),
+              ],
+            ),
+            content: Text(
+              message,
+              style: const TextStyle(color: Colors.white70, height: 1.5),
+            ),
+            actions: [
+              if (!isForced)
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _navigateToHome(); // Zorunlu değilse menüyü kapatıp uygulamaya devam et
+                  },
+                  child: const Text(
+                    'Daha Sonra',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).primaryColor,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () async {
+                  final uri = Uri.parse(url);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(
+                      uri,
+                      mode: LaunchMode.externalApplication,
+                    ); // Cihazın varsayılan tarayıcısını/marketini açar
+                  }
+                },
+                child: const Text('Güncelle'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _navigateToHome() {
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              const AuthWrapper(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          transitionDuration: const Duration(milliseconds: 800),
+        ),
+      );
+    }
   }
 
   @override

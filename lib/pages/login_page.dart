@@ -3,6 +3,7 @@ import 'package:muzik_app/providers/auth_provider.dart';
 import 'package:muzik_app/providers/song_provider.dart';
 import 'package:muzik_app/widgets/google_logo_painter.dart';
 import 'package:provider/provider.dart';
+import 'package:muzik_app/providers/language_provider.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -45,6 +46,7 @@ class _LoginPageState extends State<LoginPage>
   Widget build(BuildContext context) {
     final provider = context.watch<SongProvider>();
     final primaryColor = Theme.of(context).primaryColor;
+    final langProvider = context.watch<LanguageProvider>();
 
     return Scaffold(
       backgroundColor: const Color(
@@ -123,7 +125,7 @@ class _LoginPageState extends State<LoginPage>
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    "Müziğin ritmini keşfet",
+                    langProvider.t('slogan'),
                     style: TextStyle(
                       fontSize: 16,
                       color: primaryColor.withValues(alpha: 0.7),
@@ -207,9 +209,9 @@ class _LoginPageState extends State<LoginPage>
                                           painter: GoogleLogoPainter(),
                                         ),
                                         const SizedBox(width: 12),
-                                        const Text(
-                                          "Google ile Bağlan",
-                                          style: TextStyle(
+                                        Text(
+                                          langProvider.t('login_with_google'),
+                                          style: const TextStyle(
                                             fontSize: 16,
                                             fontWeight: FontWeight.bold,
                                             color: Colors.black,
@@ -234,9 +236,9 @@ class _LoginPageState extends State<LoginPage>
                         Navigator.pop(context);
                       }
                     },
-                    child: const Text(
-                      "Giriş yapmadan devam et",
-                      style: TextStyle(color: Colors.white),
+                    child: Text(
+                      langProvider.t('continue_as_guest'),
+                      style: const TextStyle(color: Colors.white),
                     ),
                   ),
                   const SizedBox(height: 40),

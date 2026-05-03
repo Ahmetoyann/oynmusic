@@ -5,12 +5,15 @@ import 'package:provider/provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:muzik_app/providers/song_provider.dart';
 import 'package:muzik_app/providers/theme_provider.dart';
+import 'package:muzik_app/providers/language_provider.dart';
 import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/widgets/custom_app_bar.dart';
 import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/widgets/mini_player.dart';
 import 'package:muzik_app/pages/player_page.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -18,12 +21,16 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
+    final languageProvider = context.watch<LanguageProvider>();
     const textColor = Colors.white;
     final subTextColor = Colors.grey.shade600;
 
     return Scaffold(
       extendBody: true,
-      appBar: const CustomAppBar(title: 'Ayarlar', centerTitle: true),
+      appBar: CustomAppBar(
+        title: languageProvider.t('settings'),
+        centerTitle: true,
+      ),
       bottomNavigationBar: context.watch<SongProvider>().currentSong != null
           ? Container(
               decoration: BoxDecoration(
@@ -79,11 +86,49 @@ class SettingsPage extends StatelessWidget {
               16,
               16,
               16,
-              context.watch<SongProvider>().currentSong != null ? 160 : 40,
+              (context.watch<SongProvider>().currentSong != null
+                      ? 160.0
+                      : 40.0) +
+                  MediaQuery.of(context).padding.bottom,
             ),
             children: [
+              // Dil Ayarları
+              _buildSectionHeader(context, languageProvider.t('language')),
+              _buildSettingsCard(
+                context,
+                children: [
+                  ListTile(
+                    leading: _buildLeadingIcon(
+                      Colors.blueGrey,
+                      const Icon(
+                        Icons.language_rounded,
+                        color: Colors.blueGrey,
+                        size: 24,
+                      ),
+                    ),
+                    title: Text(
+                      languageProvider.t('language'),
+                      style: const TextStyle(color: textColor),
+                    ),
+                    subtitle: Text(
+                      languageProvider.getCurrentLanguageName(),
+                      style: TextStyle(color: subTextColor, fontSize: 12),
+                    ),
+                    trailing: Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: Colors.grey.shade600,
+                      size: 14,
+                    ),
+                    onTap: () => _showLanguageBottomSheet(context),
+                  ),
+                ],
+              ),
+
               // 1. Görünüm Ayarları
-              _buildSectionHeader(context, 'Görünüm'),
+              _buildSectionHeader(
+                context,
+                languageProvider.t('appearance') ?? 'Görünüm',
+              ),
               _buildSettingsCard(
                 context,
                 children: [
@@ -108,7 +153,7 @@ class SettingsPage extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Tema Rengi',
+                                    languageProvider.t('theme_color'),
                                     style: TextStyle(
                                       color: textColor,
                                       fontSize: 16,
@@ -117,7 +162,7 @@ class SettingsPage extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    'Uygulamanın ana vurgu rengini kişiselleştirin',
+                                    languageProvider.t('theme_color_desc'),
                                     style: TextStyle(
                                       color: subTextColor,
                                       fontSize: 12,
@@ -168,7 +213,7 @@ class SettingsPage extends StatelessWidget {
               ),
 
               // 2. Müzik Ayarları
-              _buildSectionHeader(context, 'Müzik'),
+              _buildSectionHeader(context, languageProvider.t('music')),
               _buildSettingsCard(
                 context,
                 children: [
@@ -181,14 +226,14 @@ class SettingsPage extends StatelessWidget {
                         size: 24,
                       ),
                     ),
-                    title: const Text(
-                      'Uyku Zamanlayıcısı',
-                      style: TextStyle(color: Colors.white),
+                    title: Text(
+                      languageProvider.t('sleep_timer'),
+                      style: const TextStyle(color: Colors.white),
                     ),
                     subtitle: Text(
                       context.watch<SongProvider>().isSleepTimerActive
                           ? 'Bitiş: ${_formatTime(context.watch<SongProvider>().sleepTimerEndTime!)}'
-                          : 'Kapalı',
+                          : languageProvider.t('off'),
                       style: TextStyle(color: subTextColor, fontSize: 12),
                     ),
                     trailing: Icon(
@@ -216,12 +261,12 @@ class SettingsPage extends StatelessWidget {
                             size: 24,
                           ),
                         ),
-                        title: const Text(
-                          'Veri Tasarrufu',
-                          style: TextStyle(color: Colors.white),
+                        title: Text(
+                          languageProvider.t('data_saver'),
+                          style: const TextStyle(color: Colors.white),
                         ),
                         subtitle: Text(
-                          'Düşük kaliteli ses kullanarak tasarruf sağlar',
+                          languageProvider.t('data_saver_desc'),
                           style: TextStyle(color: subTextColor, fontSize: 12),
                         ),
                         value: provider.isLowDataMode,
@@ -248,12 +293,12 @@ class SettingsPage extends StatelessWidget {
                         size: 24,
                       ),
                     ),
-                    title: const Text(
-                      'Ekolayzer',
-                      style: TextStyle(color: Colors.white),
+                    title: Text(
+                      languageProvider.t('equalizer'),
+                      style: const TextStyle(color: Colors.white),
                     ),
                     subtitle: Text(
-                      'Ses frekanslarını kişiselleştirin',
+                      languageProvider.t('equalizer_desc'),
                       style: TextStyle(color: subTextColor, fontSize: 12),
                     ),
                     trailing: Icon(
@@ -267,7 +312,7 @@ class SettingsPage extends StatelessWidget {
               ),
 
               // 3. Veri ve Depolama
-              _buildSectionHeader(context, 'Veri ve Depolama'),
+              _buildSectionHeader(context, languageProvider.t('data_storage')),
               _buildSettingsCard(
                 context,
                 children: [
@@ -281,11 +326,11 @@ class SettingsPage extends StatelessWidget {
                       ),
                     ),
                     title: Text(
-                      'Arama Önbelleğini Temizle',
+                      languageProvider.t('clear_search_cache'),
                       style: TextStyle(color: textColor),
                     ),
                     subtitle: Text(
-                      'Arama ve Trendler sonuçlarını günceller.',
+                      languageProvider.t('clear_search_cache_desc'),
                       style: TextStyle(color: subTextColor, fontSize: 12),
                     ),
                     trailing: Icon(
@@ -311,11 +356,11 @@ class SettingsPage extends StatelessWidget {
                       ),
                     ),
                     title: Text(
-                      'Önbelleği Temizle',
+                      languageProvider.t('clear_cache'),
                       style: TextStyle(color: textColor),
                     ),
                     subtitle: Text(
-                      'İndirilen şarkıları ve favorileri siler.',
+                      languageProvider.t('clear_cache_desc'),
                       style: TextStyle(color: subTextColor, fontSize: 12),
                     ),
                     trailing: Icon(
@@ -329,7 +374,7 @@ class SettingsPage extends StatelessWidget {
               ),
 
               // 4. Uygulama Hakkında
-              _buildSectionHeader(context, 'Uygulama'),
+              _buildSectionHeader(context, languageProvider.t('app')),
               _buildSettingsCard(
                 context,
                 children: [
@@ -343,7 +388,10 @@ class SettingsPage extends StatelessWidget {
                         color: Theme.of(context).primaryColor,
                       ),
                     ),
-                    title: Text('Versiyon', style: TextStyle(color: textColor)),
+                    title: Text(
+                      languageProvider.t('app_version'),
+                      style: const TextStyle(color: textColor),
+                    ),
                     trailing: FutureBuilder<PackageInfo>(
                       future: PackageInfo.fromPlatform(),
                       builder: (context, snapshot) {
@@ -360,10 +408,93 @@ class SettingsPage extends StatelessWidget {
                       },
                     ),
                   ),
+                  const _UpdateCheckButton(),
                 ],
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  void _showLanguageBottomSheet(BuildContext context) {
+    CustomBottomSheet.showContent(
+      context: context,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 24),
+          Text(
+            'Language / Dil Seçimi',
+            style: TextStyle(
+              color: Theme.of(context).primaryColor,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ...['en', 'tr', 'fr', 'de', 'es', 'ar'].map((langCode) {
+            final provider = context.read<LanguageProvider>();
+            final isSelected = provider.currentLanguage == langCode;
+            String langName = '';
+            String flag = '';
+            switch (langCode) {
+              case 'en':
+                langName = 'English';
+                flag = '🇬🇧';
+                break;
+              case 'tr':
+                langName = 'Türkçe';
+                flag = '🇹🇷';
+                break;
+              case 'fr':
+                langName = 'Français';
+                flag = '🇫🇷';
+                break;
+              case 'de':
+                langName = 'Deutsch';
+                flag = '🇩🇪';
+                break;
+              case 'es':
+                langName = 'Español';
+                flag = '🇪🇸';
+                break;
+              case 'ar':
+                langName = 'العربية';
+                flag = '🇸🇦';
+                break;
+            }
+            return ListTile(
+              leading: Container(
+                width: 36,
+                height: 26,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                alignment: Alignment.center,
+                child: Text(flag, style: const TextStyle(fontSize: 16)),
+              ),
+              title: Text(
+                langName,
+                style: TextStyle(
+                  color: isSelected
+                      ? Theme.of(context).primaryColor
+                      : Colors.white,
+                ),
+              ),
+              trailing: isSelected
+                  ? Icon(Icons.check, color: Theme.of(context).primaryColor)
+                  : null,
+              onTap: () {
+                provider.setLanguage(langCode);
+                context.read<SongProvider>().rescheduleAllNotifications();
+                Navigator.pop(context);
+              },
+            );
+          }).toList(),
+          const SizedBox(height: 16),
         ],
       ),
     );
@@ -440,18 +571,18 @@ class SettingsPage extends StatelessWidget {
 
   void _showClearCacheDialog(BuildContext context) async {
     final provider = context.read<SongProvider>();
+    final langProvider = context.read<LanguageProvider>();
     final cacheSize = await provider.getCacheSize();
 
     if (!context.mounted) return;
 
     CustomBottomSheet.show(
       context: context,
-      title: 'Emin misiniz?',
-      message:
-          'Tüm indirilen şarkılar ve favoriler silinecek ($cacheSize). Bu işlem geri alınamaz.',
-      primaryButtonText: 'Temizle',
+      title: langProvider.t('are_you_sure'),
+      message: '${langProvider.t('clear_cache_warning')} ($cacheSize)',
+      primaryButtonText: langProvider.t('clear'),
       primaryButtonColor: Colors.red,
-      secondaryButtonText: 'İptal',
+      secondaryButtonText: langProvider.t('cancel'),
       onPrimaryButtonTap: () async {
         Navigator.pop(context);
         try {
@@ -459,14 +590,14 @@ class SettingsPage extends StatelessWidget {
           if (context.mounted) {
             CustomSnackBar.showSuccess(
               context: context,
-              message: 'Önbellek başarıyla temizlendi.',
+              message: langProvider.t('cache_cleared'),
             );
           }
         } catch (e) {
           if (context.mounted) {
             CustomSnackBar.showError(
               context: context,
-              message: 'Bir hata oluştu.',
+              message: langProvider.t('an_error_occurred'),
             );
           }
         }
@@ -475,14 +606,14 @@ class SettingsPage extends StatelessWidget {
   }
 
   void _showClearApiCacheDialog(BuildContext context) {
+    final langProvider = context.read<LanguageProvider>();
     CustomBottomSheet.show(
       context: context,
-      title: 'API Önbelleğini Temizle',
-      message:
-          'Arama ve Trendler sonuçları yenilenecektir. İşleme devam edilsin mi?',
-      primaryButtonText: 'Temizle',
+      title: langProvider.t('clear_api_cache_title'),
+      message: langProvider.t('clear_api_cache_warning'),
+      primaryButtonText: langProvider.t('clear'),
       primaryButtonColor: Colors.orange,
-      secondaryButtonText: 'İptal',
+      secondaryButtonText: langProvider.t('cancel'),
       onPrimaryButtonTap: () async {
         Navigator.pop(context);
         try {
@@ -490,14 +621,14 @@ class SettingsPage extends StatelessWidget {
           if (context.mounted) {
             CustomSnackBar.showSuccess(
               context: context,
-              message: 'API önbelleği başarıyla temizlendi.',
+              message: langProvider.t('api_cache_cleared'),
             );
           }
         } catch (e) {
           if (context.mounted) {
             CustomSnackBar.showError(
               context: context,
-              message: 'Bir hata oluştu.',
+              message: langProvider.t('an_error_occurred'),
             );
           }
         }
@@ -506,6 +637,8 @@ class SettingsPage extends StatelessWidget {
   }
 
   void _showSleepTimerDialog(BuildContext context) {
+    final langProvider = context.read<LanguageProvider>();
+
     CustomBottomSheet.showContent(
       context: context,
       child: Consumer<SongProvider>(
@@ -513,16 +646,7 @@ class SettingsPage extends StatelessWidget {
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade700,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -532,9 +656,9 @@ class SettingsPage extends StatelessWidget {
                     size: 28,
                   ),
                   const SizedBox(width: 12),
-                  const Text(
-                    'Uyku Zamanlayıcısı',
-                    style: TextStyle(
+                  Text(
+                    langProvider.t('sleep_timer'),
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -583,7 +707,7 @@ class SettingsPage extends StatelessWidget {
                         Navigator.pop(context);
                         CustomSnackBar.showInfo(
                           context: context,
-                          message: 'Zamanlayıcı kapatıldı.',
+                          message: langProvider.t('timer_canceled'),
                         );
                       },
                       style: OutlinedButton.styleFrom(
@@ -594,9 +718,9 @@ class SettingsPage extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text(
-                        "Zamanlayıcıyı Kapat",
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                      child: Text(
+                        langProvider.t('cancel'),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),
@@ -611,6 +735,8 @@ class SettingsPage extends StatelessWidget {
   }
 
   Widget _buildModernTimerOption(BuildContext context, int minutes) {
+    final langProvider = context.read<LanguageProvider>();
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -619,7 +745,9 @@ class SettingsPage extends StatelessWidget {
           Navigator.pop(context);
           CustomSnackBar.showInfo(
             context: context,
-            message: 'Müzik $minutes dakika sonra duracak.',
+            message: langProvider
+                .t('timer_set')
+                .replaceAll('%s', minutes.toString()),
           );
         },
         borderRadius: BorderRadius.circular(16),
@@ -642,9 +770,14 @@ class SettingsPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
-                "dk",
-                style: TextStyle(
+              Text(
+                langProvider
+                    .t('duration')
+                    .substring(
+                      0,
+                      2,
+                    ), // "Süre" kelimesinin ilk 2 harfi (Sü) veya çeviriye göre değişir
+                style: const TextStyle(
                   color: Colors.grey,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
@@ -662,6 +795,161 @@ class SettingsPage extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       child: const _EqualizerSheet(),
+    );
+  }
+}
+
+class _UpdateCheckButton extends StatefulWidget {
+  const _UpdateCheckButton();
+
+  @override
+  State<_UpdateCheckButton> createState() => _UpdateCheckButtonState();
+}
+
+class _UpdateCheckButtonState extends State<_UpdateCheckButton> {
+  late Future<bool> _updateCheckFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    // Gelecekteki işlem sadece bir kere başlatılır (Ayarlar sayfası kaydırıldığında tekrar Firestore okunmasını engeller)
+    _updateCheckFuture = _checkIfUpdateAvailable();
+  }
+
+  Future<bool> _checkIfUpdateAvailable() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      final currentVersion = packageInfo.version; // Örn: 1.0.0
+
+      final doc = await FirebaseFirestore.instance
+          .collection('app_settings')
+          .doc('config')
+          .get(
+            const GetOptions(source: Source.server),
+          ); // Önbelleği yoksayıp zorunlu olarak taze veriyi sunucudan çeker
+      if (doc.exists && doc.data() != null) {
+        final latestVersion = doc.data()!['latest_version'] as String?;
+        debugPrint(
+          "👉 Cihazdaki Sürüm: $currentVersion | Firebase'deki Sürüm: $latestVersion",
+        );
+
+        if (latestVersion != null && latestVersion.isNotEmpty) {
+          // Versiyonları '.' bazında ayır ve numara olarak kıyasla
+          final currentParts = currentVersion
+              .split('.')
+              .map((e) => int.tryParse(e) ?? 0)
+              .toList();
+          final latestParts = latestVersion
+              .split('.')
+              .map((e) => int.tryParse(e) ?? 0)
+              .toList();
+
+          for (int i = 0; i < latestParts.length; i++) {
+            final c = i < currentParts.length ? currentParts[i] : 0;
+            final l = latestParts[i];
+            if (l > c)
+              return true; // Firestore'daki versiyon cihazdakinden daha büyük
+            if (l < c) return false;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Güncelleme kontrol hatası: $e");
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: _updateCheckFuture,
+      builder: (context, snapshot) {
+        bool hasUpdate = snapshot.data ?? false;
+
+        // Güncelleme yoksa hiçbir şey çizmeden widget'ı daralt
+        if (!hasUpdate) return const SizedBox.shrink();
+
+        final languageProvider = context.watch<LanguageProvider>();
+
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Divider(height: 1, color: Colors.white.withOpacity(0.05)),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.green.shade500, Colors.green.shade700],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.green.withOpacity(0.3),
+                      blurRadius: 15,
+                      spreadRadius: 1,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () async {
+                      const storeUrl =
+                          'https://play.google.com/store/apps/details?id=com.ahmed.oyn_music';
+                      final uri = Uri.parse(storeUrl);
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(
+                          uri,
+                          mode: LaunchMode.externalApplication,
+                        );
+                      } else {
+                        if (context.mounted) {
+                          CustomSnackBar.showError(
+                            context: context,
+                            message: "Mağaza linki açılamadı.",
+                          );
+                        }
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.system_update_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            languageProvider.currentLanguage == 'tr'
+                                ? 'Güncelleme Mevcut'
+                                : 'Update Available',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -700,6 +988,7 @@ class _EqualizerSheetState extends State<_EqualizerSheet> {
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).primaryColor;
+    final langProvider = context.watch<LanguageProvider>();
 
     return Padding(
       padding: EdgeInsets.only(
@@ -711,15 +1000,7 @@ class _EqualizerSheetState extends State<_EqualizerSheet> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade700,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -738,9 +1019,9 @@ class _EqualizerSheetState extends State<_EqualizerSheet> {
                     ),
                   ),
                   const SizedBox(width: 16),
-                  const Text(
-                    'Ekolayzer',
-                    style: TextStyle(
+                  Text(
+                    langProvider.t('equalizer'),
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -763,7 +1044,9 @@ class _EqualizerSheetState extends State<_EqualizerSheet> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                _isEnabled ? "Özel Ayar" : "Kapalı",
+                _isEnabled
+                    ? langProvider.t('custom_setting')
+                    : langProvider.t('off'),
                 style: TextStyle(
                   color: _isEnabled ? primaryColor : Colors.grey.shade500,
                   fontWeight: FontWeight.w600,
@@ -777,7 +1060,7 @@ class _EqualizerSheetState extends State<_EqualizerSheet> {
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 child: Text(
-                  "Sıfırla",
+                  langProvider.t('reset'),
                   style: TextStyle(
                     color: _isEnabled ? Colors.white70 : Colors.grey.shade700,
                     fontSize: 14,

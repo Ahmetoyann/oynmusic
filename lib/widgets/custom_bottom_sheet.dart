@@ -42,42 +42,143 @@ class CustomBottomSheet extends StatelessWidget {
     Color? primaryButtonTextColor,
     bool isDismissible = true,
   }) {
-    return showModalBottomSheet(
+    return showGeneralDialog(
       context: context,
-      isDismissible: isDismissible,
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      builder: (ctx) => ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF121212).withOpacity(0.7),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(32),
-              ),
-              border: Border(
-                top: BorderSide(
-                  color: Colors.white.withOpacity(0.2),
-                  width: 1.5,
+      barrierColor: Colors.transparent,
+      barrierDismissible: isDismissible,
+      barrierLabel: 'CustomDialog',
+      transitionDuration: const Duration(milliseconds: 250),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return Scaffold(
+          backgroundColor: Colors.transparent,
+          resizeToAvoidBottomInset: true,
+          body: Stack(
+            children: [
+              // Arka planı tamamen bulanıklaştıran katman
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: isDismissible ? () => Navigator.pop(context) : null,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.0, end: 1.0),
+                    duration: const Duration(milliseconds: 250),
+                    builder: (context, value, child) {
+                      return BackdropFilter(
+                        filter: ImageFilter.blur(
+                          sigmaX: 20 * value,
+                          sigmaY: 20 * value,
+                        ),
+                        child: Container(
+                          color: Colors.black.withOpacity(0.5 * value),
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ),
-            ),
-            child: CustomBottomSheet(
-              title: title,
-              message: message,
-              icon: icon,
-              primaryButtonText: primaryButtonText,
-              onPrimaryButtonTap: onPrimaryButtonTap,
-              secondaryButtonText: secondaryButtonText,
-              onSecondaryButtonTap: onSecondaryButtonTap,
-              primaryButtonColor: primaryButtonColor,
-              primaryButtonTextColor: primaryButtonTextColor,
-            ),
+              // İçerik ve Menü Kutusu
+              Center(
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutBack,
+                  builder: (context, value, child) {
+                    return Transform.scale(
+                      scale: value,
+                      alignment: Alignment.center,
+                      child: Opacity(
+                        opacity: value.clamp(0.0, 1.0),
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                      child: Container(
+                        width: MediaQuery.of(context).size.width * 0.85,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.3),
+                            width: 1.2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.25),
+                              blurRadius: 20,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: CustomBottomSheet(
+                            title: title,
+                            message: message,
+                            icon: icon,
+                            primaryButtonText: primaryButtonText,
+                            onPrimaryButtonTap: onPrimaryButtonTap,
+                            secondaryButtonText: secondaryButtonText,
+                            onSecondaryButtonTap: onSecondaryButtonTap,
+                            primaryButtonColor: primaryButtonColor,
+                            primaryButtonTextColor: primaryButtonTextColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Sağ Üst Kapatma (Çarpı) İkonu
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 20,
+                right: 20,
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutBack,
+                  builder: (context, value, child) {
+                    return Transform.scale(
+                      scale: value,
+                      child: Opacity(
+                        opacity: value.clamp(0.0, 1.0),
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.2),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.close_rounded,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -88,34 +189,136 @@ class CustomBottomSheet extends StatelessWidget {
     bool isDismissible = true,
     Color? backgroundColor,
   }) {
-    return showModalBottomSheet<T>(
+    return showGeneralDialog<T>(
       context: context,
-      isScrollControlled: isScrollControlled,
-      isDismissible: isDismissible,
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      builder: (ctx) => ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-          child: Container(
-            decoration: BoxDecoration(
-              color:
-                  backgroundColor ?? const Color(0xFF121212).withOpacity(0.7),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(32),
-              ),
-              border: Border(
-                top: BorderSide(
-                  color: Colors.white.withOpacity(0.2),
-                  width: 1.5,
+      barrierColor: Colors.transparent,
+      barrierDismissible: isDismissible,
+      barrierLabel: 'CustomContentDialog',
+      transitionDuration: const Duration(milliseconds: 250),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return Scaffold(
+          backgroundColor: Colors.transparent,
+          resizeToAvoidBottomInset:
+              true, // Klavyenin açıldığında pencereyi üste itmesini sağlar
+          body: Stack(
+            children: [
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: isDismissible ? () => Navigator.pop(context) : null,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.0, end: 1.0),
+                    duration: const Duration(milliseconds: 250),
+                    builder: (context, value, animChild) {
+                      return BackdropFilter(
+                        filter: ImageFilter.blur(
+                          sigmaX: 20 * value,
+                          sigmaY: 20 * value,
+                        ),
+                        child: Container(
+                          color: Colors.black.withOpacity(0.5 * value),
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ),
-            ),
-            child: SafeArea(child: child),
+              Center(
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutBack,
+                  builder: (context, value, animChild) {
+                    return Transform.scale(
+                      scale: value,
+                      alignment: Alignment.center,
+                      child: Opacity(
+                        opacity: value.clamp(0.0, 1.0),
+                        child: animChild,
+                      ),
+                    );
+                  },
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                      child: Container(
+                        width: MediaQuery.of(context).size.width * 0.9,
+                        constraints: BoxConstraints(
+                          maxHeight: MediaQuery.of(context).size.height * 0.85,
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          color:
+                              backgroundColor ?? Colors.white.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.3),
+                            width: 1.2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.25),
+                              blurRadius: 20,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: SafeArea(child: child),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 20,
+                right: 20,
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutBack,
+                  builder: (context, value, animChild) {
+                    return Transform.scale(
+                      scale: value,
+                      child: Opacity(
+                        opacity: value.clamp(0.0, 1.0),
+                        child: animChild,
+                      ),
+                    );
+                  },
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.2),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.close_rounded,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

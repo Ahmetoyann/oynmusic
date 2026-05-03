@@ -19,7 +19,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     super.key,
     this.title,
     this.titleWidget,
-    this.centerTitle = false,
+    this.centerTitle = true,
     this.leading,
     this.actions,
     this.backgroundColor,
@@ -49,8 +49,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     }
 
     return AppBar(
-      iconTheme: IconThemeData(color: Theme.of(context).primaryColor),
-      actionsIconTheme: IconThemeData(color: Theme.of(context).primaryColor),
+      iconTheme: IconThemeData(color: Colors.white),
+      actionsIconTheme: IconThemeData(color: Colors.white),
       title:
           titleWidget ??
           Text(
@@ -106,11 +106,11 @@ class _AppBarIconBox extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: Colors.transparent.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
+          shape: BoxShape.circle,
           border: Border.all(color: Colors.grey.withOpacity(0.2)),
         ),
         child: IconTheme(
-          data: IconThemeData(color: Theme.of(context).primaryColor, size: 27),
+          data: IconThemeData(color: Colors.white, size: 27),
           child: child,
         ),
       ),

@@ -13,6 +13,12 @@ import 'package:muzik_app/pages/player_page.dart';
 import 'package:muzik_app/widgets/custom_banner_ad.dart';
 import 'package:muzik_app/pages/artist_detail_page.dart';
 import 'package:muzik_app/widgets/song_grid_card.dart';
+import 'package:muzik_app/providers/language_provider.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:speech_to_text/speech_recognition_result.dart';
+import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
+import 'package:muzik_app/pages/login_page.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -24,6 +30,10 @@ class SearchPage extends StatefulWidget {
 class _SearchPageState extends State<SearchPage> {
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final stt.SpeechToText _speechToText = stt.SpeechToText();
+  bool _speechEnabled = false;
+  bool _isListening = false;
+  bool _isHistoryExpanded = false; // Geçmişin açık/kapalı durumu
 
   @override
   void initState() {
@@ -36,7 +46,7 @@ class _SearchPageState extends State<SearchPage> {
           if (mounted) {
             CustomSnackBar.showError(
               context: context,
-              message: "Sonuçlar yüklenirken hata: $e",
+              message: "${context.read<LanguageProvider>().t('error')}: $e",
             );
           }
         });
@@ -47,6 +57,70 @@ class _SearchPageState extends State<SearchPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<SongProvider>().fetchSuggestedSongs();
     });
+
+    _initSpeech();
+  }
+
+  /// Mikrofon eklentisini başlatır
+  void _initSpeech() async {
+    _speechEnabled = await _speechToText.initialize();
+    setState(() {});
+  }
+
+  /// Dinlemeyi başlatır
+  void _startListening() async {
+    await _speechToText.listen(onResult: _onSpeechResult);
+    setState(() {
+      _isListening = true;
+    });
+  }
+
+  /// Dinlemeyi durdurur
+  void _stopListening() async {
+    await _speechToText.stop();
+    setState(() {
+      _isListening = false;
+    });
+  }
+
+  /// Sesten metne çeviri yapıldıkça tetiklenir
+  void _onSpeechResult(SpeechRecognitionResult result) {
+    setState(() {
+      _searchController.text = result.recognizedWords;
+      context.read<SongProvider>().updateSearchText(result.recognizedWords);
+      if (result.finalResult) {
+        _isListening = false;
+        context.read<SongProvider>().addToSearchHistory(result.recognizedWords);
+      }
+    });
+  }
+
+  /// Akıllı Söz Arama Penceresini (Sözler aklında mı?) açar
+  void _openLyricsSearch(BuildContext context) async {
+    if (_isListening) {
+      _stopListening();
+    }
+
+    final result = await showGeneralDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'LyricsSearchDialog',
+      barrierColor: Colors
+          .transparent, // Arka plan karartmasını içeride BackdropFilter ile yapacağız
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return FadeTransition(
+          opacity: animation,
+          child: const _LyricsSearchDialog(),
+        );
+      },
+    );
+
+    if (result != null && result.trim().isNotEmpty && mounted) {
+      _searchController.text = result.trim();
+      context.read<SongProvider>().updateSearchText(result.trim());
+      context.read<SongProvider>().addToSearchHistory(result.trim());
+    }
   }
 
   @override
@@ -71,13 +145,80 @@ class _SearchPageState extends State<SearchPage> {
     // `watch` ile provider'daki tüm değişiklikleri dinliyoruz.
     final songProvider = context.watch<SongProvider>();
     final authProvider = context.watch<AuthProvider>();
+    final langProvider = context.watch<LanguageProvider>();
     final arananSarkilar = songProvider.searchedSongs;
     final aramaMetni = _searchController.text;
     final selectedTab = songProvider.searchFilter;
-    const tabs = ['Şarkılar', 'Sanatçılar', 'Koleksiyonlar'];
+    final tabKeys = ['songs', 'artists', 'collections'];
 
     return Scaffold(
-      appBar: CustomAppBar(title: 'Ara', showLeading: false),
+      appBar: CustomAppBar(
+        title: langProvider.t('search'),
+        showLeading: false,
+        wrapActionsInBox:
+            false, // Otomatik kare kutu içine almayı devre dışı bırakır
+        actions: [
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: TextButton(
+                onPressed: () => _openLyricsSearch(context),
+                style: TextButton.styleFrom(
+                  backgroundColor: Colors.white.withOpacity(0.05),
+                  side: BorderSide(
+                    color: Colors.white.withOpacity(0.15),
+                    width: 1,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal:
+                        8, // İkon eklendiği için kenar boşluklarını biraz kıstık
+                    vertical: 0,
+                  ),
+                  minimumSize: const Size(
+                    0,
+                    32,
+                  ), // Dikeyde minimum yüksekliği sabitledik
+                  tapTargetSize: MaterialTapTargetSize
+                      .shrinkWrap, // Gereksiz boşlukları kırpar
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).primaryColor.withOpacity(
+                          0.2,
+                        ), // İkon arkası saydam renk
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.graphic_eq_rounded,
+                        color: Theme.of(context).primaryColor,
+                        size: 14,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      "Sözler aklında mı?",
+                      maxLines: 1,
+                      softWrap: false,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -94,7 +235,7 @@ class _SearchPageState extends State<SearchPage> {
                     autofocus: false,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      hintText: 'Ne dinlemek istiyorsun?',
+                      hintText: langProvider.t('what_to_listen'),
                       prefixIcon: Padding(
                         padding: const EdgeInsets.all(12.0),
                         child: CustomIcons.svgIcon(
@@ -107,8 +248,11 @@ class _SearchPageState extends State<SearchPage> {
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(vertical: 15),
                       // Arama kutusunun sonuna temizleme butonu ekle
-                      suffixIcon: aramaMetni.isNotEmpty
-                          ? IconButton(
+                      suffixIcon: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (aramaMetni.isNotEmpty)
+                            IconButton(
                               icon: CustomIcons.svgIcon(
                                 CustomIcons.clear,
                                 size: 24,
@@ -117,9 +261,19 @@ class _SearchPageState extends State<SearchPage> {
                               onPressed: () {
                                 _searchController.clear();
                                 songProvider.updateSearchText('');
+                                if (_isListening) _stopListening();
                               },
-                            )
-                          : null,
+                            ),
+                          if (_speechEnabled)
+                            _PulsingMic(
+                              isListening: _isListening,
+                              onTap: _isListening
+                                  ? _stopListening
+                                  : _startListening,
+                              color: Theme.of(context).primaryColor,
+                            ),
+                        ],
+                      ),
                     ),
                     // Kullanıcı her harf girdiğinde bu fonksiyon tetiklenir.
                     onChanged: (value) {
@@ -155,12 +309,12 @@ class _SearchPageState extends State<SearchPage> {
                     ),
                   ),
                   child: Row(
-                    children: tabs.map((tab) {
-                      final isSelected = selectedTab == tab;
+                    children: tabKeys.map((tabKey) {
+                      final isSelected = selectedTab == tabKey;
                       return Expanded(
                         child: GestureDetector(
                           onTap: () {
-                            songProvider.setSearchFilter(tab);
+                            songProvider.setSearchFilter(tabKey);
                           },
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
@@ -185,10 +339,10 @@ class _SearchPageState extends State<SearchPage> {
                             ),
                             alignment: Alignment.center,
                             child: Text(
-                              tab,
+                              langProvider.t(tabKey),
                               style: TextStyle(
                                 color: isSelected
-                                    ? Theme.of(context).primaryColor
+                                    ? Colors.white
                                     : Colors.grey.shade400,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
@@ -225,17 +379,18 @@ class _SearchPageState extends State<SearchPage> {
     List<Song> sonuclar,
   ) {
     final songProvider = context.watch<SongProvider>();
+    final langProvider = context.watch<LanguageProvider>();
     final double bottomPadding = songProvider.currentSong != null ? 160 : 100;
     final selectedTab = songProvider.searchFilter;
 
     List<Song> suggestionsToDisplay = [];
     String suggestionTitle = '';
-    if (selectedTab == 'Sanatçılar') {
+    if (selectedTab == 'artists') {
       suggestionsToDisplay = songProvider.suggestedArtists;
       suggestionTitle = 'Ayın Popüler Sanatçıları';
-    } else if (selectedTab == 'Koleksiyonlar') {
+    } else if (selectedTab == 'collections') {
       suggestionsToDisplay = songProvider.suggestedAlbums;
-      suggestionTitle = 'Ayın Popüler Koleksiyonları';
+      suggestionTitle = 'Ayın Popüler Mix\'leri';
     } else {
       suggestionsToDisplay = songProvider.suggestedSongs;
       suggestionTitle = 'Sizin İçin Önerilenler';
@@ -261,53 +416,124 @@ class _SearchPageState extends State<SearchPage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Son Aramalar',
-                    style: TextStyle(
+                  Text(
+                    langProvider.t('recent_searches'),
+                    style: const TextStyle(
                       color: Colors.grey,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   TextButton(
                     onPressed: () => songProvider.clearSearchHistory(),
-                    child: const Text(
-                      'Temizle',
+                    child: Text(
+                      langProvider.t('clear'),
                       style: TextStyle(color: Colors.redAccent),
                     ),
                   ),
                 ],
               ),
             ),
-            ...songProvider.searchHistory.map((historyItem) {
-              return ListTile(
-                leading: CustomIcons.svgIcon(
-                  CustomIcons.history,
-                  color: Colors.grey,
-                  size: 24,
-                ),
-                title: Text(
-                  historyItem,
-                  style: const TextStyle(color: Colors.white70),
-                ),
-                trailing: IconButton(
-                  icon: CustomIcons.svgIcon(
-                    CustomIcons.clear,
-                    size: 18,
-                    color: Colors.grey,
-                  ),
-                  onPressed: () =>
-                      songProvider.removeFromSearchHistory(historyItem),
-                ),
-                onTap: () {
-                  _searchController.text = historyItem;
-                  _searchController.selection = TextSelection.fromPosition(
-                    TextPosition(offset: historyItem.length),
-                  );
-                  songProvider.updateSearchText(historyItem);
-                  songProvider.addToSearchHistory(historyItem);
-                },
-              );
-            }),
+            Builder(
+              builder: (context) {
+                final history = songProvider.searchHistory;
+                final showAll = _isHistoryExpanded || history.length <= 3;
+                final itemsToShow = showAll
+                    ? history
+                    : history.take(3).toList();
+                final remainingCount = history.length - 3;
+
+                return Column(
+                  children: [
+                    ...itemsToShow.map((historyItem) {
+                      return Dismissible(
+                        key: Key('history_$historyItem'),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 20),
+                          color: Colors.redAccent.withOpacity(0.8),
+                          child: CustomIcons.svgIcon(
+                            CustomIcons.delete,
+                            color: Colors.white,
+                          ),
+                        ),
+                        onDismissed: (direction) {
+                          songProvider.removeFromSearchHistory(historyItem);
+                        },
+                        child: ListTile(
+                          leading: CustomIcons.svgIcon(
+                            CustomIcons.history,
+                            color: Colors.grey,
+                            size: 24,
+                          ),
+                          title: Text(
+                            historyItem,
+                            style: const TextStyle(color: Colors.white70),
+                          ),
+                          trailing: IconButton(
+                            icon: CustomIcons.svgIcon(
+                              CustomIcons.clear,
+                              size: 18,
+                              color: Colors.grey,
+                            ),
+                            onPressed: () => songProvider
+                                .removeFromSearchHistory(historyItem),
+                          ),
+                          onTap: () {
+                            _searchController.text = historyItem;
+                            _searchController.selection =
+                                TextSelection.fromPosition(
+                                  TextPosition(offset: historyItem.length),
+                                );
+                            songProvider.updateSearchText(historyItem);
+                            songProvider.addToSearchHistory(historyItem);
+                          },
+                        ),
+                      );
+                    }),
+                    // +X Daha Fazla Göster Butonu
+                    if (!showAll && remainingCount > 0)
+                      InkWell(
+                        onTap: () {
+                          setState(() {
+                            _isHistoryExpanded = true;
+                          });
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12.0),
+                          child: Center(
+                            child: Text(
+                              "+$remainingCount ${langProvider.t('see_more')}",
+                              style: TextStyle(
+                                color: Theme.of(context).primaryColor,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    // Kapatma (Yukarı Ok) Butonu
+                    if (showAll && history.length > 3)
+                      InkWell(
+                        onTap: () {
+                          setState(() {
+                            _isHistoryExpanded = false;
+                          });
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12.0),
+                          child: Center(
+                            child: Icon(
+                              Icons.keyboard_arrow_up_rounded,
+                              color: Theme.of(context).primaryColor,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
             const Divider(color: Colors.grey),
           ],
 
@@ -329,7 +555,7 @@ class _SearchPageState extends State<SearchPage> {
                 ),
               ),
             ),
-            if (selectedTab == 'Koleksiyonlar')
+            if (selectedTab == 'collections')
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: GridView.builder(
@@ -343,13 +569,16 @@ class _SearchPageState extends State<SearchPage> {
                     mainAxisSpacing: 12,
                   ),
                   itemCount: suggestionsToDisplay.length,
-                  itemBuilder: (context, index) =>
-                      _buildAlbumGridCard(context, suggestionsToDisplay[index]),
+                  itemBuilder: (context, index) => _buildAlbumGridCard(
+                    context,
+                    suggestionsToDisplay[index],
+                    suggestionsToDisplay,
+                  ),
                 ),
               )
             else
               ...suggestionsToDisplay.map((song) {
-                if (selectedTab == 'Sanatçılar') {
+                if (selectedTab == 'artists') {
                   return _buildArtistTile(context, song);
                 }
                 return SongCard(
@@ -383,7 +612,7 @@ class _SearchPageState extends State<SearchPage> {
         controller: _scrollController,
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         slivers: [
-          selectedTab == 'Koleksiyonlar'
+          selectedTab == 'collections'
               ? SliverPadding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16.0,
@@ -398,8 +627,11 @@ class _SearchPageState extends State<SearchPage> {
                           mainAxisSpacing: 12,
                         ),
                     delegate: SliverChildBuilderDelegate(
-                      (context, index) =>
-                          _buildAlbumGridCard(context, sonuclar[index]),
+                      (context, index) => _buildAlbumGridCard(
+                        context,
+                        sonuclar[index],
+                        sonuclar,
+                      ),
                       childCount: sonuclar.length,
                     ),
                   ),
@@ -407,7 +639,7 @@ class _SearchPageState extends State<SearchPage> {
               : SliverList(
                   delegate: SliverChildBuilderDelegate((context, index) {
                     final song = sonuclar[index];
-                    if (selectedTab == 'Sanatçılar') {
+                    if (selectedTab == 'artists') {
                       return _buildArtistTile(context, song);
                     }
 
@@ -446,15 +678,37 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Widget _buildArtistTile(BuildContext context, Song song) {
+    final langProvider = context.watch<LanguageProvider>();
+    final songProvider = context.watch<SongProvider>();
+    final isFollowed = songProvider.isArtistFollowed(song.artist);
+    final primaryColor = Theme.of(context).primaryColor;
+
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       leading: song.coverUrl.isEmpty
-          ? const CustomShimmer(width: 56, height: 56, borderRadius: 28)
-          : CircleAvatar(
-              radius: 28,
-              backgroundColor: Colors.grey.shade800,
-              backgroundImage: NetworkImage(song.coverUrl),
-              onBackgroundImageError: (_, __) {},
+          ? const CustomShimmer(width: 56, height: 56, borderRadius: 12)
+          : ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Transform.scale(
+                scale:
+                    (song.coverUrl.contains('ytimg.com') ||
+                        song.coverUrl.contains('youtube.com'))
+                    ? 1.35
+                    : 1.0,
+                child: CachedNetworkImage(
+                  imageUrl: song.coverUrl,
+                  memCacheHeight: 200,
+                  width: 56,
+                  height: 56,
+                  fit: BoxFit.cover,
+                  errorWidget: (context, url, error) => Container(
+                    width: 56,
+                    height: 56,
+                    color: Colors.grey.shade800,
+                    child: const Icon(Icons.person, color: Colors.white54),
+                  ),
+                ),
+              ),
             ),
       title: song.coverUrl.isEmpty
           ? const CustomShimmer(width: 120, height: 16, borderRadius: 4)
@@ -473,7 +727,7 @@ class _SearchPageState extends State<SearchPage> {
         child: song.coverUrl.isEmpty
             ? const CustomShimmer(width: 60, height: 12, borderRadius: 4)
             : Text(
-                'Sanatçı',
+                langProvider.t('artist'),
                 style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
               ),
       ),
@@ -489,10 +743,72 @@ class _SearchPageState extends State<SearchPage> {
                 ),
               );
             },
+      trailing: song.coverUrl.isEmpty
+          ? null
+          : GestureDetector(
+              onTap: () {
+                if (!songProvider.isFirebaseLoggedIn) {
+                  _showLoginBottomSheet(context);
+                  return;
+                }
+                songProvider.toggleFollowArtist(song.artist);
+                CustomSnackBar.showInfo(
+                  context: context,
+                  message: isFollowed
+                      ? "${song.artist} takipten çıkarıldı."
+                      : "${song.artist} takip ediliyor.",
+                );
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: isFollowed
+                      ? primaryColor.withOpacity(0.1)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isFollowed
+                        ? primaryColor.withOpacity(0.5)
+                        : Colors.white.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isFollowed
+                          ? Icons.check_rounded
+                          : Icons.person_add_alt_1_rounded,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isFollowed
+                          ? langProvider.t('followed')
+                          : langProvider.t('follow'),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
     );
   }
 
-  Widget _buildAlbumGridCard(BuildContext context, Song song) {
+  Widget _buildAlbumGridCard(
+    BuildContext context,
+    Song song,
+    List<Song> playlist,
+  ) {
     if (song.coverUrl.isEmpty) {
       return const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -523,8 +839,11 @@ class _SearchPageState extends State<SearchPage> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) =>
-                ArtistDetailPage(artistName: song.artist, songs: [song]),
+            builder: (context) => ArtistDetailPage(
+              artistName: song.title, // Koleksiyon Adı
+              songs: [song], // Listedeki ilk şarkı (Mix'in kendisi)
+              isCollection: true,
+            ),
           ),
         );
       },
@@ -532,6 +851,8 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Widget _buildEmptyState(BuildContext context, String query) {
+    final langProvider = context.watch<LanguageProvider>();
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -549,9 +870,9 @@ class _SearchPageState extends State<SearchPage> {
             ),
           ),
           const SizedBox(height: 24),
-          const Text(
-            'Sonuç Bulunamadı',
-            style: TextStyle(
+          Text(
+            langProvider.t('no_results'),
+            style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
               color: Colors.white,
@@ -559,11 +880,402 @@ class _SearchPageState extends State<SearchPage> {
           ),
           const SizedBox(height: 12),
           Text(
-            '"$query" için sonuç bulunamadı.\nLütfen farklı bir arama terimi deneyin.',
+            langProvider.t('search_no_results_query').replaceAll('%s', query),
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showLoginBottomSheet(BuildContext context) {
+    final langProvider = context.read<LanguageProvider>();
+
+    CustomBottomSheet.show(
+      context: context,
+      title: langProvider.t('login_to_follow'),
+      message: langProvider.t('login_to_follow_desc'),
+      icon: const Icon(
+        Icons.person_add_disabled_rounded,
+        size: 60,
+        color: Colors.white70,
+      ),
+      primaryButtonText: langProvider.t('login_to_continue'),
+      primaryButtonColor: Colors.white,
+      primaryButtonTextColor: Colors.black,
+      secondaryButtonText: langProvider.t('cancel'),
+      onPrimaryButtonTap: () {
+        Navigator.pop(context);
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginPage()),
+        );
+      },
+    );
+  }
+}
+
+// --- SÖZLER AKLINDA MI? (LYRICS SEARCH) DİYALOGU ---
+class _LyricsSearchDialog extends StatefulWidget {
+  const _LyricsSearchDialog();
+
+  @override
+  State<_LyricsSearchDialog> createState() => _LyricsSearchDialogState();
+}
+
+class _LyricsSearchDialogState extends State<_LyricsSearchDialog>
+    with SingleTickerProviderStateMixin {
+  final stt.SpeechToText _speechToText = stt.SpeechToText();
+  bool _isListening = false;
+  bool _speechEnabled = false;
+  String _words = '';
+  late AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    _initSpeech();
+  }
+
+  void _initSpeech() async {
+    _speechEnabled = await _speechToText.initialize(
+      onStatus: (status) {
+        if (status == 'done' || status == 'notListening') {
+          if (mounted && _isListening) {
+            setState(() => _isListening = false);
+            _pulseController.stop();
+            if (_words.isNotEmpty) {
+              Navigator.pop(context, _words);
+            }
+          }
+        }
+      },
+      onError: (errorNotification) {
+        if (mounted) {
+          setState(() => _isListening = false);
+          _pulseController.stop();
+        }
+      },
+    );
+    if (mounted) setState(() {});
+  }
+
+  void _startListening() async {
+    if (!_speechEnabled) return;
+    setState(() {
+      _words = '';
+      _isListening = true;
+    });
+    _pulseController.repeat();
+    await _speechToText.listen(
+      onResult: (result) {
+        if (mounted) {
+          setState(() {
+            _words = result.recognizedWords;
+          });
+          if (result.finalResult) {
+            setState(() => _isListening = false);
+            _pulseController.stop();
+            Navigator.pop(context, _words);
+          }
+        }
+      },
+      pauseFor: const Duration(
+        seconds: 4,
+      ), // 4 saniye susulursa dinlemeyi bitirir
+    );
+  }
+
+  void _stopListening() async {
+    await _speechToText.stop();
+    if (mounted) {
+      setState(() => _isListening = false);
+      _pulseController.stop();
+      if (_words.isNotEmpty) {
+        Navigator.pop(context, _words);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    _speechToText.stop();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).primaryColor;
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          // Arka Plan Bulanıklığı
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+              child: Container(color: Colors.black.withOpacity(0.5)),
+            ),
+          ),
+          Center(
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.85,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade900.withOpacity(0.85),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.1),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 30,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Kapatma Tuşu
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: InkWell(
+                      onTap: () => Navigator.pop(context),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white70,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Icon(Icons.mic_external_on, size: 60, color: primaryColor),
+                  const SizedBox(height: 16),
+                  const Text(
+                    "Şarkıyı Hatırla",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _isListening
+                        ? "Seni dinliyorum..."
+                        : "Hatırladığın sözleri veya melodiyi mırıldan.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey.shade400, fontSize: 15),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Dinamik Metin (Kullanıcının Söyledikleri)
+                  if (_words.isNotEmpty) ...[
+                    Text(
+                      '"$_words"',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                  ],
+
+                  // Başlat Butonu
+                  GestureDetector(
+                    onTap: _isListening ? _stopListening : _startListening,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        if (_isListening)
+                          AnimatedBuilder(
+                            animation: _pulseController,
+                            builder: (context, child) {
+                              return Transform.scale(
+                                scale: 1.0 + (_pulseController.value * 0.4),
+                                child: Opacity(
+                                  opacity: 1.0 - _pulseController.value,
+                                  child: Container(
+                                    width: 84,
+                                    height: 84,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: primaryColor.withOpacity(0.6),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        Container(
+                          width: 84,
+                          height: 84,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _isListening
+                                ? primaryColor
+                                : Colors.grey.shade800,
+                            border: Border.all(
+                              color: _isListening
+                                  ? primaryColor
+                                  : Colors.white.withOpacity(0.2),
+                              width: 2,
+                            ),
+                            boxShadow: _isListening
+                                ? [
+                                    BoxShadow(
+                                      color: primaryColor.withOpacity(0.4),
+                                      blurRadius: 20,
+                                    ),
+                                  ]
+                                : [],
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                _isListening
+                                    ? Icons.graphic_eq_rounded
+                                    : Icons.mic_rounded,
+                                color: Colors.white,
+                                size: 32,
+                              ),
+                              if (!_isListening) ...[
+                                const SizedBox(height: 4),
+                                const Text(
+                                  "Başlat",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// --- MODERN MİKROFON ANİMASYONU ---
+class _PulsingMic extends StatefulWidget {
+  final bool isListening;
+  final VoidCallback onTap;
+  final Color color;
+
+  const _PulsingMic({
+    required this.isListening,
+    required this.onTap,
+    required this.color,
+  });
+
+  @override
+  State<_PulsingMic> createState() => _PulsingMicState();
+}
+
+class _PulsingMicState extends State<_PulsingMic>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    if (widget.isListening) {
+      _controller.repeat();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _PulsingMic oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isListening && !oldWidget.isListening) {
+      _controller.repeat();
+    } else if (!widget.isListening && oldWidget.isListening) {
+      _controller.stop();
+      _controller.reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.onTap,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 48,
+        height: 48,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            if (widget.isListening)
+              AnimatedBuilder(
+                animation: _controller,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale:
+                        1.0 + (_controller.value * 0.8), // 1.0'dan 1.8'e büyür
+                    child: Opacity(
+                      opacity: 1.0 - _controller.value, // Dışa doğru soluklaşır
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: widget.color.withOpacity(0.8),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            Icon(
+              widget.isListening ? Icons.mic : Icons.mic_none_rounded,
+              color: widget.isListening ? widget.color : Colors.grey.shade400,
+              size: 24,
+            ),
+          ],
+        ),
       ),
     );
   }

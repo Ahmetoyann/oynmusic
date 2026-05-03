@@ -7,6 +7,7 @@ import 'package:muzik_app/providers/song_provider.dart';
 import 'package:muzik_app/models/song_model.dart';
 import 'package:muzik_app/services/audius_service.dart';
 import 'package:muzik_app/custom_icons.dart';
+import 'package:muzik_app/providers/language_provider.dart';
 
 class InitialArtistsPage extends StatefulWidget {
   final VoidCallback onCompleted;
@@ -101,6 +102,7 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
     final followedCount = provider.followedArtists.length;
     final canContinue = followedCount >= 3;
     final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+    final langProvider = context.watch<LanguageProvider>();
 
     // Eğer arama yapılıyorsa arama sonuçlarını, yapılmıyorsa önerileri göster
     final displayArtists = _searchQuery.isEmpty ? artists : _searchResults;
@@ -134,11 +136,11 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 20),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 24.0),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   child: Text(
-                    "Kimi Dinlemeyi\nSeversin?",
-                    style: TextStyle(
+                    langProvider.t('who_do_you_listen').replaceAll('?', '?\n'),
+                    style: const TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.w900,
                       color: Colors.white,
@@ -150,7 +152,7 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   child: Text(
-                    "Sana özel müzikler önerebilmemiz için en az 3 sanatçı seç. ($followedCount/3)",
+                    "${langProvider.t('select_at_least_3')} ($followedCount/3)",
                     style: TextStyle(fontSize: 15, color: Colors.grey.shade400),
                   ),
                 ),
@@ -168,7 +170,7 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
                           controller: _searchController,
                           style: const TextStyle(color: Colors.white),
                           decoration: InputDecoration(
-                            hintText: 'Sanatçı ara...',
+                            hintText: langProvider.t('search_artist'),
                             hintStyle: TextStyle(color: Colors.grey.shade500),
                             prefixIcon: Padding(
                               padding: const EdgeInsets.all(12.0),
@@ -273,10 +275,13 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
                           ),
                         )
                       : displayArtists.isEmpty && _searchQuery.isNotEmpty
-                      ? const Center(
+                      ? Center(
                           child: Text(
-                            "Sonuç bulunamadı",
-                            style: TextStyle(color: Colors.grey, fontSize: 16),
+                            langProvider.t('no_results'),
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontSize: 16,
+                            ),
                           ),
                         )
                       : GridView.builder(
@@ -366,7 +371,22 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
                                               ),
                                             )
                                           : Container(
-                                              color: Colors.grey.shade800,
+                                              color: Colors.white.withOpacity(
+                                                0.05,
+                                              ),
+                                              child: Center(
+                                                child: SizedBox(
+                                                  width: 24,
+                                                  height: 24,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        color: Theme.of(
+                                                          context,
+                                                        ).primaryColor,
+                                                        strokeWidth: 2.5,
+                                                      ),
+                                                ),
+                                              ),
                                             ),
                                       // Alt kısımdaki isim okunsun diye Gradient karartma
                                       Container(
@@ -470,47 +490,105 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
                 ),
                 child: Row(
                   children: [
-                    TextButton(
-                      onPressed: _finishSelection,
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 16,
-                        ),
-                      ),
-                      child: const Text(
-                        "Atla",
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                    Expanded(
+                      flex: 1,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.15),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: _finishSelection,
+                                borderRadius: BorderRadius.circular(20),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      langProvider.t('skip'),
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: SizedBox(
-                        height: 56,
-                        child: ElevatedButton(
-                          onPressed: canContinue ? _finishSelection : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Theme.of(context).primaryColor,
-                            foregroundColor: Colors.white,
-                            disabledBackgroundColor: Colors.grey.shade800,
-                            disabledForegroundColor: Colors.grey.shade500,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(28),
+                      flex: 2,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: canContinue
+                                  ? Theme.of(
+                                      context,
+                                    ).primaryColor.withOpacity(0.2)
+                                  : Colors.white.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: canContinue
+                                    ? Theme.of(
+                                        context,
+                                      ).primaryColor.withOpacity(0.5)
+                                    : Colors.white.withOpacity(0.1),
+                                width: 1.5,
+                              ),
+                              boxShadow: canContinue
+                                  ? [
+                                      BoxShadow(
+                                        color: Theme.of(
+                                          context,
+                                        ).primaryColor.withOpacity(0.2),
+                                        blurRadius: 15,
+                                        spreadRadius: 1,
+                                      ),
+                                    ]
+                                  : [],
                             ),
-                            elevation: canContinue ? 8 : 0,
-                            shadowColor: Theme.of(
-                              context,
-                            ).primaryColor.withOpacity(0.5),
-                          ),
-                          child: const Text(
-                            "Devam Et",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: canContinue ? _finishSelection : null,
+                                borderRadius: BorderRadius.circular(20),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      langProvider.t('continue'),
+                                      style: TextStyle(
+                                        color: canContinue
+                                            ? Colors.white
+                                            : Colors.grey.shade600,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ),

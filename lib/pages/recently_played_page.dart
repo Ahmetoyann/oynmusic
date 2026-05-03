@@ -9,6 +9,7 @@ import 'package:muzik_app/widgets/song_card.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:muzik_app/widgets/custom_app_bar.dart';
+import 'package:muzik_app/providers/language_provider.dart';
 
 class RecentlyPlayedPage extends StatefulWidget {
   const RecentlyPlayedPage({super.key});
@@ -28,26 +29,29 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
   }
 
   void _showClearHistoryDialog(BuildContext context) {
+    final langProvider = context.read<LanguageProvider>();
+
     CustomBottomSheet.show(
       context: context,
-      title: 'Geçmişi Temizle',
-      message: 'Tüm dinleme geçmişiniz silinsin mi? Bu işlem geri alınamaz.',
-      primaryButtonText: 'Temizle',
+      title: langProvider.t('clear_history'),
+      message: langProvider.t('clear_history_desc'),
+      primaryButtonText: langProvider.t('clear'),
       primaryButtonColor: Colors.redAccent,
-      secondaryButtonText: 'İptal',
+      secondaryButtonText: langProvider.t('cancel'),
       onPrimaryButtonTap: () {
         context.read<SongProvider>().clearRecentlyPlayed();
         Navigator.pop(context);
         CustomSnackBar.showError(
           context: context,
-          message: "Geçmiş temizlendi",
+          message: langProvider.t('history_cleared'),
         );
       },
     );
   }
 
-  String _getDateHeader(DateTime? date) {
-    if (date == null) return 'Daha Önce';
+  String _getDateHeader(BuildContext context, DateTime? date) {
+    final langProvider = context.read<LanguageProvider>();
+    if (date == null) return langProvider.t('older');
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
@@ -55,19 +59,20 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
     final dateToCheck = DateTime(date.year, date.month, date.day);
 
     if (dateToCheck.isAtSameMomentAs(today)) {
-      return 'Bugün';
+      return langProvider.t('today');
     } else if (dateToCheck.isAtSameMomentAs(yesterday)) {
-      return 'Dün';
+      return langProvider.t('yesterday');
     } else if (dateToCheck.isAfter(aWeekAgo)) {
-      return 'Bu Hafta';
+      return langProvider.t('this_week');
     } else {
-      return 'Daha Önce';
+      return langProvider.t('older');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final songProvider = context.watch<SongProvider>();
+    final langProvider = context.watch<LanguageProvider>();
     final allSongs = songProvider.recentlyPlayed;
 
     // Arama filtresi
@@ -80,7 +85,7 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
     // Gruplama işlemi
     final Map<String, List<Song>> groupedSongs = {};
     for (var song in displayedSongs) {
-      final header = _getDateHeader(song.lastPlayed);
+      final header = _getDateHeader(context, song.lastPlayed);
       if (!groupedSongs.containsKey(header)) {
         groupedSongs[header] = [];
       }
@@ -89,7 +94,7 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
 
     return Scaffold(
       extendBody: true,
-      appBar: const CustomAppBar(title: 'En Son Dinlediklerin'),
+      appBar: CustomAppBar(title: langProvider.t('recently_played')),
       bottomNavigationBar: songProvider.currentSong != null
           ? Container(
               decoration: BoxDecoration(
@@ -129,7 +134,7 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
               controller: _searchController,
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
-                hintText: 'Geçmişte ara...',
+                hintText: langProvider.t('search_in_history'),
                 prefixIcon: Padding(
                   padding: const EdgeInsets.all(12.0),
                   child: CustomIcons.svgIcon(
@@ -173,7 +178,7 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
                     size: 18,
                     color: Colors.redAccent,
                   ),
-                  label: const Text("Geçmişi Temizle"),
+                  label: Text(langProvider.t('clear_history')),
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.redAccent,
                     backgroundColor: Colors.redAccent.withOpacity(0.1),
@@ -247,6 +252,8 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
   }
 
   Widget _buildEmptyState(BuildContext context, bool isEmptyHistory) {
+    final langProvider = context.watch<LanguageProvider>();
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -265,7 +272,9 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
           ),
           const SizedBox(height: 24),
           Text(
-            isEmptyHistory ? 'Henüz Geçmiş Yok' : 'Sonuç Bulunamadı',
+            isEmptyHistory
+                ? langProvider.t('no_history')
+                : langProvider.t('no_results'),
             style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -275,8 +284,8 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
           const SizedBox(height: 12),
           Text(
             isEmptyHistory
-                ? 'Dinlediğiniz şarkılar burada görünecek.'
-                : 'Aradığınız kriterlere uygun şarkı bulunamadı.',
+                ? langProvider.t('no_history_desc')
+                : langProvider.t('try_different_search'),
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
           ),

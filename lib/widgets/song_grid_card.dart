@@ -2,6 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:muzik_app/models/song_model.dart';
 import 'package:muzik_app/custom_icons.dart';
+import 'package:muzik_app/widgets/song_card.dart';
+import 'package:provider/provider.dart';
+import 'package:muzik_app/providers/song_provider.dart';
 
 class SongGridCard extends StatelessWidget {
   final Song? song;
@@ -27,8 +30,19 @@ class SongGridCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isFav = song != null && showFavorite
+        ? context.select<SongProvider, bool>(
+            (p) => p.favoriteSongs.any((s) => s.id == song!.id),
+          )
+        : false;
+
     return GestureDetector(
       onTap: onTap,
+      onLongPress: song != null
+          ? () {
+              SongCard.showModernMenu(context, song!);
+            }
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -91,6 +105,23 @@ class SongGridCard extends StatelessWidget {
                                     ),
                                   ),
                             ),
+                      if (isFav)
+                        Positioned(
+                          top: 6,
+                          right: 6,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.6),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.favorite_rounded,
+                              color: Theme.of(context).primaryColor,
+                              size: 14,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),

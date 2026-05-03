@@ -12,15 +12,19 @@ import 'package:muzik_app/widgets/song_card.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:muzik_app/pages/login_page.dart';
+import 'package:muzik_app/providers/language_provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ArtistDetailPage extends StatefulWidget {
   final String artistName;
   final List<Song> songs;
+  final bool isCollection;
 
   const ArtistDetailPage({
     super.key,
     required this.artistName,
     required this.songs,
+    this.isCollection = false,
   });
 
   @override
@@ -136,6 +140,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
 
   @override
   Widget build(BuildContext context) {
+    final langProvider = context.watch<LanguageProvider>();
     // Favori durumlarını dinlemek için watch kullanıyoruz
     final songProvider = context.watch<SongProvider>();
     final coverUrl = _songs.isNotEmpty ? _songs.first.coverUrl : '';
@@ -182,10 +187,24 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         slivers: [
           SliverAppBar(
-            expandedHeight: 340.0,
+            expandedHeight: 390.0,
             pinned: true,
             stretch: true,
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            surfaceTintColor: Colors.transparent,
+            scrolledUnderElevation: 0,
+            title: Text(
+              widget.artistName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                shadows: [Shadow(color: Colors.black, blurRadius: 10)],
+              ),
+            ),
+            centerTitle: true,
             leading: Center(
               child: Container(
                 width: 46,
@@ -195,30 +214,19 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
                   color: Colors.black.withOpacity(
                     0.4,
                   ), // Kapak resmi üzerinde okunabilir olması için yarı saydam siyah
-                  borderRadius: BorderRadius.circular(12),
+                  shape: BoxShape.circle,
                   border: Border.all(color: Colors.grey.withOpacity(0.2)),
                 ),
                 child: IconButton(
                   padding: EdgeInsets.zero,
                   icon: const BackButtonIcon(),
-                  color: Theme.of(context).primaryColor,
+                  color: Colors.white,
                   iconSize: 27,
                   onPressed: () => Navigator.pop(context),
                 ),
               ),
             ),
             flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                widget.artistName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  shadows: [Shadow(color: Colors.black, blurRadius: 10)],
-                ),
-              ),
-              centerTitle: true,
               background: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -229,10 +237,10 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
                               coverUrl.contains('youtube.com'))
                           ? 1.35
                           : 1.0,
-                      child: Image.network(
-                        coverUrl,
+                      child: CachedNetworkImage(
+                        imageUrl: coverUrl,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
+                        errorWidget: (context, url, error) => Container(
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [Colors.grey.shade900, Colors.black],
@@ -248,6 +256,23 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
                       filter: ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
                       child: Container(color: Colors.black.withOpacity(0.4)),
                     ),
+                  // Alt kısımdan yukarı doğru kararan (fade) degrade geçişi
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Theme.of(
+                            context,
+                          ).scaffoldBackgroundColor.withOpacity(0.6),
+                          Theme.of(context).scaffoldBackgroundColor,
+                        ],
+                        stops: const [0.5, 0.85, 1.0],
+                      ),
+                    ),
+                  ),
                   Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -273,110 +298,247 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
                                       coverUrl.contains('youtube.com'))
                                   ? 1.35
                                   : 1.0,
-                              child: Image.network(
-                                coverUrl,
+                              child: CachedNetworkImage(
+                                imageUrl: coverUrl,
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          colors: [
-                                            Colors.grey.shade800,
-                                            Colors.black,
-                                          ],
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                        ),
-                                      ),
-                                      child: Center(
-                                        child: CustomIcons.svgIcon(
-                                          CustomIcons.person,
-                                          size: 60,
-                                          color: Colors.white24,
-                                        ),
-                                      ),
+                                errorWidget: (context, url, error) => Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        Colors.grey.shade800,
+                                        Colors.black,
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
                                     ),
+                                  ),
+                                  child: Center(
+                                    child: CustomIcons.svgIcon(
+                                      CustomIcons.person,
+                                      size: 60,
+                                      color: Colors.white24,
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      const SizedBox(height: 16),
-                      Consumer<SongProvider>(
-                        builder: (context, provider, _) {
-                          final isFollowed = provider.isArtistFollowed(
-                            widget.artistName,
-                          );
+                      if (!widget.isCollection) const SizedBox(height: 16),
+                      if (!widget.isCollection)
+                        Consumer<SongProvider>(
+                          builder: (context, provider, _) {
+                            final isFollowed = provider.isArtistFollowed(
+                              widget.artistName,
+                            );
 
-                          final primaryColor = Theme.of(context).primaryColor;
-                          Color borderColor;
-                          Color bgColor;
-                          Widget content;
+                            final primaryColor = Theme.of(context).primaryColor;
+                            Color borderColor;
+                            Color bgColor;
+                            Widget content;
 
-                          if (isFollowed) {
-                            borderColor = primaryColor.withOpacity(0.5);
-                            bgColor = primaryColor.withOpacity(0.1);
-                            content = Row(
-                              key: const ValueKey('followed'),
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.check_rounded,
-                                  color: primaryColor,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  "Takip Ediliyor",
-                                  style: TextStyle(
+                            if (isFollowed) {
+                              borderColor = primaryColor.withOpacity(0.5);
+                              bgColor = primaryColor.withOpacity(0.1);
+                              content = Row(
+                                key: const ValueKey('followed'),
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.check_rounded,
                                     color: primaryColor,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
+                                    size: 20,
                                   ),
-                                ),
-                              ],
-                            );
-                          } else {
-                            borderColor = Colors.white.withOpacity(0.2);
-                            bgColor = Colors.black.withOpacity(0.4);
-                            content = Row(
-                              key: const ValueKey('follow'),
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.person_add_alt_1_rounded,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 8),
-                                const Text(
-                                  "Takip Et",
-                                  style: TextStyle(
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    langProvider.t('followed'),
+                                    style: TextStyle(
+                                      color: primaryColor,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            } else {
+                              borderColor = Colors.white.withOpacity(0.2);
+                              bgColor = Colors.black.withOpacity(0.4);
+                              content = Row(
+                                key: const ValueKey('follow'),
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.person_add_alt_1_rounded,
                                     color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    langProvider.t('follow'),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }
+
+                            return ClipRRect(
+                              borderRadius: BorderRadius.circular(30),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(
+                                  sigmaX: 10,
+                                  sigmaY: 10,
+                                ),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 300),
+                                  curve: Curves.easeInOut,
+                                  decoration: BoxDecoration(
+                                    color: bgColor,
+                                    borderRadius: BorderRadius.circular(30),
+                                    border: Border.all(
+                                      color: borderColor,
+                                      width: 1.5,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: borderColor.withOpacity(0.2),
+                                        blurRadius: 15,
+                                        spreadRadius: 1,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      onTap: () {
+                                        if (!provider.isFirebaseLoggedIn) {
+                                          _showLoginBottomSheet(context);
+                                          return;
+                                        }
+                                        provider.toggleFollowArtist(
+                                          widget.artistName,
+                                        );
+                                        CustomSnackBar.showInfo(
+                                          context: context,
+                                          message: isFollowed
+                                              ? "${widget.artistName} takipten çıkarıldı."
+                                              : "${widget.artistName} takip ediliyor.",
+                                        );
+                                      },
+                                      borderRadius: BorderRadius.circular(30),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 24,
+                                          vertical: 14,
+                                        ),
+                                        child: AnimatedSwitcher(
+                                          duration: const Duration(
+                                            milliseconds: 300,
+                                          ),
+                                          child: content,
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ],
+                              ),
                             );
-                          }
-
-                          return ClipRRect(
+                          },
+                        ),
+                    ],
+                  ),
+                  if (displayedSongs.isNotEmpty)
+                    Positioned(
+                      bottom: 16,
+                      left: 16,
+                      right: 16,
+                      child: Row(
+                        children: [
+                          // 1. Karışık Çal Butonu
+                          ClipRRect(
                             borderRadius: BorderRadius.circular(30),
                             child: BackdropFilter(
                               filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 300),
-                                curve: Curves.easeInOut,
+                              child: Container(
+                                width: 56,
+                                height: 56,
                                 decoration: BoxDecoration(
-                                  color: bgColor,
+                                  color: Colors.white.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(30),
                                   border: Border.all(
-                                    color: borderColor,
+                                    color: Colors.white.withOpacity(0.2),
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () {
+                                      if (displayedSongs.isNotEmpty) {
+                                        if (!songProvider.isShuffleEnabled) {
+                                          songProvider.toggleShuffle();
+                                        }
+                                        final random = Random();
+                                        final randomSong =
+                                            displayedSongs[random.nextInt(
+                                              displayedSongs.length,
+                                            )];
+                                        songProvider.playSong(
+                                          randomSong,
+                                          displayedSongs,
+                                        );
+                                        CustomSnackBar.showInfo(
+                                          context: context,
+                                          message: "Liste karışık çalınıyor.",
+                                          icon: CustomIcons.svgIcon(
+                                            CustomIcons.shuffle,
+                                            color: Colors.white,
+                                            size: 24,
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    borderRadius: BorderRadius.circular(30),
+                                    child: Center(
+                                      child: CustomIcons.svgIcon(
+                                        CustomIcons.shuffleRounded,
+                                        color: Colors.white,
+                                        size: 24,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          // 2. Oynat Butonu
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(30),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                              child: Container(
+                                width: 56,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  color: Theme.of(
+                                    context,
+                                  ).primaryColor.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(30),
+                                  border: Border.all(
+                                    color: Theme.of(
+                                      context,
+                                    ).primaryColor.withOpacity(0.5),
                                     width: 1.5,
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: borderColor.withOpacity(0.2),
+                                      color: Theme.of(
+                                        context,
+                                      ).primaryColor.withOpacity(0.2),
                                       blurRadius: 15,
                                       spreadRadius: 1,
                                     ),
@@ -386,42 +548,42 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
                                   color: Colors.transparent,
                                   child: InkWell(
                                     onTap: () {
-                                      if (!provider.isFirebaseLoggedIn) {
-                                        _showLoginBottomSheet(context);
-                                        return;
+                                      if (displayedSongs.isNotEmpty) {
+                                        if (songProvider.isShuffleEnabled) {
+                                          songProvider.toggleShuffle();
+                                        }
+                                        songProvider.playSong(
+                                          displayedSongs.first,
+                                          displayedSongs,
+                                        );
+                                        CustomSnackBar.showInfo(
+                                          context: context,
+                                          message: "Liste oynatılıyor.",
+                                          icon: CustomIcons.svgIcon(
+                                            CustomIcons.playArrow,
+                                            color: Colors.white,
+                                            size: 24,
+                                          ),
+                                        );
+                                        PlayerPage.show(context);
                                       }
-                                      provider.toggleFollowArtist(
-                                        widget.artistName,
-                                      );
-                                      CustomSnackBar.showInfo(
-                                        context: context,
-                                        message: isFollowed
-                                            ? "${widget.artistName} takipten çıkarıldı."
-                                            : "${widget.artistName} takip ediliyor.",
-                                      );
                                     },
                                     borderRadius: BorderRadius.circular(30),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 24,
-                                        vertical: 14,
-                                      ),
-                                      child: AnimatedSwitcher(
-                                        duration: const Duration(
-                                          milliseconds: 300,
-                                        ),
-                                        child: content,
+                                    child: Center(
+                                      child: CustomIcons.svgIcon(
+                                        CustomIcons.playArrowRounded,
+                                        color: Colors.white,
+                                        size: 28,
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
                             ),
-                          );
-                        },
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
                 ],
               ),
             ),
@@ -439,7 +601,11 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
                   controller: _searchController,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    hintText: '${widget.artistName} içinde ara...',
+                    hintText: widget.isCollection
+                        ? '${widget.artistName} içinde ara...'
+                        : langProvider
+                              .t('search_in_artist')
+                              .replaceAll('%s', widget.artistName),
                     hintStyle: TextStyle(color: Colors.grey.shade400),
                     prefixIcon: Padding(
                       padding: const EdgeInsets.all(12.0),
@@ -473,174 +639,6 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
                   onChanged: (value) => setState(() => _searchText = value),
                   onSubmitted: (_) => FocusScope.of(context).unfocus(),
                 ),
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 16.0,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(30),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(30),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.2),
-                              width: 1.5,
-                            ),
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () {
-                                if (displayedSongs.isNotEmpty) {
-                                  if (!songProvider.isShuffleEnabled) {
-                                    songProvider.toggleShuffle();
-                                  }
-                                  final random = Random();
-                                  final randomSong =
-                                      displayedSongs[random.nextInt(
-                                        displayedSongs.length,
-                                      )];
-                                  songProvider.playSong(
-                                    randomSong,
-                                    displayedSongs,
-                                  );
-                                  CustomSnackBar.showInfo(
-                                    context: context,
-                                    message: "Liste karışık çalınıyor.",
-                                    icon: CustomIcons.svgIcon(
-                                      CustomIcons.shuffle,
-                                      color: Colors.white,
-                                      size: 24,
-                                    ),
-                                  );
-                                }
-                              },
-                              borderRadius: BorderRadius.circular(30),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 14,
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    CustomIcons.svgIcon(
-                                      CustomIcons.shuffleRounded,
-                                      color: Colors.white,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const Text(
-                                      "Karışık",
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 15,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(30),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Theme.of(
-                              context,
-                            ).primaryColor.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(30),
-                            border: Border.all(
-                              color: Theme.of(
-                                context,
-                              ).primaryColor.withOpacity(0.5),
-                              width: 1.5,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Theme.of(
-                                  context,
-                                ).primaryColor.withOpacity(0.2),
-                                blurRadius: 15,
-                                spreadRadius: 1,
-                              ),
-                            ],
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () {
-                                if (displayedSongs.isNotEmpty) {
-                                  if (songProvider.isShuffleEnabled) {
-                                    songProvider.toggleShuffle();
-                                  }
-                                  songProvider.playSong(
-                                    displayedSongs.first,
-                                    displayedSongs,
-                                  );
-                                  CustomSnackBar.showInfo(
-                                    context: context,
-                                    message: "Liste oynatılıyor.",
-                                    icon: CustomIcons.svgIcon(
-                                      CustomIcons.playArrow,
-                                      color: Colors.white,
-                                      size: 24,
-                                    ),
-                                  );
-                                  PlayerPage.show(context);
-                                }
-                              },
-                              borderRadius: BorderRadius.circular(30),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 14,
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    CustomIcons.svgIcon(
-                                      CustomIcons.playArrowRounded,
-                                      color: Colors.white,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const Text(
-                                      "Oynat",
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 15,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ),
           ),
@@ -699,6 +697,8 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
   }
 
   Widget _buildEmptyState(BuildContext context) {
+    final langProvider = context.watch<LanguageProvider>();
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -716,9 +716,9 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
             ),
           ),
           const SizedBox(height: 24),
-          const Text(
-            'Sonuç Bulunamadı',
-            style: TextStyle(
+          Text(
+            langProvider.t('no_results'),
+            style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
               color: Colors.white,
@@ -726,7 +726,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
           ),
           const SizedBox(height: 12),
           Text(
-            'Aradığınız kriterlere uygun şarkı bulunamadı.',
+            langProvider.t('try_different_search'),
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
           ),
@@ -736,20 +736,23 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
   }
 
   void _showLoginBottomSheet(BuildContext context) {
+    final langProvider = context.read<LanguageProvider>();
+
     CustomBottomSheet.show(
       context: context,
-      title: "Takip Etmek için Giriş Yapın",
-      message:
-          "Sanatçıları takip etmek ve güncellemelerinden haberdar olmak için lütfen giriş yapın.",
+      title: langProvider.t('login_to_follow'),
+      message: langProvider.t('login_to_follow_desc'),
       icon: const Icon(
         Icons.person_add_disabled_rounded,
         size: 60,
         color: Colors.white70,
       ),
-      primaryButtonText: "Giriş Yap",
+      primaryButtonText: langProvider.t(
+        'login_to_continue',
+      ), // Veya "Giriş Yap"
       primaryButtonColor: Colors.white,
       primaryButtonTextColor: Colors.black,
-      secondaryButtonText: "İptal",
+      secondaryButtonText: langProvider.t('cancel'),
       onPrimaryButtonTap: () {
         Navigator.pop(context);
         Navigator.push(

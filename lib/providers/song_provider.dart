@@ -22,7 +22,8 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'dart:isolate';
 import 'dart:ui';
-import 'package:audiotags/audiotags.dart';
+import 'package:muzik_app/providers/language_provider.dart';
+import 'package:timezone/timezone.dart' as tz;
 
 @pragma('vm:entry-point')
 void backgroundNotificationHandler(NotificationResponse response) {
@@ -58,8 +59,7 @@ class SongProvider with ChangeNotifier {
   int _searchOffset = 0; // Arama sonuçları için sayfa takibi
   bool _isSearchLoadingMore = false; // Arama sonuçlarını yükleme durumu
   Timer? _searchDebounce;
-  String _searchFilter =
-      'Şarkılar'; // 'Şarkılar', 'Sanatçılar', 'Koleksiyonlar'
+  String _searchFilter = 'songs';
   bool _isLoadingMore = false; // Ekstra yükleme yapılıyor mu?
   List<Song> _recentlyPlayed = []; // Son dinlenenler listesi
   List<String> _searchHistory = [];
@@ -113,6 +113,24 @@ class SongProvider with ChangeNotifier {
   final Map<String, CancelToken> _downloadCancelTokens = {}; // İptal tokenları
   final Set<String> _cancelingDownloads = {}; // İptal edilmekte olan indirmeler
   final Set<String> _pausedDownloads = {}; // Duraklatılan indirmeler
+
+  // Sık güncellenen (her %1) indirme durumu için ValueNotifier kullanarak UI'ın gereksiz yere tamamen baştan çizilmesini önleriz
+  final Map<String, ValueNotifier<double?>> _downloadProgressNotifiers = {};
+  final Map<String, ValueNotifier<String>> _downloadDetailsNotifiers = {};
+  ValueNotifier<double?> getDownloadProgressNotifier(String id) {
+    return _downloadProgressNotifiers.putIfAbsent(
+      id,
+      () => ValueNotifier(_downloadProgress[id]),
+    );
+  }
+
+  ValueNotifier<String> getDownloadDetailsNotifier(String id) {
+    return _downloadDetailsNotifiers.putIfAbsent(
+      id,
+      () => ValueNotifier(_downloadDetails[id] ?? ""),
+    );
+  }
+
   int _totalListeningSeconds = 0; // Gerçek toplam dinleme süresi (saniye)
   Map<String, int> _songListeningSeconds = {}; // Şarkı bazlı dinleme süresi
   Timer? _listeningTimer; // Dinleme süresini takip eden zamanlayıcı
@@ -120,6 +138,10 @@ class SongProvider with ChangeNotifier {
   // YouTube algoritmasını her seferinde baştan çözmemek (15 sn hız kazanmak) için
   // sınıf seviyesinde kalıcı (persistent ve önbellekli) tek bir nesne kullanıyoruz.
   final YoutubeExplode _yt = YoutubeExplode();
+  bool _isFading =
+      false; // Sesin kısılarak azalma/artma animasyon durumunu tutar
+  bool _isFadingOutAtEnd =
+      false; // Şarkı bitmek üzereyken tetiklenip tetiklenmediğini tutar
   // Başlangıçta boş kalmaması için varsayılan popüler kategorileri ekliyoruz.
   List<String> _categories = [
     'Hepsi',
@@ -187,6 +209,45 @@ class SongProvider with ChangeNotifier {
   bool get isSleepTimerActive => _sleepTimer != null && _sleepTimer!.isActive;
   DateTime? get sleepTimerEndTime => _sleepTimerEndTime;
 
+  /// Şarkı geçişlerinde sesi yumuşatarak azaltır (Fade Out)
+  Future<void> _fadeOut() async {
+    if (!_isAudioServiceInitialized) return;
+    _isFading = true;
+    double startVolume = audioPlayer.volume;
+    int steps = 15;
+    int durationMs = 600;
+    int stepDuration = durationMs ~/ steps;
+
+    for (int i = steps; i >= 0; i--) {
+      if (!_isFading) break; // İptal edilirse çık
+      await audioPlayer.setVolume((i / steps) * startVolume);
+      await Future.delayed(Duration(milliseconds: stepDuration));
+    }
+  }
+
+  /// Yeni şarkı başladığında sesi yumuşatarak artırır (Fade In)
+  Future<void> _fadeIn() async {
+    if (!_isAudioServiceInitialized) return;
+    _isFading = true;
+    _isFadingOutAtEnd = false;
+    await audioPlayer.setVolume(0.0);
+
+    int steps = 15;
+    int durationMs = 800;
+    int stepDuration = durationMs ~/ steps;
+
+    for (int i = 0; i <= steps; i++) {
+      if (!_isFading) break; // İptal edilirse çık
+      await audioPlayer.setVolume(i / steps);
+      await Future.delayed(Duration(milliseconds: stepDuration));
+    }
+
+    if (_isFading) {
+      await audioPlayer.setVolume(1.0);
+      _isFading = false;
+    }
+  }
+
   Song? get currentSong {
     if (_currentSongIndex != null &&
         _currentSongIndex! >= 0 &&
@@ -225,9 +286,13 @@ class SongProvider with ChangeNotifier {
     fetchCategories();
     fetchSongsFromApi(); // Uygulama açılışında direkt çek
     _loadMostPlayed(); // En çok dinlenenleri yükle
+    _loadDailySongs(); // Günün şarkılarını (varsa) yükle
     _loadSettings();
     _initConnectivity();
     _initNotifications(); // Bildirim servisini başlat
+    _scheduleRetentionNotification(); // Haftalık hatırlatıcı (Retention) başlat
+    _scheduleDailyNotification(); // Günlük (Günün Şarkısı) hatırlatıcı başlat
+    _scheduleEveningNotifications(); // Akşam hatırlatıcılarını başlat
     _loadInterstitialAd(); // İlk reklamı yükle
     _startListeningTimer(); // Dinleme süresi takibini başlat
   }
@@ -365,20 +430,42 @@ class SongProvider with ChangeNotifier {
     await _notificationsPlugin.initialize(
       initializationSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) {
-        if (response.payload != null && response.actionId != null) {
-          try {
-            final Map<String, dynamic> songMap = jsonDecode(response.payload!);
-            final song = Song.fromMap(songMap);
+        if (response.payload != null) {
+          final payload = response.payload!;
 
-            if (response.actionId == 'pause') {
-              pauseDownload(song);
-            } else if (response.actionId == 'resume') {
-              downloadSong(song);
-            } else if (response.actionId == 'cancel') {
-              cancelDownload(song.id);
+          // Özel Hatırlatıcı Bildirimlere (Akşam, Günlük, Haftalık) tıklandıysa
+          if (payload == 'evening_notification' ||
+              payload == 'retention_notification' ||
+              payload == 'daily_notification') {
+            // Uygulama kapalıyken açılıyorsa verilerin yüklenmesi için kısa bir gecikme
+            Future.delayed(const Duration(milliseconds: 800), () {
+              if (navigatorKey.currentContext != null) {
+                // Şarkı çalmadan sadece Ana Sayfaya (Trendler) yönlendiriyoruz.
+                // 0: Trendler, 1: Arama, 2: Favoriler, 3: Kitaplık
+                mainScreenKey.currentState?.switchToTab(0);
+              }
+            });
+            return; // İndirme işlemlerine girmemesi için çık
+          }
+
+          // İndirme bildirimleri buton eylemleri (Duraklat, Devam Et, İptal)
+          if (response.actionId != null) {
+            try {
+              final Map<String, dynamic> songMap = jsonDecode(
+                response.payload!,
+              );
+              final song = Song.fromMap(songMap);
+
+              if (response.actionId == 'pause') {
+                pauseDownload(song);
+              } else if (response.actionId == 'resume') {
+                downloadSong(song);
+              } else if (response.actionId == 'cancel') {
+                cancelDownload(song.id);
+              }
+            } catch (e) {
+              debugPrint("Bildirim eylemi hatası: $e");
             }
-          } catch (e) {
-            debugPrint("Bildirim eylemi hatası: $e");
           }
         }
       },
@@ -391,6 +478,266 @@ class SongProvider with ChangeNotifier {
           AndroidFlutterLocalNotificationsPlugin
         >()
         ?.requestNotificationsPermission();
+  }
+
+  /// Dil değiştiğinde tüm planlı bildirimleri iptal edip yeni dilde tekrar kurar
+  Future<void> rescheduleAllNotifications() async {
+    try {
+      await _notificationsPlugin.cancel(999); // Haftalık
+      await _notificationsPlugin.cancel(998); // Günlük
+      for (int i = 0; i < 7; i++) {
+        await _notificationsPlugin.cancel(2000 + i); // Akşam
+      }
+
+      // Yeni dile göre tekrar planla
+      await _scheduleRetentionNotification();
+      await _scheduleDailyNotification();
+      await _scheduleEveningNotifications();
+    } catch (e) {
+      debugPrint("Bildirimleri yeniden planlama hatası: $e");
+    }
+  }
+
+  /// Kullanıcıyı uygulamaya geri çağırmak için periyodik hatırlatıcı kurar (Retention)
+  Future<void> _scheduleRetentionNotification() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lang = prefs.getString('language_code') ?? 'en';
+
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+          'retention_channel', // Kanal ID
+          'Haftalık Hatırlatmalar', // Kanal Adı
+          channelDescription:
+              'Uygulamaya geri dönmeniz için haftalık hatırlatmalar',
+          importance: Importance.high,
+          priority: Priority.high,
+        );
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+    );
+
+    final Map<String, String> titles = {
+      'tr': 'OYN Music Seni Bekliyor! 🚀🎧',
+      'fr': 'OYN Music vous attend ! 🚀🎧',
+      'de': 'OYN Music wartet auf dich! 🚀🎧',
+      'es': '¡OYN Music te espera! 🚀🎧',
+      'ar': 'OYN Music بانتظارك! 🚀🎧',
+    };
+
+    final Map<String, String> bodies = {
+      'tr':
+          'Haftalık en çok dinlediğin şarkılar ve sana özel yeni keşifler hazır. Hemen dinlemeye başla!',
+      'fr':
+          'Vos chansons les plus écoutées et de nouvelles découvertes sont prêtes. Écoutez maintenant !',
+      'de':
+          'Deine meistgespielten Songs und neue Entdeckungen sind bereit. Jetzt anhören!',
+      'es':
+          'Tus canciones más escuchadas y nuevos descubrimientos están listos. ¡Escucha ahora!',
+      'ar': 'أغانيك الأكثر استماعاً واكتشافات جديدة جاهزة. استمع الآن!',
+    };
+
+    try {
+      // Her hafta tekrarlayan bir bildirim planlar
+      await _notificationsPlugin.periodicallyShow(
+        999, // Sabit Bildirim ID'si
+        titles[lang] ?? 'OYN Music is Waiting for You! 🚀🎧',
+        bodies[lang] ??
+            'Your weekly most played songs and new discoveries are ready. Start listening now!',
+        RepeatInterval.weekly, // Haftalık tekrar (daily de yapılabilir)
+        platformChannelSpecifics,
+        payload: 'retention_notification',
+      );
+    } catch (e) {
+      debugPrint("Hatırlatıcı bildirim kurulamadı: $e");
+    }
+  }
+
+  /// Kullanıcıyı her gün "Günün Şarkısı" için uygulamaya davet eder
+  Future<void> _scheduleDailyNotification() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lang = prefs.getString('language_code') ?? 'en';
+
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+          'daily_channel', // Kanal ID
+          'Günlük Hatırlatmalar', // Kanal Adı
+          channelDescription: 'Günün şarkısı için günlük hatırlatmalar',
+          importance: Importance.high,
+          priority: Priority.high,
+        );
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+    );
+
+    final Map<String, String> titles = {
+      'tr': 'Günün Şarkısı Hazır! 💎',
+      'fr': 'La chanson du jour est prête ! 💎',
+      'de': 'Song des Tages ist bereit! 💎',
+      'es': '¡La canción del día está lista! 💎',
+      'ar': 'أغنية اليوم جاهزة! 💎',
+    };
+
+    final Map<String, String> bodies = {
+      'tr':
+          'Bugün senin için seçtiğimiz harika şarkıyı keşfetmek için hemen dinle!',
+      'fr':
+          'Écoutez maintenant pour découvrir la superbe chanson choisie pour vous !',
+      'de':
+          'Hör jetzt rein und entdecke den tollen Song, den wir für dich ausgewählt haben!',
+      'es':
+          '¡Escucha ahora para descubrir la gran canción que elegimos para ti hoy!',
+      'ar': 'استمع الآن لاكتشاف الأغنية الرائعة التي اخترناها لك اليوم!',
+    };
+
+    try {
+      // Her gün tekrarlayan bir bildirim planlar
+      await _notificationsPlugin.periodicallyShow(
+        998, // Sabit Bildirim ID'si
+        titles[lang] ?? 'Song of the Day is Ready! 💎',
+        bodies[lang] ??
+            'Listen now to discover the great song we picked for you today!',
+        RepeatInterval.daily,
+        platformChannelSpecifics,
+        payload: 'daily_notification',
+      );
+    } catch (e) {
+      debugPrint("Günlük bildirim kurulamadı: $e");
+    }
+  }
+
+  /// Gelecek 7 gün için 18:00 - 22:00 saatleri arasında rastgele bildirimler planlar
+  Future<void> _scheduleEveningNotifications() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lang = prefs.getString('language_code') ?? 'en';
+    final random = Random();
+
+    final Map<String, List<String>> allMessages = {
+      'tr': [
+        "Akşam keyfi OYN Music'te! Favori şarkıların seni bekliyor. 🛋️",
+        "Günün yorgunluğunu müzikle at. Hemen dinlemeye başla! 🍃",
+        "İyi akşamlar! Senin için hazırladığımız mix'lere göz at. 🔮",
+        "Müzik ruhun gıdasıdır. Akşam moduna uygun şarkılar burada. 🌙",
+      ],
+      'fr': [
+        "Ambiance du soir sur OYN Music ! Vos chansons préférées attendent. 🛋️",
+        "Soulagez le stress de la journée avec la musique. Écoutez maintenant ! 🍃",
+        "Bonsoir ! Découvrez les mix que nous avons préparés pour vous. 🔮",
+        "La musique nourrit l'âme. Les chansons pour le soir sont ici. 🌙",
+      ],
+      'de': [
+        "Abendstimmung auf OYN Music! Deine Lieblingssongs warten. 🛋️",
+        "Bau den Stress des Tages mit Musik ab. Jetzt anhören! 🍃",
+        "Guten Abend! Schau dir die Mixe an, die wir für dich vorbereitet haben. 🔮",
+        "Musik ist Balsam für die Seele. Abendsongs sind hier. 🌙",
+      ],
+      'es': [
+        "¡Ambiente nocturno en OYN Music! Tus canciones favoritas te esperan. 🛋️",
+        "Alivia el estrés del día con música. ¡Escucha ahora! 🍃",
+        "¡Buenas noches! Mira las mezclas que preparamos para ti. 🔮",
+        "La música alimenta el alma. Las canciones para la noche están aquí. 🌙",
+      ],
+      'ar': [
+        "أجواء المساء على OYN Music! أغانيك المفضلة بانتظارك. 🛋️",
+        "تخلص من ضغوط اليوم مع الموسيقى. استمع الآن! 🍃",
+        "مساء الخير! تفقد المقاطع التي أعددناها لك. 🔮",
+        "الموسيقى غذاء الروح. أغاني المساء هنا. 🌙",
+      ],
+    };
+
+    final Map<String, String> titles = {
+      'tr': 'İyi Akşamlar! 🌆',
+      'fr': 'Bonsoir ! 🌆',
+      'de': 'Guten Abend! 🌆',
+      'es': '¡Buenas tardes! 🌆',
+      'ar': 'مساء الخير! 🌆',
+    };
+
+    final messages =
+        allMessages[lang] ??
+        allMessages['en'] ??
+        [
+          "Evening vibes on OYN Music! Your favorite songs are waiting. 🛋️",
+          "Relieve the day's stress with music. Start listening now! 🍃",
+          "Good evening! Check out the mixes we prepared for you. 🔮",
+          "Music is food for the soul. Evening mood songs are here. 🌙",
+        ];
+    final title = titles[lang] ?? 'Good Evening! 🌆';
+
+    // Uygulama her açıldığında bu döngü çalışır ve bugünden itibaren 7 günlük planı tazeler
+    for (int i = 0; i < 7; i++) {
+      final now = tz.TZDateTime.now(tz.local);
+
+      // Rastgele Saat (18, 19, 20 veya 21) ve Rastgele Dakika (0-59)
+      final int randomHour = 18 + random.nextInt(4);
+      final int randomMinute = random.nextInt(60);
+
+      var scheduledDate = tz.TZDateTime(
+        tz.local,
+        now.year,
+        now.month,
+        now.day,
+        randomHour,
+        randomMinute,
+      ).add(Duration(days: i));
+
+      // Eğer belirlenen gün ve saat şu anki zamandan gerideyse (örneğin bugün saat 23:00 ise) o günü atla
+      if (scheduledDate.isBefore(now)) continue;
+
+      final randomMessage = messages[random.nextInt(messages.length)];
+
+      try {
+        await _notificationsPlugin.zonedSchedule(
+          2000 +
+              i, // 2000, 2001.. Her gün için farklı ID atanır, eski planlar ezilir
+          title,
+          randomMessage,
+          scheduledDate,
+          const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'evening_channel',
+              'Akşam Hatırlatmaları',
+              channelDescription: 'Akşam saatlerinde rastgele hatırlatmalar',
+              importance: Importance.high,
+              priority: Priority.high,
+            ),
+          ),
+          // PİL DOSTU YAKLAŞIM: Cihaz uyku modundayken bile kısıtlamaları esneterek tetikler ama kesin milisaniye hassasiyeti istemediğimiz için pili sömürmez.
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          uiLocalNotificationDateInterpretation:
+              UILocalNotificationDateInterpretation.absoluteTime,
+          payload: 'evening_notification',
+        );
+      } catch (e) {
+        debugPrint("Akşam bildirimi planlanamadı: $e");
+      }
+    }
+  }
+
+  Future<void> _loadDailySongs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? date = prefs.getString('daily_songs_date');
+    final String today = DateTime.now().toIso8601String().substring(0, 10);
+
+    if (date == today) {
+      final String? jsonString = prefs.getString('daily_songs');
+      if (jsonString != null) {
+        try {
+          final List<dynamic> jsonList = jsonDecode(jsonString);
+          _dailySongs = jsonList.map((e) => Song.fromMap(e)).toList();
+          notifyListeners();
+        } catch (e) {}
+      }
+    }
+  }
+
+  Future<void> _saveDailySongs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String today = DateTime.now().toIso8601String().substring(0, 10);
+    await prefs.setString('daily_songs_date', today);
+    await prefs.setString(
+      'daily_songs',
+      jsonEncode(_dailySongs.map((s) => s.toJson()).toList()),
+    );
   }
 
   void _checkConnection(List<ConnectivityResult> results) {
@@ -424,9 +771,13 @@ class SongProvider with ChangeNotifier {
           audioPlayer.pause();
 
           if (navigatorKey.currentContext != null) {
+            final langProvider = Provider.of<LanguageProvider>(
+              navigatorKey.currentContext!,
+              listen: false,
+            );
             CustomSnackBar.showError(
               context: navigatorKey.currentContext!,
-              message: "İnternet kesildiği için oynatma duraklatıldı.",
+              message: langProvider.t('playback_paused_offline'),
             );
           }
         }
@@ -436,9 +787,13 @@ class SongProvider with ChangeNotifier {
           audioPlayer.play();
           _wasPlayingBeforeInterruption = false;
           if (navigatorKey.currentContext != null) {
+            final langProvider = Provider.of<LanguageProvider>(
+              navigatorKey.currentContext!,
+              listen: false,
+            );
             CustomSnackBar.showSuccess(
               context: navigatorKey.currentContext!,
-              message: "Bağlantı sağlandı, oynatma devam ediyor.",
+              message: langProvider.t('playback_resumed_online'),
             );
           }
         }
@@ -639,7 +994,10 @@ class SongProvider with ChangeNotifier {
         await FirebaseFirestore.instance
             .collection('users')
             .doc(_currentUser!.uid)
-            .set({'seenInitialArtists': true}, SetOptions(merge: true));
+            .set({
+              'seenInitialArtists': true,
+              'followedArtists': _followedArtists,
+            }, SetOptions(merge: true));
       } catch (e) {
         debugPrint("seenInitialArtists kaydetme hatası: $e");
       }
@@ -715,8 +1073,15 @@ class SongProvider with ChangeNotifier {
 
       // Günün şarkılarını belirle (Eğer liste boş değilse)
       if (_allSongs.isNotEmpty) {
-        _dailySongs = List<Song>.from(_allSongs)..shuffle();
-        _dailySongs = _dailySongs.take(10).toList();
+        final prefs = await SharedPreferences.getInstance();
+        final String? date = prefs.getString('daily_songs_date');
+        final String today = DateTime.now().toIso8601String().substring(0, 10);
+
+        if (date != today || _dailySongs.isEmpty) {
+          _dailySongs = List<Song>.from(_allSongs)..shuffle();
+          _dailySongs = _dailySongs.take(10).toList();
+          _saveDailySongs();
+        }
       }
     } catch (e) {
       debugPrint("Şarkı çekme hatası: $e");
@@ -813,6 +1178,26 @@ class SongProvider with ChangeNotifier {
       // Bildirimden gelen Sonraki/Önceki komutlarını dinle
       _audioHandler.skipNextStream.listen((_) => playNext(userInitiated: true));
       _audioHandler.skipPrevStream.listen((_) => playPrevious());
+
+      // Şarkının son 1.5 saniyesinde fade out (Sesi kısarak bitirme) başlatır
+      _audioHandler.audioPlayer.positionStream.listen((position) {
+        final duration = _audioHandler.audioPlayer.duration;
+        if (duration != null && duration.inMilliseconds > 5000) {
+          final remainingMs = duration.inMilliseconds - position.inMilliseconds;
+          if (remainingMs <= 1500 &&
+              remainingMs > 0 &&
+              !_isFadingOutAtEnd &&
+              _audioHandler.audioPlayer.playing) {
+            _isFadingOutAtEnd = true;
+            _fadeOut();
+          } else if (remainingMs > 1500 && _isFadingOutAtEnd) {
+            // Eğer kullanıcı şarkıyı geri sararsa fade out'u iptal et ve sesi geri aç
+            _isFadingOutAtEnd = false;
+            _isFading = false;
+            _audioHandler.audioPlayer.setVolume(1.0);
+          }
+        }
+      });
     } catch (e) {
       _isAudioServiceInitialized = false;
       rethrow;
@@ -1191,14 +1576,43 @@ class SongProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      String finalQuery = query;
-      if (_searchFilter == 'Sanatçılar') {
-        finalQuery = '$query sanatçı';
-      } else if (_searchFilter == 'Koleksiyonlar') {
-        finalQuery = '$query full albüm';
+      String finalQuery = query.trim();
+      if (_searchFilter == 'artists') {
+        if (!finalQuery.toLowerCase().contains('sanatçı') &&
+            !finalQuery.toLowerCase().contains('artist')) {
+          finalQuery = '$finalQuery sanatçı';
+        }
+      } else if (_searchFilter == 'collections') {
+        if (!finalQuery.toLowerCase().contains('mix') &&
+            !finalQuery.toLowerCase().contains('albüm')) {
+          finalQuery = '$finalQuery mix';
+        }
       }
 
       final results = await YoutubeService.searchSongs(finalQuery);
+
+      // Koleksiyonlar sekmesindeysek; başlığında mix/albüm/set geçenleri en üste taşı (Filtre Detaylandırması)
+      if (_searchFilter == 'collections') {
+        results.sort((a, b) {
+          final aTitle = a.title.toLowerCase();
+          final bTitle = b.title.toLowerCase();
+          final aIsMix =
+              aTitle.contains('mix') ||
+              aTitle.contains('albüm') ||
+              aTitle.contains('album') ||
+              aTitle.contains('playlist') ||
+              aTitle.contains('set');
+          final bIsMix =
+              bTitle.contains('mix') ||
+              bTitle.contains('albüm') ||
+              bTitle.contains('album') ||
+              bTitle.contains('playlist') ||
+              bTitle.contains('set');
+          if (aIsMix && !bIsMix) return -1;
+          if (!aIsMix && bIsMix) return 1;
+          return 0;
+        });
+      }
       _searchResults = results;
     } catch (e) {
       debugPrint("Arama hatası: $e");
@@ -1241,27 +1655,26 @@ class SongProvider with ChangeNotifier {
       );
     }).toList();
 
-    // Statik Top 10 Albüm
-    final List<Map<String, String>> topAlbums = [
-      {'title': 'Fatih', 'artist': 'Mabel Matiz'},
-      {'title': 'Romantik', 'artist': 'Motive'},
-      {'title': 'Parti İptal', 'artist': 'Emir Can İğrek'},
-      {'title': 'Karanlık', 'artist': 'Dedublüman'},
-      {'title': 'Yürek', 'artist': 'Sezen Aksu'},
-      {'title': 'Darmaduman', 'artist': 'Duman'},
-      {'title': 'Merdiven', 'artist': 'Melike Şahin'},
-      {'title': 'Gülümse', 'artist': 'Sezen Aksu'},
-      {'title': 'Şarkılar Bizi Söyler', 'artist': 'Müslüm Gürses'},
-      {'title': 'Akustik', 'artist': 'Semicenk'},
+    // Statik Popüler Mix İsimleri (Gerçek YouTube mix'leri aranacak)
+    final List<String> topMixes = [
+      'Türkçe Pop Mix',
+      'Semicenk Mix',
+      'Sezen Aksu Mix',
+      'Yabancı Hit Mix',
+      'Arabesk Mix',
+      '90lar Pop Mix',
+      'Rap Mix',
+      'Akustik Mix',
+      'Slow Müzik Mix',
+      'Yaz Şarkıları Mix',
     ];
 
-    _suggestedAlbums = topAlbums.asMap().entries.map((entry) {
-      final title = entry.value['title']!;
-      final artist = entry.value['artist']!;
+    _suggestedAlbums = topMixes.asMap().entries.map((entry) {
+      final mixName = entry.value;
       return Song(
-        id: 'album_${entry.key}',
-        title: title,
-        artist: artist,
+        id: 'mix_${entry.key}',
+        title: mixName,
+        artist: 'YouTube Mix',
         coverUrl: '', // Yüklenirken shimmer görünmesi için boş bırakıyoruz
         audioUrl: '',
       );
@@ -1294,19 +1707,22 @@ class SongProvider with ChangeNotifier {
     }
 
     // API'den arkaplanda gerçek resimleri çek
-    _fetchRealCoversForSuggestions(topArtists, topAlbums);
+    _fetchRealCoversForSuggestions(topArtists, topMixes);
   }
 
   Future<void> _fetchRealCoversForSuggestions(
     List<String> artists,
-    List<Map<String, String>> albums,
+    List<String> mixes,
   ) async {
+    // Sanatçı resimlerini ağı tıkamamak için sırayla (sequential) çekiyoruz.
+    // Böylece 20 istek aynı anda kilitlenmez, resimler bulundukça tek tek anında ekrana düşer.
     for (int i = 0; i < artists.length; i++) {
+      final String artistName = artists[i];
       try {
-        final results = await YoutubeService.searchSongs(artists[i], limit: 1);
+        final results = await YoutubeService.searchSongs(artistName, limit: 1);
         final realCover = results.isNotEmpty
             ? results.first.coverUrl
-            : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(artists[i])}&background=random&color=fff&size=200';
+            : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(artistName)}&background=random&color=fff&size=200';
 
         _suggestedArtists[i] = Song(
           id: _suggestedArtists[i].id,
@@ -1322,36 +1738,46 @@ class SongProvider with ChangeNotifier {
           title: _suggestedArtists[i].title,
           artist: _suggestedArtists[i].artist,
           coverUrl:
-              'https://ui-avatars.com/api/?name=${Uri.encodeComponent(artists[i])}&background=random&color=fff&size=200',
+              'https://ui-avatars.com/api/?name=${Uri.encodeComponent(artistName)}&background=random&color=fff&size=200',
           audioUrl: '',
         );
         notifyListeners();
       }
     }
 
-    for (int i = 0; i < albums.length; i++) {
+    // Mix resimlerini ve gerçek video verilerini sırayla çekiyoruz
+    for (int i = 0; i < mixes.length; i++) {
+      final String mixName = mixes[i];
       try {
-        final query = "${albums[i]['artist']} ${albums[i]['title']} full albüm";
-        final results = await YoutubeService.searchSongs(query, limit: 1);
-        final realCover = results.isNotEmpty
-            ? results.first.coverUrl
-            : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(albums[i]['title']!)}&background=random&color=fff&size=200';
-
-        _suggestedAlbums[i] = Song(
-          id: _suggestedAlbums[i].id,
-          title: _suggestedAlbums[i].title,
-          artist: _suggestedAlbums[i].artist,
-          coverUrl: realCover,
-          audioUrl: '',
-        );
+        final results = await YoutubeService.searchSongs(mixName, limit: 1);
+        if (results.isNotEmpty) {
+          final realMix = results.first;
+          _suggestedAlbums[i] = Song(
+            id: realMix.id, // Gerçek YouTube ID'si
+            title: mixName,
+            artist: realMix.artist,
+            coverUrl: realMix.coverUrl,
+            audioUrl: realMix.audioUrl,
+            duration: realMix.duration,
+          );
+        } else {
+          _suggestedAlbums[i] = Song(
+            id: _suggestedAlbums[i].id,
+            title: mixName,
+            artist: 'YouTube Mix',
+            coverUrl:
+                'https://ui-avatars.com/api/?name=${Uri.encodeComponent(mixName)}&background=random&color=fff&size=200',
+            audioUrl: '',
+          );
+        }
         notifyListeners();
       } catch (_) {
         _suggestedAlbums[i] = Song(
           id: _suggestedAlbums[i].id,
-          title: _suggestedAlbums[i].title,
-          artist: _suggestedAlbums[i].artist,
+          title: mixName,
+          artist: 'YouTube Mix',
           coverUrl:
-              'https://ui-avatars.com/api/?name=${Uri.encodeComponent(albums[i]['title']!)}&background=random&color=fff&size=200',
+              'https://ui-avatars.com/api/?name=${Uri.encodeComponent(mixName)}&background=random&color=fff&size=200',
           audioUrl: '',
         );
         notifyListeners();
@@ -1369,11 +1795,17 @@ class SongProvider with ChangeNotifier {
     try {
       int currentOffset = _searchResults.length;
 
-      String finalQuery = _searchText;
-      if (_searchFilter == 'Sanatçılar') {
-        finalQuery = '$_searchText sanatçı';
-      } else if (_searchFilter == 'Koleksiyonlar') {
-        finalQuery = '$_searchText full albüm';
+      String finalQuery = _searchText.trim();
+      if (_searchFilter == 'artists') {
+        if (!finalQuery.toLowerCase().contains('sanatçı') &&
+            !finalQuery.toLowerCase().contains('artist')) {
+          finalQuery = '$finalQuery sanatçı';
+        }
+      } else if (_searchFilter == 'collections') {
+        if (!finalQuery.toLowerCase().contains('mix') &&
+            !finalQuery.toLowerCase().contains('albüm')) {
+          finalQuery = '$finalQuery mix';
+        }
       }
 
       final results = await YoutubeService.searchSongs(
@@ -1382,6 +1814,27 @@ class SongProvider with ChangeNotifier {
       );
 
       if (results.isNotEmpty) {
+        if (_searchFilter == 'collections') {
+          results.sort((a, b) {
+            final aTitle = a.title.toLowerCase();
+            final bTitle = b.title.toLowerCase();
+            final aIsMix =
+                aTitle.contains('mix') ||
+                aTitle.contains('albüm') ||
+                aTitle.contains('album') ||
+                aTitle.contains('playlist') ||
+                aTitle.contains('set');
+            final bIsMix =
+                bTitle.contains('mix') ||
+                bTitle.contains('albüm') ||
+                bTitle.contains('album') ||
+                bTitle.contains('playlist') ||
+                bTitle.contains('set');
+            if (aIsMix && !bIsMix) return -1;
+            if (!aIsMix && bIsMix) return 1;
+            return 0;
+          });
+        }
         _searchResults.addAll(results);
       }
     } catch (e) {
@@ -1534,7 +1987,6 @@ class SongProvider with ChangeNotifier {
 
         // Her 10 saniyede bir UI'ı güncelle ve kaydet (performans için arka planda yormaz)
         if (_totalListeningSeconds % 10 == 0) {
-          notifyListeners();
           SharedPreferences.getInstance().then((prefs) {
             prefs.setInt('total_listening_seconds', _totalListeningSeconds);
             prefs.setString(
@@ -1745,6 +2197,7 @@ class SongProvider with ChangeNotifier {
       bool isDownloaded = false;
 
       // AKILLI İNDİRME DÖNGÜSÜ (Otomatik Duraklat/Devam Et)
+      int retryCount = 0; // Hata deneme sayacı
       while (!isDownloaded &&
           !_cancelingDownloads.contains(song.id) &&
           !_pausedDownloads.contains(song.id)) {
@@ -1881,6 +2334,7 @@ class SongProvider with ChangeNotifier {
             }, cancelOnError: true).asFuture();
 
             await sink.flush();
+            retryCount = 0; // İşlem başarılı olursa sayacı sıfırla
             isDownloaded = true; // Başarıyla bitti, döngüden çık
           } finally {
             await sink.close();
@@ -1895,6 +2349,14 @@ class SongProvider with ChangeNotifier {
             throw DioException(
               requestOptions: RequestOptions(),
               type: DioExceptionType.cancel,
+            );
+          }
+
+          // Eğer üst üste 3 kere hata verirse sonsuz döngüyü kır ve iptal et
+          retryCount++;
+          if (retryCount >= 3) {
+            throw Exception(
+              "Sunucu yanıt vermedi veya erişim reddedildi. Lütfen tekrar deneyin.",
             );
           }
 
@@ -1916,7 +2378,9 @@ class SongProvider with ChangeNotifier {
 
       // Resmi de indir
       try {
-        await dio.download(song.coverUrl, imagePath);
+        await dio
+            .download(song.coverUrl, imagePath)
+            .timeout(const Duration(seconds: 10));
         song.localImagePath = imagePath;
       } catch (e) {
         debugPrint("Resim indirme hatası: $e");
@@ -1947,28 +2411,6 @@ class SongProvider with ChangeNotifier {
             await File(imagePath).copy(publicImagePath);
           }
 
-          // Metadataları (Kapak resmi, Şarkı Adı, Sanatçı) ses dosyasına (m4a) gömme işlemi
-          try {
-            if (File(imagePath).existsSync()) {
-              final pictureBytes = await File(imagePath).readAsBytes();
-              final tag = Tag(
-                title: song.title,
-                trackArtist: song.artist,
-                album: "OYN Music",
-                pictures: [
-                  Picture(
-                    bytes: pictureBytes,
-                    mimeType: MimeType.jpeg,
-                    pictureType: PictureType.coverFront,
-                  ),
-                ],
-              );
-              await AudioTags.write(publicSavePath, tag);
-              debugPrint("Kapak resmi ve metadatalar dosyaya gömüldü.");
-            }
-          } catch (e) {
-            debugPrint("ID3 Tag ekleme hatası: $e");
-          }
           debugPrint("Şarkı genel klasöre kopyalandı: $publicSavePath");
         } catch (e) {
           debugPrint("Genel klasöre kopyalama hatası: $e");
@@ -1981,16 +2423,10 @@ class SongProvider with ChangeNotifier {
       _downloadedSongs.add(song);
       await _saveDownloadedSongs();
 
-      // İlerleme snackbar'ını gizle ve başarı snackbar'ını göster
-      if (navigatorKey.currentContext != null) {
-        ScaffoldMessenger.of(
-          navigatorKey.currentContext!,
-        ).hideCurrentSnackBar();
-        CustomSnackBar.showSuccess(
-          context: navigatorKey.currentContext!,
-          message: "İndirme Tamamlandı: ${song.title}",
-        );
-      }
+      notifyListeners(); // Arayüzün İndirildi animasyonunu anında başlatması için tetikle!
+
+      // Not: İlerleme bildiriminin (SnackBar) başarılı olduğunda aniden yeşile dönmesi
+      // ve kendi kendini kapatması CustomSnackBar içerisindeki isDownloaded kontrolüyle sağlanmaktadır.
 
       try {
         _showDownloadNotification(song); // İndirme bitince bildirim göster
@@ -2007,12 +2443,7 @@ class SongProvider with ChangeNotifier {
           // Duraklatıldı bildirimini ekranda tutmayı garantile
           _showDownloadProgressNotification(song, -1, -1);
         } else {
-          // İlerleme snackbar'ını gizle
-          if (navigatorKey.currentContext != null) {
-            ScaffoldMessenger.of(
-              navigatorKey.currentContext!,
-            ).hideCurrentSnackBar();
-          }
+          CustomSnackBar.hideCurrent(); // İlerleme snackbar'ını gizle
           // İptal durumunda bildirimi temizle
           _cancelNotification(song.id);
 
@@ -2022,19 +2453,18 @@ class SongProvider with ChangeNotifier {
           if (await file.exists()) await file.delete();
 
           if (navigatorKey.currentContext != null) {
+            final langProvider = Provider.of<LanguageProvider>(
+              navigatorKey.currentContext!,
+              listen: false,
+            );
             CustomSnackBar.showError(
               context: navigatorKey.currentContext!,
-              message: "İndirme iptal edildi",
+              message: langProvider.t('download_canceled'),
             );
           }
         }
       } else {
-        // İlerleme snackbar'ını gizle
-        if (navigatorKey.currentContext != null) {
-          ScaffoldMessenger.of(
-            navigatorKey.currentContext!,
-          ).hideCurrentSnackBar();
-        }
+        CustomSnackBar.hideCurrent(); // İlerleme snackbar'ını gizle
         // Diğer hata durumlarında bildirimi iptal et
         _cancelNotification(song.id);
 
@@ -2163,6 +2593,7 @@ class SongProvider with ChangeNotifier {
         !_pausedDownloads.contains(songId)) {
       _pausedDownloads.add(songId);
       _downloadDetails[songId] = "Duraklatıldı";
+      getDownloadDetailsNotifier(songId).value = "Duraklatıldı";
       notifyListeners();
 
       if (_downloadCancelTokens.containsKey(songId)) {
@@ -2195,12 +2626,14 @@ class SongProvider with ChangeNotifier {
       if (await file.exists()) await file.delete();
 
       if (navigatorKey.currentContext != null) {
-        ScaffoldMessenger.of(
+        final langProvider = Provider.of<LanguageProvider>(
           navigatorKey.currentContext!,
-        ).hideCurrentSnackBar();
+          listen: false,
+        );
+        CustomSnackBar.hideCurrent();
         CustomSnackBar.showError(
           context: navigatorKey.currentContext!,
-          message: "İndirme iptal edildi",
+          message: langProvider.t('download_canceled'),
         );
       }
     }
@@ -2346,9 +2779,13 @@ class SongProvider with ChangeNotifier {
     notifyListeners();
 
     if (navigatorKey.currentContext != null) {
+      final langProvider = Provider.of<LanguageProvider>(
+        navigatorKey.currentContext!,
+        listen: false,
+      );
       CustomSnackBar.showInfo(
         context: navigatorKey.currentContext!,
-        message: "${song.title} sıraya eklendi",
+        message: "${song.title} ${langProvider.t('added_to_queue')}",
       );
     }
   }
@@ -2390,9 +2827,13 @@ class SongProvider with ChangeNotifier {
     notifyListeners();
 
     if (navigatorKey.currentContext != null) {
+      final langProvider = Provider.of<LanguageProvider>(
+        navigatorKey.currentContext!,
+        listen: false,
+      );
       CustomSnackBar.showInfo(
         context: navigatorKey.currentContext!,
-        message: "${songs.length} şarkı sıraya eklendi",
+        message: "${songs.length} ${langProvider.t('songs_added_to_queue')}",
       );
     }
   }
@@ -2492,7 +2933,11 @@ class SongProvider with ChangeNotifier {
     _playbackError = null; // Yeni şarkıya başlarken hatayı sıfırla
 
     bool isNewPlaylist = _playlist != playlist;
-    _playlist = playlist;
+    if (isNewPlaylist) {
+      _playlist = List.from(
+        playlist,
+      ); // Listeyi kopyalayarak referans hatalarını ve çökmeleri engelliyoruz
+    }
     _currentSongIndex = _playlist.indexWhere((s) => s.id == song.id);
 
     // Şarkı listede bulunamadıysa işlemi durdur
@@ -2505,10 +2950,17 @@ class SongProvider with ChangeNotifier {
     notifyListeners(); // UI'ı hemen güncelle (Kapak resmi ve isim anında değişsin)
 
     if (_isAudioServiceInitialized) {
-      if (audioPlayer.playing) audioPlayer.pause();
+      // Eski şarkı çalıyorsa ve henüz bitmemişse sesini yavaşça kısıp duraklat
+      if (audioPlayer.playing &&
+          audioPlayer.processingState != ProcessingState.completed) {
+        _isFading = false;
+        await _fadeOut();
+        audioPlayer.pause();
+      }
       audioPlayer.seek(
         Duration.zero,
       ); // Eski şarkının ilerleme çubuğunu arkaplanda sıfırla
+      await audioPlayer.setVolume(0.0); // Yeni şarkıya fade-in hazırlığı
     }
 
     // Yeni bir liste geldiyse veya shuffle açık ama liste boşsa shuffle listesini oluştur
@@ -2552,6 +3004,7 @@ class SongProvider with ChangeNotifier {
             await adFuture; // Şarkıyı çalmadan önce varsa reklamın bitmesini bekle
             if (_pendingSongId != song.id) return;
             await _audioHandler.playSong(mediaItem, downloadedSong.localPath!);
+            _fadeIn(); // Yeni şarkının sesini yavaşça aç
             _isSongLoading = false;
             notifyListeners();
             return; // Yerelden çalındı, fonksiyondan çık
@@ -2594,6 +3047,7 @@ class SongProvider with ChangeNotifier {
         if (_pendingSongId != song.id) return;
 
         await _audioHandler.playSong(mediaItem, streamUrl);
+        _fadeIn(); // Online şarkının sesini yavaşça aç
 
         // İşlem bittiğinde hala aynı şarkıdaysak loading'i kapat
         if (_pendingSongId == song.id) {
@@ -2659,7 +3113,6 @@ class SongProvider with ChangeNotifier {
 
       if (currentShuffledIndex + 1 >= _shuffledIndices.length) {
         // Listenin sonu
-        if (_loopMode == LoopMode.off && !userInitiated) return; // Dur
         nextIndex = _shuffledIndices[0]; // Başa dön
       } else {
         nextIndex = _shuffledIndices[currentShuffledIndex + 1];
@@ -2668,7 +3121,6 @@ class SongProvider with ChangeNotifier {
       // Normal sıralama
       if (_currentSongIndex! + 1 >= _playlist.length) {
         // Listenin sonu
-        if (_loopMode == LoopMode.off && !userInitiated) return; // Dur
         nextIndex = 0; // Başa dön
       } else {
         nextIndex = _currentSongIndex! + 1;

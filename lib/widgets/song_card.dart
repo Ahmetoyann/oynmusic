@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:muzik_app/models/song_model.dart';
 import 'package:muzik_app/custom_icons.dart';
@@ -12,6 +13,10 @@ import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:text_scroll/text_scroll.dart';
+import 'package:muzik_app/providers/language_provider.dart';
+import 'package:flutter/services.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:just_audio/just_audio.dart';
 
 class SongCard extends StatelessWidget {
   final Song song;
@@ -42,6 +47,10 @@ class SongCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Performans dostu dinleme: Sadece favori durumu değiştiğinde kart yenilenir
+    final isFavorite = context.select<SongProvider, bool>(
+      (p) => p.favoriteSongs.any((s) => s.id == song.id),
+    );
 
     return Card(
       color: isSelected
@@ -57,11 +66,52 @@ class SongCard extends StatelessWidget {
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        onTap: showOptions ? () => _showOptionsBottomSheet(context) : onTap,
-        onLongPress: onLongPress,
-        leading: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: _buildImage(),
+        onTap: showOptions
+            ? () => showModernMenu(
+                context,
+                song,
+                onTap: onTap,
+                onDeleteTap: onDeleteTap,
+                deleteText: deleteText,
+              )
+            : onTap,
+        onLongPress:
+            onLongPress ??
+            () => showModernMenu(
+              context,
+              song,
+              onTap: onTap,
+              onDeleteTap: onDeleteTap,
+              deleteText: deleteText,
+            ),
+        leading: SizedBox(
+          width: 56,
+          height: 56,
+          child: Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: _buildImage(),
+              ),
+              if (isFavorite)
+                Positioned(
+                  top: 2,
+                  right: 2,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.6),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.favorite_rounded,
+                      color: theme.primaryColor,
+                      size: 10,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
         title: Tooltip(
           message: song.title,
@@ -102,7 +152,7 @@ class SongCard extends StatelessWidget {
   }
 
   Widget _buildImage() {
-    const double size = 46;
+    const double size = 56;
 
     if (song.localImagePath != null &&
         File(song.localImagePath!).existsSync()) {
@@ -116,6 +166,7 @@ class SongCard extends StatelessWidget {
           File(song.localImagePath!),
           width: size,
           height: size,
+          cacheHeight: 200,
           fit: BoxFit.cover,
           errorBuilder: (c, e, s) => _buildPlaceholder(size),
         ),
@@ -128,12 +179,13 @@ class SongCard extends StatelessWidget {
               song.coverUrl.contains('youtube.com'))
           ? 1.35
           : 1.0,
-      child: Image.network(
-        song.coverUrl,
+      child: CachedNetworkImage(
+        imageUrl: song.coverUrl,
         width: size,
         height: size,
+        memCacheHeight: 200,
         fit: BoxFit.cover,
-        errorBuilder: (c, e, s) => _buildPlaceholder(size),
+        errorWidget: (context, url, error) => _buildPlaceholder(size),
       ),
     );
   }
@@ -159,74 +211,82 @@ class SongCard extends StatelessWidget {
         Consumer<SongProvider>(
           builder: (context, provider, child) {
             final isDownloaded = provider.isSongDownloaded(song.id);
-            final progress = provider.downloadProgress[song.id];
             final isPaused = provider.isPaused(song.id);
 
-            Widget downloadIcon;
-            if (progress != null) {
-              downloadIcon = SizedBox(
-                width: 24,
-                height: 24,
-                child: isPaused
-                    ? Icon(
-                        Icons.pause,
-                        color: Theme.of(context).primaryColor,
-                        size: 24,
-                      )
-                    : CircularProgressIndicator(
-                        value: progress,
-                        strokeWidth: 2.0,
-                        color: Theme.of(context).primaryColor,
-                      ),
-              );
-            } else if (isDownloaded) {
-              downloadIcon = CustomIcons.svgIcon(
-                CustomIcons.checkCircle,
-                color: Theme.of(context).primaryColor,
-                size: 24,
-              );
-            } else {
-              downloadIcon = Icon(
-                Icons.downloading,
-                color: Colors.grey.shade400,
-                size: 24,
-              );
-            }
-
-            return GestureDetector(
-              onTap: () {
-                if (progress != null) {
-                  if (isPaused) {
-                    provider.downloadSong(song);
-                  } else {
-                    provider.pauseDownload(song);
-                  }
-                } else if (!isDownloaded) {
-                  if (!provider.isFirebaseLoggedIn) {
-                    _showLoginBottomSheet(context);
-                  } else {
-                    provider.downloadSong(song).catchError((e) {
-                      if (context.mounted) {
-                        CustomSnackBar.showError(
-                          context: context,
-                          message: "İndirme başarısız: $e",
-                        );
-                      }
-                    });
-                  }
+            return ValueListenableBuilder<double?>(
+              valueListenable: provider.getDownloadProgressNotifier(song.id),
+              builder: (context, progress, child) {
+                final bool isDownloading = provider.downloadProgress
+                    .containsKey(song.id);
+                Widget downloadIcon;
+                if (isDownloading) {
+                  downloadIcon = SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: isPaused
+                        ? Icon(
+                            Icons.pause,
+                            color: Theme.of(context).primaryColor,
+                            size: 24,
+                          )
+                        : CircularProgressIndicator(
+                            value: progress == 0.0 && !isPaused
+                                ? null
+                                : progress,
+                            strokeWidth: 2.0,
+                            color: Colors.white,
+                          ),
+                  );
+                } else if (isDownloaded) {
+                  downloadIcon = CustomIcons.svgIcon(
+                    CustomIcons.checkCircle,
+                    color: Theme.of(context).primaryColor,
+                    size: 24,
+                  );
+                } else {
+                  downloadIcon = CustomIcons.svgIcon(
+                    CustomIcons.downloadingRounded,
+                    color: Colors.white,
+                    size: 24,
+                  );
                 }
+
+                return GestureDetector(
+                  onTap: () {
+                    if (isDownloading) {
+                      if (isPaused) {
+                        provider.downloadSong(song);
+                      } else {
+                        provider.pauseDownload(song);
+                      }
+                    } else if (!isDownloaded) {
+                      if (!provider.isFirebaseLoggedIn) {
+                        _showLoginBottomSheet(context);
+                      } else {
+                        provider.downloadSong(song).catchError((e) {
+                          if (context.mounted) {
+                            CustomSnackBar.showError(
+                              context: context,
+                              message: "İndirme başarısız: $e",
+                            );
+                          }
+                        });
+                      }
+                    }
+                  },
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+                    ),
+                    child: downloadIcon,
+                  ),
+                );
               },
-              child: Container(
-                width: 40,
-                height: 40,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
-                ),
-                child: downloadIcon,
-              ),
             );
           },
         ),
@@ -240,356 +300,36 @@ class SongCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 40,
-        height: 40,
+        width: 44,
+        height: 44,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: Theme.of(context).primaryColor.withOpacity(0.2),
-          borderRadius: BorderRadius.circular(8),
+          color: Colors.white.withOpacity(0.1),
+          shape: BoxShape.circle,
           border: Border.all(color: Colors.white.withOpacity(0.1)),
         ),
-        child: CustomIcons.svgIcon(
-          isPlaying ? CustomIcons.pauseRounded : CustomIcons.playArrowRounded,
-          size: 24,
-          color: Theme.of(context).primaryColor,
-        ),
-      ),
-    );
-  }
+        child: Consumer<SongProvider>(
+          builder: (context, provider, child) {
+            final isCurrentSong = provider.currentSong?.id == song.id;
 
-  void _showOptionsBottomSheet(BuildContext context) {
-    showOptionsSheet(
-      context,
-      song,
-      onTap: onTap,
-      onDeleteTap: onDeleteTap,
-      deleteText: deleteText,
-    );
-  }
+            return StreamBuilder<PlayerState>(
+              stream: provider.playerStateStream,
+              builder: (context, snapshot) {
+                final playing = snapshot.data?.playing ?? false;
+                final isActuallyPlaying = isCurrentSong && playing;
 
-  static void showOptionsSheet(
-    BuildContext context,
-    Song song, {
-    VoidCallback? onTap,
-    VoidCallback? onDeleteTap,
-    String? deleteText,
-  }) {
-    CustomBottomSheet.showContent(
-      context: context,
-      isScrollControlled: true,
-      child: Consumer<SongProvider>(
-        builder: (innerContext, provider, child) {
-          final isFavorite = provider.favoriteSongs.any((s) => s.id == song.id);
-          final isDownloaded = provider.isSongDownloaded(song.id);
-          final theme = Theme.of(innerContext);
-
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Drag Handle
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade700,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Şarkı Bilgisi (Gelişmiş Görünüm)
-                  Row(
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: Transform.scale(
-                            scale:
-                                (song.coverUrl.contains('ytimg.com') ||
-                                    song.coverUrl.contains('youtube.com'))
-                                ? 1.35
-                                : 1.0,
-                            child: Image.network(
-                              song.coverUrl,
-                              width: 64,
-                              height: 64,
-                              fit: BoxFit.cover,
-                              errorBuilder: (c, e, s) => Container(
-                                width: 64,
-                                height: 64,
-                                color: Colors.grey.shade800,
-                                child: CustomIcons.svgIcon(
-                                  CustomIcons.musicNote,
-                                  color: Colors.white54,
-                                  size: 24,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            TextScroll(
-                              song.title,
-                              mode: TextScrollMode.bouncing,
-                              velocity: const Velocity(
-                                pixelsPerSecond: Offset(30, 0),
-                              ),
-                              delayBefore: const Duration(seconds: 2),
-                              pauseBetween: const Duration(seconds: 2),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              song.artist,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: Colors.grey.shade400,
-                                fontSize: 14,
-                              ),
-                            ),
-                            if (isDownloaded) ...[
-                              const SizedBox(height: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: theme.primaryColor.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(
-                                    color: theme.primaryColor.withOpacity(0.5),
-                                    width: 0.5,
-                                  ),
-                                ),
-                                child: Text(
-                                  "İndirildi",
-                                  style: TextStyle(
-                                    color: theme.primaryColor,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Seçenekler
-                  if (onTap != null)
-                    _buildOptionTile(
-                      innerContext,
-                      iconStr: CustomIcons.playArrowRounded,
-                      text: 'Şarkıyı Çal',
-                      onTap: () {
-                        Navigator.pop(context);
-                        onTap!(); // Kartın dışarıdan aldığı çalma fonksiyonunu tetikler
-                      },
-                    ),
-                  _buildOptionTile(
-                    innerContext,
-                    iconStr: CustomIcons.playlistPlay,
-                    text: 'Sıradaki Çal',
-                    onTap: () {
-                      Navigator.pop(context);
-                      provider.addSongToNext(song);
-                    },
-                  ),
-                  _buildOptionTile(
-                    innerContext,
-                    iconData: isDownloaded
-                        ? Icons.download_done_rounded
-                        : Icons.downloading,
-                    iconColor: isDownloaded
-                        ? Colors.greenAccent
-                        : theme.primaryColor,
-                    text: isDownloaded ? 'İndirildi' : 'Şarkıyı İndir',
-                    onTap: () {
-                      Navigator.pop(context);
-                      if (isDownloaded) {
-                        CustomSnackBar.showInfo(
-                          context: context,
-                          message: "Bu şarkı zaten cihazınızda bulunuyor.",
-                        );
-                      } else {
-                        if (!provider.isFirebaseLoggedIn) {
-                          _showLoginBottomSheet(context);
-                        } else {
-                          provider.downloadSong(song).catchError((e) {
-                            if (context.mounted) {
-                              CustomSnackBar.showError(
-                                context: context,
-                                message: "İndirme başarısız: $e",
-                              );
-                            }
-                          });
-                        }
-                      }
-                    },
-                  ),
-                  _buildOptionTile(
-                    innerContext,
-                    iconStr: isFavorite
-                        ? CustomIcons.favorite
-                        : CustomIcons.favoriteBorder,
-                    iconColor: isFavorite ? theme.primaryColor : Colors.white,
-                    text: isFavorite ? 'Favorilerden Çıkar' : 'Favoriye Ekle',
-                    onTap: () {
-                      provider.toggleFavorite(song);
-                      Navigator.pop(context);
-                      CustomSnackBar.show(
-                        context: context,
-                        message: !isFavorite
-                            ? 'Favorilere eklendi'
-                            : 'Favorilerden çıkarıldı',
-                        backgroundColor: !isFavorite
-                            ? Colors.green.shade700
-                            : Colors.redAccent,
-                        icon: CustomIcons.svgIcon(
-                          !isFavorite
-                              ? CustomIcons.favorite
-                              : CustomIcons.favoriteBorder,
-                          color: Colors.white,
-                          size: 24,
-                        ),
+                return isActuallyPlaying
+                    ? _MiniEqualizer(color: Theme.of(context).primaryColor)
+                    : CustomIcons.svgIcon(
+                        CustomIcons.playArrowRounded,
+                        size: 24,
+                        color: isCurrentSong
+                            ? Theme.of(context).primaryColor
+                            : Colors.white,
                       );
-                    },
-                  ),
-                  _buildOptionTile(
-                    innerContext,
-                    iconStr: CustomIcons.playlistAddRounded,
-                    text: 'Çalma Listesine Ekle',
-                    onTap: () {
-                      Navigator.pop(context);
-                      _showAddToPlaylistBottomSheet(context, song);
-                    },
-                  ),
-                  _buildOptionTile(
-                    innerContext,
-                    iconStr: CustomIcons.person,
-                    text: 'Sanatçıya Git',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ArtistDetailPage(
-                            artistName: song.artist,
-                            songs: const [],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildOptionTile(
-                    innerContext,
-                    iconStr: CustomIcons.iosShareOutlined,
-                    text: 'Paylaş',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Share.share(
-                        'OYN Müzik\n\n🎵 ${song.title}\n👤 ${song.artist}\n\nDinlemek için uygulamamızı indirin: https://play.google.com/store/apps/details?id=com.ahmed.oyn_music',
-                      );
-                    },
-                  ),
-                  if (onDeleteTap != null)
-                    _buildOptionTile(
-                      innerContext,
-                      iconData: Icons.delete_outline_rounded,
-                      iconColor: Colors.redAccent,
-                      textColor: Colors.redAccent,
-                      text: deleteText ?? 'Sil',
-                      onTap: () {
-                        Navigator.pop(context);
-                        onDeleteTap!();
-                      },
-                    ),
-                  const SizedBox(height: 16),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  static Widget _buildOptionTile(
-    BuildContext context, {
-    String? iconStr,
-    IconData? iconData,
-    Color? iconColor,
-    Color? textColor,
-    required String text,
-    required VoidCallback onTap,
-  }) {
-    final theme = Theme.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: ListTile(
-        tileColor: Colors.white.withOpacity(0.03),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        leading: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: (iconColor ?? theme.primaryColor).withOpacity(0.15),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: iconData != null
-              ? Icon(iconData, color: iconColor ?? theme.primaryColor, size: 22)
-              : CustomIcons.svgIcon(
-                  iconStr ?? '',
-                  color: iconColor ?? theme.primaryColor,
-                  size: 22,
-                ),
-        ),
-        title: Text(
-          text,
-          style: TextStyle(
-            color: textColor ?? Colors.white,
-            fontSize: 15,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        trailing: CustomIcons.svgIcon(
-          CustomIcons.arrowForwardIosRounded,
-          color: theme.primaryColor.withOpacity(0.3),
-          size: 14,
-        ),
-        onTap: onTap,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: Colors.white.withOpacity(0.05)),
+              },
+            );
+          },
         ),
       ),
     );
@@ -606,16 +346,7 @@ class SongCard extends StatelessWidget {
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade700,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               const Text(
                 'Listeye Ekle',
                 style: TextStyle(
@@ -753,8 +484,8 @@ class SongCard extends StatelessWidget {
                         coverWidget = Container(
                           color: Colors.grey.shade800,
                           child: folder.isFromDownloads
-                              ? const Icon(
-                                  Icons.downloading,
+                              ? CustomIcons.svgIcon(
+                                  CustomIcons.downloadingRounded,
                                   color: Colors.white70,
                                   size: 24,
                                 )
@@ -846,15 +577,7 @@ class SongCard extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade700,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 8),
                 GestureDetector(
                   onTap: () async {
                     final ImagePicker picker = ImagePicker();
@@ -1031,7 +754,11 @@ class SongCard extends StatelessWidget {
       title: "İndirmek için Giriş Yapın",
       message:
           "Şarkıları cihazınıza indirmek ve çevrimdışı dinlemek için lütfen giriş yapın.",
-      icon: const Icon(Icons.downloading, size: 60, color: Colors.white70),
+      icon: CustomIcons.svgIcon(
+        CustomIcons.downloadingRounded,
+        size: 60,
+        color: Colors.white70,
+      ),
       primaryButtonText: "Giriş Yap",
       primaryButtonColor: Colors.white,
       primaryButtonTextColor: Colors.black,
@@ -1041,6 +768,717 @@ class SongCard extends StatelessWidget {
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const LoginPage()),
+        );
+      },
+    );
+  }
+
+  /// Ekranda ortalanmış şekilde açılan modern animasyonlu Seçenekler menüsü
+  static void showModernMenu(
+    BuildContext context,
+    Song song, {
+    VoidCallback? onTap,
+    VoidCallback? onDeleteTap,
+    String? deleteText,
+  }) {
+    // Menü açılırken cihaza modern bir titreşim (Haptic Feedback) gönderir
+    HapticFeedback.mediumImpact();
+
+    final provider = context.read<SongProvider>();
+    final langProvider = context.read<LanguageProvider>();
+    final primaryColor = Theme.of(context).primaryColor;
+
+    showGeneralDialog(
+      context: context,
+      barrierColor: Colors
+          .transparent, // Arka plan karartmasını ve bulanıklığını manuel yapacağız
+      barrierDismissible: true,
+      barrierLabel: 'FavoriteOverlay',
+      transitionDuration: const Duration(milliseconds: 250),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return Stack(
+          children: [
+            // Tüm ekranı kaplayan bulanıklık (Blur) efekti
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 250),
+                  builder: (context, value, child) {
+                    return BackdropFilter(
+                      filter: ImageFilter.blur(
+                        sigmaX: 20 * value,
+                        sigmaY: 20 * value,
+                      ),
+                      child: Container(
+                        color: Colors.black.withOpacity(0.5 * value),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+            Center(
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: 1.0),
+                duration: const Duration(milliseconds: 300),
+                curve:
+                    Curves.easeOutBack, // Sıçrama/esneme animasyonu (iOS stili)
+                builder: (context, value, child) {
+                  return Transform.scale(
+                    scale: value,
+                    alignment:
+                        Alignment.center, // Büyüme merkezden dışarı doğru (Pop)
+                    child: Opacity(
+                      opacity: value.clamp(0.0, 1.0),
+                      child: child,
+                    ),
+                  );
+                },
+                child: Material(
+                  color: Colors.transparent,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 40.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Şarkı Kapak Resmi (Boyutu küçültüldü)
+                        Container(
+                          width: 140,
+                          height: 140,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.5),
+                                blurRadius: 20,
+                                spreadRadius: 2,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Transform.scale(
+                              scale:
+                                  (song.coverUrl.contains('ytimg.com') ||
+                                      song.coverUrl.contains('youtube.com'))
+                                  ? 1.35
+                                  : 1.0,
+                              child:
+                                  (song.localImagePath != null &&
+                                      File(song.localImagePath!).existsSync())
+                                  ? Image.file(
+                                      File(song.localImagePath!),
+                                      fit: BoxFit.cover,
+                                      cacheHeight: 400,
+                                    )
+                                  : CachedNetworkImage(
+                                      imageUrl: song.coverUrl,
+                                      fit: BoxFit.cover,
+                                      memCacheHeight: 400,
+                                      errorWidget: (context, url, error) =>
+                                          Container(
+                                            color: Colors.grey.shade800,
+                                            child: const Icon(
+                                              Icons.music_note,
+                                              size: 40,
+                                              color: Colors.white54,
+                                            ),
+                                          ),
+                                    ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        // Şarkı İsmi ve Sanatçı
+                        SizedBox(
+                          width:
+                              280, // Kayan yazının sınırlarını belirlemek için genişlik verildi
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Column(
+                              children: [
+                                TextScroll(
+                                  song.title,
+                                  mode: TextScrollMode.bouncing,
+                                  velocity: const Velocity(
+                                    pixelsPerSecond: Offset(30, 0),
+                                  ),
+                                  delayBefore: const Duration(seconds: 2),
+                                  pauseBetween: const Duration(seconds: 2),
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  song.artist,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        // Menü Butonları (Tüm Seçenekler ile Kompakt Tasarım)
+                        Flexible(
+                          child: Consumer<SongProvider>(
+                            builder: (context, currentProvider, child) {
+                              final isFavorite = currentProvider.favoriteSongs
+                                  .any((s) => s.id == song.id);
+                              final isFollowed = currentProvider
+                                  .isArtistFollowed(song.artist);
+                              final isDownloaded = currentProvider
+                                  .isSongDownloaded(song.id);
+                              final progress =
+                                  currentProvider.downloadProgress[song.id];
+                              final isPaused = currentProvider.isPaused(
+                                song.id,
+                              );
+
+                              Widget buildOption({
+                                required Widget iconWidget,
+                                required String text,
+                                required VoidCallback onMenuTap,
+                                Color textColor = Colors.white,
+                              }) {
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 5,
+                                  ),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      onTap: onMenuTap,
+                                      borderRadius: BorderRadius.circular(16),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 12,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(
+                                            0.06,
+                                          ), // Butonların özel cam efekti arkaplanı
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                          border: Border.all(
+                                            color: Colors.white.withOpacity(
+                                              0.1,
+                                            ),
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            iconWidget,
+                                            const SizedBox(width: 14),
+                                            Expanded(
+                                              child: Text(
+                                                text,
+                                                style: TextStyle(
+                                                  color: textColor,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                  letterSpacing: 0.3,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }
+
+                              return ClipRRect(
+                                borderRadius: BorderRadius.circular(24),
+                                child: BackdropFilter(
+                                  filter: ImageFilter.blur(
+                                    sigmaX: 20,
+                                    sigmaY: 20,
+                                  ),
+                                  child: Container(
+                                    width:
+                                        280, // Butonların tam sığması için biraz genişlettik
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.12),
+                                      borderRadius: BorderRadius.circular(24),
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(0.3),
+                                        width: 1.2,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.25),
+                                          blurRadius: 20,
+                                          spreadRadius: 2,
+                                        ),
+                                      ],
+                                    ),
+                                    child: SingleChildScrollView(
+                                      physics: const BouncingScrollPhysics(),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical:
+                                              12.0, // Alt-üst estetik boşluk
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            if (onTap != null)
+                                              buildOption(
+                                                iconWidget: const Icon(
+                                                  Icons.play_arrow_rounded,
+                                                  color: Colors.white,
+                                                  size: 22,
+                                                ),
+                                                text: langProvider.t(
+                                                  'play_song',
+                                                ),
+                                                onMenuTap: () {
+                                                  Navigator.pop(context);
+                                                  onTap();
+                                                },
+                                              ),
+                                            buildOption(
+                                              iconWidget: isDownloaded
+                                                  ? const Icon(
+                                                      Icons
+                                                          .download_done_rounded,
+                                                      color: Colors.greenAccent,
+                                                      size: 22,
+                                                    )
+                                                  : (progress != null
+                                                        ? (isPaused
+                                                              ? Icon(
+                                                                  Icons
+                                                                      .play_arrow_rounded,
+                                                                  color:
+                                                                      primaryColor,
+                                                                  size: 22,
+                                                                )
+                                                              : SizedBox(
+                                                                  width: 22,
+                                                                  height: 22,
+                                                                  child: CircularProgressIndicator(
+                                                                    value: progress
+                                                                        .clamp(
+                                                                          0.0,
+                                                                          1.0,
+                                                                        ),
+                                                                    strokeWidth:
+                                                                        2.0,
+                                                                    color:
+                                                                        primaryColor,
+                                                                  ),
+                                                                ))
+                                                        : const Icon(
+                                                            Icons
+                                                                .cloud_download_rounded,
+                                                            color: Colors.white,
+                                                            size: 22,
+                                                          )),
+                                              text: isDownloaded
+                                                  ? (langProvider
+                                                                .currentLanguage ==
+                                                            'tr'
+                                                        ? 'İndirildi'
+                                                        : 'Downloaded')
+                                                  : (progress != null
+                                                        ? (isPaused
+                                                              ? (langProvider
+                                                                            .currentLanguage ==
+                                                                        'tr'
+                                                                    ? 'Devam Et'
+                                                                    : 'Resume')
+                                                              : (langProvider
+                                                                            .currentLanguage ==
+                                                                        'tr'
+                                                                    ? 'İndiriliyor...'
+                                                                    : 'Downloading...'))
+                                                        : langProvider.t(
+                                                            'download',
+                                                          )),
+                                              textColor: isDownloaded
+                                                  ? Colors.greenAccent
+                                                  : (progress != null
+                                                        ? primaryColor
+                                                        : Colors.white),
+                                              onMenuTap: () {
+                                                if (isDownloaded) {
+                                                  Navigator.pop(context);
+                                                  CustomSnackBar.showInfo(
+                                                    context: context,
+                                                    message: langProvider.t(
+                                                      'already_downloaded',
+                                                    ),
+                                                  );
+                                                } else if (progress != null) {
+                                                  if (isPaused) {
+                                                    currentProvider
+                                                        .downloadSong(song);
+                                                  } else {
+                                                    currentProvider
+                                                        .pauseDownload(song);
+                                                  }
+                                                } else {
+                                                  Navigator.pop(context);
+                                                  if (!currentProvider
+                                                      .isFirebaseLoggedIn) {
+                                                    _showLoginBottomSheet(
+                                                      context,
+                                                    );
+                                                  } else {
+                                                    currentProvider
+                                                        .downloadSong(song)
+                                                        .catchError((e) {
+                                                          if (context.mounted) {
+                                                            CustomSnackBar.showError(
+                                                              context: context,
+                                                              message:
+                                                                  "${langProvider.t('download_failed')} $e",
+                                                            );
+                                                          }
+                                                        });
+                                                  }
+                                                }
+                                              },
+                                            ),
+                                            buildOption(
+                                              iconWidget: Icon(
+                                                isFavorite
+                                                    ? Icons.favorite_rounded
+                                                    : Icons
+                                                          .favorite_border_rounded,
+                                                color: isFavorite
+                                                    ? primaryColor
+                                                    : Colors.white,
+                                                size: 22,
+                                              ),
+                                              text: isFavorite
+                                                  ? (langProvider
+                                                                .currentLanguage ==
+                                                            'tr'
+                                                        ? 'Favorilerden Çıkar'
+                                                        : 'Remove Favorite')
+                                                  : (langProvider
+                                                                .currentLanguage ==
+                                                            'tr'
+                                                        ? 'Favorilere Ekle'
+                                                        : 'Add to Favorites'),
+                                              textColor: isFavorite
+                                                  ? primaryColor
+                                                  : Colors.white,
+                                              onMenuTap: () {
+                                                currentProvider.toggleFavorite(
+                                                  song,
+                                                );
+                                                Navigator.pop(context);
+                                                CustomSnackBar.show(
+                                                  context: context,
+                                                  message: !isFavorite
+                                                      ? langProvider.t(
+                                                          'added_to_favorites',
+                                                        )
+                                                      : langProvider.t(
+                                                          'removed_from_favorites',
+                                                        ),
+                                                  backgroundColor: !isFavorite
+                                                      ? Colors.green.shade700
+                                                      : Colors.redAccent,
+                                                  icon: CustomIcons.svgIcon(
+                                                    !isFavorite
+                                                        ? CustomIcons.favorite
+                                                        : CustomIcons
+                                                              .favoriteBorder,
+                                                    color: Colors.white,
+                                                    size: 24,
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                            buildOption(
+                                              iconWidget: Icon(
+                                                isFollowed
+                                                    ? Icons.check_rounded
+                                                    : Icons
+                                                          .person_add_alt_1_rounded,
+                                                color: isFollowed
+                                                    ? primaryColor
+                                                    : Colors.white,
+                                                size: 22,
+                                              ),
+                                              text: isFollowed
+                                                  ? (langProvider
+                                                                .currentLanguage ==
+                                                            'tr'
+                                                        ? 'Takip Ediliyor'
+                                                        : 'Following')
+                                                  : (langProvider
+                                                                .currentLanguage ==
+                                                            'tr'
+                                                        ? 'Sanatçıyı Takip Et'
+                                                        : 'Follow Artist'),
+                                              textColor: isFollowed
+                                                  ? primaryColor
+                                                  : Colors.white,
+                                              onMenuTap: () {
+                                                if (!currentProvider
+                                                    .isFirebaseLoggedIn) {
+                                                  Navigator.pop(context);
+                                                  _showLoginBottomSheet(
+                                                    context,
+                                                  );
+                                                  return;
+                                                }
+                                                currentProvider
+                                                    .toggleFollowArtist(
+                                                      song.artist,
+                                                    );
+                                                Navigator.pop(context);
+                                                CustomSnackBar.showInfo(
+                                                  context: context,
+                                                  message: !isFollowed
+                                                      ? (langProvider
+                                                                    .currentLanguage ==
+                                                                'tr'
+                                                            ? '${song.artist} takip ediliyor'
+                                                            : 'Following ${song.artist}')
+                                                      : (langProvider
+                                                                    .currentLanguage ==
+                                                                'tr'
+                                                            ? '${song.artist} takipten çıkarıldı'
+                                                            : 'Unfollowed ${song.artist}'),
+                                                );
+                                              },
+                                            ),
+                                            buildOption(
+                                              iconWidget: CustomIcons.svgIcon(
+                                                CustomIcons.playlistPlay,
+                                                color: Colors.white,
+                                                size: 22,
+                                              ),
+                                              text: langProvider.t('play_next'),
+                                              onMenuTap: () {
+                                                Navigator.pop(context);
+                                                currentProvider.addSongToNext(
+                                                  song,
+                                                );
+                                              },
+                                            ),
+                                            buildOption(
+                                              iconWidget: Icon(
+                                                Icons.playlist_add,
+                                                color: Colors.white,
+                                                size: 22,
+                                              ),
+                                              text: langProvider.t(
+                                                'add_to_playlist',
+                                              ),
+                                              onMenuTap: () {
+                                                Navigator.pop(context);
+                                                _showAddToPlaylistBottomSheet(
+                                                  context,
+                                                  song,
+                                                );
+                                              },
+                                            ),
+                                            buildOption(
+                                              iconWidget: CustomIcons.svgIcon(
+                                                CustomIcons.person,
+                                                color: Colors.white,
+                                                size: 22,
+                                              ),
+                                              text: langProvider.t(
+                                                'go_to_artist',
+                                              ),
+                                              onMenuTap: () {
+                                                Navigator.pop(context);
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (context) =>
+                                                        ArtistDetailPage(
+                                                          artistName:
+                                                              song.artist,
+                                                          songs: const [],
+                                                        ),
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                            buildOption(
+                                              iconWidget: CustomIcons.svgIcon(
+                                                CustomIcons.iosShareOutlined,
+                                                color: Colors.white,
+                                                size: 22,
+                                              ),
+                                              text: langProvider.t('share'),
+                                              onMenuTap: () {
+                                                Navigator.pop(context);
+                                                Share.share(
+                                                  'OYN Müzik\n\n🎵 ${song.title}\n👤 ${song.artist}\n\nDinlemek için uygulamamızı indirin: https://play.google.com/store/apps/details?id=com.ahmed.oyn_music',
+                                                );
+                                              },
+                                            ),
+                                            if (onDeleteTap != null)
+                                              buildOption(
+                                                iconWidget: CustomIcons.svgIcon(
+                                                  CustomIcons.delete,
+                                                  color: Colors.redAccent,
+                                                  size: 22,
+                                                ),
+                                                text:
+                                                    deleteText ??
+                                                    langProvider.t('cancel'),
+                                                textColor: Colors.redAccent,
+                                                onMenuTap: () {
+                                                  Navigator.pop(context);
+                                                  onDeleteTap();
+                                                },
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // Sağ Üst Kapatma (Çarpı) İkonu
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 20,
+              right: 20,
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: 1.0),
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutBack,
+                builder: (context, value, child) {
+                  return Transform.scale(
+                    scale: value,
+                    child: Opacity(
+                      opacity: value.clamp(0.0, 1.0),
+                      child: child,
+                    ),
+                  );
+                },
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.2),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Oynatılan şarkı için animasyonlu mini dalgalar (Ekolayzer)
+class _MiniEqualizer extends StatefulWidget {
+  final Color color;
+  const _MiniEqualizer({required this.color});
+
+  @override
+  State<_MiniEqualizer> createState() => _MiniEqualizerState();
+}
+
+class _MiniEqualizerState extends State<_MiniEqualizer>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        _buildBar(0),
+        const SizedBox(width: 3),
+        _buildBar(1.5),
+        const SizedBox(width: 3),
+        _buildBar(0.7),
+        const SizedBox(width: 3),
+        _buildBar(2.2),
+      ],
+    );
+  }
+
+  Widget _buildBar(double phase) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final double value =
+            (math.sin(_controller.value * math.pi * 2 + phase) + 1) / 2;
+        final height = 6 + (value * 10); // 6 ile 16 pixel arası hareket
+        return Container(
+          width: 3.5,
+          height: height,
+          decoration: BoxDecoration(
+            color: widget.color,
+            borderRadius: BorderRadius.circular(2),
+          ),
         );
       },
     );

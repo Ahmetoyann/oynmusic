@@ -59,6 +59,10 @@
 	<string>Çalma listesi ve profil için kapak resmi seçebilmeniz için fotoğraflarınıza erişim izni gereklidir.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Profil fotoğrafı veya kapak resmi çekebilmeniz için kameraya erişim izni gereklidir.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Uygulama, şarkı veya sanatçıları sesinizle arayabilmeniz için ses tanıma iznine ihtiyaç duyar.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Uygulama, sesli arama yapabilmeniz için mikrofon erişimine ihtiyaç duyar.</string>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-3940256099942544~1458002511</string>
 	<key>CFBundleURLTypes</key>
