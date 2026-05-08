@@ -48,6 +48,7 @@ class _ListelerPageState extends State<ListelerPage> {
 
     // Varsayılan olarak en yeni eklenen klasörler üstte görünsün
     final sortedFolders = displayFolders.reversed.toList();
+    final screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
       appBar: CustomAppBar(
@@ -70,7 +71,12 @@ class _ListelerPageState extends State<ListelerPage> {
         children: [
           // Üst İkili Kartlar (İndirilenler ve Son Dinlenenler)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            padding: EdgeInsets.fromLTRB(
+              screenWidth * 0.025,
+              16,
+              screenWidth * 0.025,
+              12,
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -85,17 +91,17 @@ class _ListelerPageState extends State<ListelerPage> {
                 ? _buildEmptyState(context, hasConnection)
                 : GridView.builder(
                     padding: EdgeInsets.fromLTRB(
+                      screenWidth * 0.025,
                       16,
-                      16,
-                      16,
+                      screenWidth * 0.025,
                       songProvider.currentSong != null ? 160 : 100,
                     ),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 4,
+                          crossAxisCount: 3,
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 16,
-                          childAspectRatio: 0.7,
+                          childAspectRatio: 0.8,
                         ),
                     itemCount: hasConnection
                         ? sortedFolders.length + 5
@@ -166,15 +172,12 @@ class _ListelerPageState extends State<ListelerPage> {
               fontSize: 12,
             ),
           ),
-          const SizedBox(height: 2),
-          const Text("", style: TextStyle(fontSize: 10)),
         ],
       ),
     );
   }
 
   Widget _buildFolderGridCard(BuildContext context, MusicFolder folder) {
-    final langProvider = context.watch<LanguageProvider>();
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -238,11 +241,6 @@ class _ListelerPageState extends State<ListelerPage> {
               fontWeight: FontWeight.bold,
               fontSize: 12,
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            '${folder.songs.length} ${langProvider.t('song')}',
-            style: TextStyle(color: Colors.grey.shade500, fontSize: 10),
           ),
         ],
       ),
@@ -378,8 +376,8 @@ class _ListelerPageState extends State<ListelerPage> {
     final songProvider = context.watch<SongProvider>();
     final favorites = songProvider.favoriteSongs;
     final screenWidth = MediaQuery.of(context).size.width;
-    final cardSize =
-        (screenWidth - 44) / 2; // Daha geniş kare, aradaki boşluk 12px'e düştü
+    // Toplam boşluk = 2 * (screenWidth * 0.025) + ortadaki 12px boşluk
+    final cardSize = (screenWidth - (screenWidth * 0.05) - 12) / 2;
 
     return RepaintBoundary(
       child: GestureDetector(
@@ -560,8 +558,7 @@ class _ListelerPageState extends State<ListelerPage> {
     final songProvider = context.watch<SongProvider>();
     final history = songProvider.recentlyPlayed;
     final screenWidth = MediaQuery.of(context).size.width;
-    final cardSize =
-        (screenWidth - 44) / 2; // Daha geniş kare, aradaki boşluk 12px
+    final cardSize = (screenWidth - (screenWidth * 0.05) - 12) / 2;
 
     return RepaintBoundary(
       child: GestureDetector(
@@ -768,16 +765,7 @@ class _ListelerPageState extends State<ListelerPage> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(height: 8),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade700,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           ListTile(
             leading: CustomIcons.svgIcon(
               CustomIcons.edit,
@@ -790,7 +778,7 @@ class _ListelerPageState extends State<ListelerPage> {
             ),
             onTap: () {
               Navigator.pop(context);
-              _showRenameBottomSheet(context, folder);
+              _showRenameFolderDialog(context, folder);
             },
           ),
           ListTile(
@@ -812,9 +800,10 @@ class _ListelerPageState extends State<ListelerPage> {
             leading: CustomIcons.svgIcon(
               CustomIcons.delete,
               color: Colors.redAccent,
+              size: 24,
             ),
             title: Text(
-              langProvider.t('delete'),
+              langProvider.t('delete_list'),
               style: const TextStyle(color: Colors.redAccent),
             ),
             onTap: () {
@@ -822,7 +811,7 @@ class _ListelerPageState extends State<ListelerPage> {
               _showDeleteConfirmation(context, folder);
             },
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
         ],
       ),
     );
@@ -867,11 +856,61 @@ class _ListelerPageState extends State<ListelerPage> {
     );
   }
 
-  void _showRenameBottomSheet(BuildContext context, MusicFolder folder) {
-    CustomBottomSheet.showContent(
+  void _showRenameFolderDialog(BuildContext context, MusicFolder folder) {
+    final langProvider = context.read<LanguageProvider>();
+    final TextEditingController controller = TextEditingController(
+      text: folder.name,
+    );
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      child: _RenameListSheet(folder: folder),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.grey.shade900,
+        title: Text(
+          langProvider.t('rename'),
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: TextField(
+          controller: controller,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: langProvider.t('new_name_hint'),
+            hintStyle: TextStyle(color: Colors.grey.shade500),
+            filled: true,
+            fillColor: Colors.grey.shade800,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              langProvider.t('cancel'),
+              style: const TextStyle(color: Colors.white),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              if (controller.text.isNotEmpty) {
+                context.read<SongProvider>().renameFolder(
+                  folder,
+                  controller.text,
+                );
+                Navigator.pop(ctx);
+              }
+            },
+            child: Text(
+              langProvider.t('save'),
+              style: TextStyle(
+                color: Theme.of(context).primaryColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -901,8 +940,8 @@ class _ListelerPageState extends State<ListelerPage> {
                     size: 64,
                     color: Theme.of(context).primaryColor.withOpacity(0.5),
                   )
-                : CustomIcons.svgIcon(
-                    CustomIcons.wifiOff,
+                : Icon(
+                    Icons.wifi_off,
                     size: 64,
                     color: Theme.of(context).primaryColor.withOpacity(0.5),
                   ),
@@ -911,7 +950,7 @@ class _ListelerPageState extends State<ListelerPage> {
           Text(
             hasConnection
                 ? langProvider.t('no_lists')
-                : langProvider.t('offline_mode'),
+                : langProvider.t('offline_mode_msg'),
             style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -980,120 +1019,6 @@ class _DashedBorderPainter extends CustomPainter {
   bool shouldRepaint(CustomPainter oldDelegate) => false;
 }
 
-class _RenameListSheet extends StatefulWidget {
-  final MusicFolder folder;
-  const _RenameListSheet({required this.folder});
-
-  @override
-  State<_RenameListSheet> createState() => _RenameListSheetState();
-}
-
-class _RenameListSheetState extends State<_RenameListSheet> {
-  late TextEditingController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.folder.name);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final langProvider = context.watch<LanguageProvider>();
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-        left: 24,
-        right: 24,
-        top: 24,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade700,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            langProvider.t('rename_list'),
-            style: TextStyle(
-              color: Theme.of(context).primaryColor,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: _controller,
-            autofocus: true,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: langProvider.t('new_name_hint'),
-              hintStyle: TextStyle(color: Colors.grey.shade500),
-              filled: true,
-              fillColor: Colors.grey.shade800,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                if (_controller.text.isNotEmpty) {
-                  context.read<SongProvider>().renameFolder(
-                    widget.folder,
-                    _controller.text,
-                  );
-                  Navigator.pop(context);
-                } else {
-                  CustomSnackBar.showError(
-                    context: context,
-                    message: 'Lütfen bir liste adı girin.',
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).primaryColor,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Text(
-                langProvider.t('save'),
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-        ],
-      ),
-    );
-  }
-}
-
 class CreateListWithSongsSheet extends StatefulWidget {
   const CreateListWithSongsSheet({super.key});
 
@@ -1143,16 +1068,7 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
       height: MediaQuery.of(context).size.height * 0.85,
       child: Column(
         children: [
-          const SizedBox(height: 12),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade700,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           // --- Modern Kapak Resmi Seçici ---
           GestureDetector(
             onTap: _pickImage,
@@ -1365,12 +1281,11 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
                             isFromDownloads: isAllDownloaded,
                             customImagePath: _selectedImagePath,
                           );
-                          Navigator.pop(context); // Sheet'i kapat
-                          // Başarılı mesajı ana ekranda görünsün
                           CustomSnackBar.showSuccess(
                             context: context,
                             message: '${_nameController.text} oluşturuldu.',
                           );
+                          Navigator.pop(context); // Sheet'i kapat
                         },
                         borderRadius: BorderRadius.circular(16),
                         child: Padding(
@@ -1469,8 +1384,8 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
                                 : 1.0,
                             child: Image.file(
                               File(song.localImagePath!),
-                              width: 50,
-                              height: 50,
+                              width: 48,
+                              height: 48,
                               fit: BoxFit.cover,
                             ),
                           )
@@ -1482,12 +1397,12 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
                                 : 1.0,
                             child: CachedNetworkImage(
                               imageUrl: song.coverUrl,
-                              width: 50,
-                              height: 50,
+                              width: 48,
+                              height: 48,
                               fit: BoxFit.cover,
                               errorWidget: (context, url, error) => Container(
-                                width: 50,
-                                height: 50,
+                                width: 48,
+                                height: 48,
                                 color: Colors.grey.shade800,
                                 child: CustomIcons.svgIcon(
                                   CustomIcons.musicNote,
@@ -1510,17 +1425,17 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
-                            fontSize: 15,
+                            fontSize: 11,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         Text(
                           song.artist,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: Colors.grey.shade400,
-                            fontSize: 13,
+                            fontSize: 10,
                           ),
                         ),
                       ],

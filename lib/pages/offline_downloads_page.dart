@@ -22,14 +22,14 @@ import 'package:muzik_app/providers/language_provider.dart';
 
 enum SortOption { dateNewest, dateOldest, nameAZ, nameZA }
 
-class DownloadsPage extends StatefulWidget {
-  const DownloadsPage({super.key});
+class OfflineDownloadsPage extends StatefulWidget {
+  const OfflineDownloadsPage({super.key});
 
   @override
-  State<DownloadsPage> createState() => _DownloadsPageState();
+  State<OfflineDownloadsPage> createState() => _OfflineDownloadsPageState();
 }
 
-class _DownloadsPageState extends State<DownloadsPage> {
+class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
   bool _isSelectionMode = false;
   final Set<Song> _selectedSongs = {};
   final TextEditingController _searchController = TextEditingController();
@@ -38,19 +38,23 @@ class _DownloadsPageState extends State<DownloadsPage> {
   bool _isGridMode = false;
   final ScrollController _scrollController = ScrollController();
   bool _showStickyPlayButton = false;
+  late SongProvider _songProvider;
 
   @override
   void initState() {
     super.initState();
+    _songProvider = context.read<SongProvider>();
+    _songProvider.addListener(_onConnectionChanged);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final hasConnection = context.read<SongProvider>().hasConnection;
+      final hasConnection = _songProvider.hasConnection;
       final langProvider = context.read<LanguageProvider>();
       if (!hasConnection) {
         CustomSnackBar.showInfo(
           context: context,
           message: langProvider.t('offline_mode_msg'),
-          icon: Icon(Icons.wifi_off, color: Colors.white, size: 24),
+          icon: const Icon(Icons.wifi_off, color: Colors.white, size: 24),
           duration: const Duration(seconds: 3),
         );
       }
@@ -66,8 +70,17 @@ class _DownloadsPageState extends State<DownloadsPage> {
     });
   }
 
+  void _onConnectionChanged() {
+    if (!mounted) return;
+    // İnternet geri geldiğinde bu sayfayı (ve üzerinde açılmış klasör sayfalarını) kapatarak Ana Ekrana dön
+    if (_songProvider.hasConnection) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
+  }
+
   @override
   void dispose() {
+    _songProvider.removeListener(_onConnectionChanged);
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -113,7 +126,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
 
     CustomBottomSheet.showContent(
       context: context,
-      isScrollControlled: true, // Klavye açıldığında yukarı kayması için
+      isScrollControlled: true,
       child: StatefulBuilder(
         builder: (modalContext, setModalState) => Padding(
           padding: EdgeInsets.only(
@@ -327,8 +340,6 @@ class _DownloadsPageState extends State<DownloadsPage> {
                 ),
               ),
               const SizedBox(height: 24),
-
-              // Modern "Yeni Liste Oluştur" Butonu
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: ClipRRect(
@@ -391,7 +402,6 @@ class _DownloadsPageState extends State<DownloadsPage> {
                 ),
               ),
               const SizedBox(height: 24),
-
               if (folders.isEmpty)
                 Padding(
                   padding: const EdgeInsets.all(32.0),
@@ -581,7 +591,6 @@ class _DownloadsPageState extends State<DownloadsPage> {
       primaryButtonColor: Colors.redAccent,
       secondaryButtonText: langProvider.t('cancel'),
       onPrimaryButtonTap: () {
-        // Çalan şarkı kontrolü
         if (provider.currentSong != null && provider.audioPlayer.playing) {
           if (_selectedSongs.any((s) => s.id == provider.currentSong!.id)) {
             Navigator.pop(context);
@@ -589,7 +598,6 @@ class _DownloadsPageState extends State<DownloadsPage> {
             return;
           }
         }
-
         for (var song in _selectedSongs) {
           provider.deleteDownloadedSong(song);
         }
@@ -601,26 +609,6 @@ class _DownloadsPageState extends State<DownloadsPage> {
         CustomSnackBar.showError(
           context: context,
           message: langProvider.t('deleted'),
-        );
-      },
-    );
-  }
-
-  void _showDeleteAllConfirmationDialog(BuildContext context) {
-    final langProvider = context.read<LanguageProvider>();
-    CustomBottomSheet.show(
-      context: context,
-      title: langProvider.t('delete_all'),
-      message: langProvider.t('delete_all_desc'),
-      primaryButtonText: langProvider.t('delete'),
-      primaryButtonColor: Colors.redAccent,
-      secondaryButtonText: langProvider.t('cancel'),
-      onPrimaryButtonTap: () {
-        context.read<SongProvider>().deleteAllDownloadedSongs();
-        Navigator.pop(context);
-        CustomSnackBar.showError(
-          context: context,
-          message: langProvider.t('all_deleted'),
         );
       },
     );
@@ -853,7 +841,6 @@ class _DownloadsPageState extends State<DownloadsPage> {
 
   Widget _buildFolderCover(MusicFolder folder) {
     final songs = folder.songs;
-
     Widget buildDefaultCover() {
       if (songs.isEmpty) {
         return Container(
@@ -867,11 +854,9 @@ class _DownloadsPageState extends State<DownloadsPage> {
           ),
         );
       }
-
       if (songs.length < 4) {
         return _buildImage(songs.first);
       }
-
       return Column(
         children: [
           Expanded(
@@ -986,10 +971,9 @@ class _DownloadsPageState extends State<DownloadsPage> {
       int m = (totalSeconds % 3600) ~/ 60;
       int s = totalSeconds % 60;
       final isTr = langProvider.currentLanguage == 'tr';
-      String hrStr = isTr ? 's' : 'h'; // TR için Saat
-      String minStr = isTr ? 'd' : 'm'; // TR için Dakika
-      String secStr = isTr ? 'sn' : 's'; // TR için Saniye
-
+      String hrStr = isTr ? 's' : 'h';
+      String minStr = isTr ? 'd' : 'm';
+      String secStr = isTr ? 'sn' : 's';
       if (h > 0) {
         durationText = '·$h$hrStr $m$minStr';
       } else {
@@ -997,7 +981,6 @@ class _DownloadsPageState extends State<DownloadsPage> {
       }
     }
 
-    // Sıralama işlemi
     switch (_sortOption) {
       case SortOption.nameAZ:
         filteredSongs.sort((a, b) => a.title.compareTo(b.title));
@@ -1009,7 +992,6 @@ class _DownloadsPageState extends State<DownloadsPage> {
         filteredSongs = filteredSongs.reversed.toList();
         break;
       case SortOption.dateOldest:
-        // Varsayılan sıralama (eklenme sırası)
         break;
     }
 
@@ -1036,14 +1018,9 @@ class _DownloadsPageState extends State<DownloadsPage> {
     }
 
     return PopScope(
-      // Seçim modunda değilsek her zaman geri gitmeye izin ver.
-      // Seçim modundaysak, geri tuşu seçimi iptal etmeli.
       canPop: !_isSelectionMode,
       onPopInvoked: (didPop) async {
         if (didPop) return;
-
-        // Eğer buraya geldiyse, canPop false demektir, yani seçim modundayız.
-        // Geri tuşuna basıldığında seçim modundan çık.
         if (_isSelectionMode) {
           setState(() {
             _isSelectionMode = false;
@@ -1051,58 +1028,90 @@ class _DownloadsPageState extends State<DownloadsPage> {
           });
         }
       },
-      child: Stack(
-        children: [
-          Scaffold(
-            appBar: CustomAppBar(
-              showLeading:
-                  false, // Ana sekmelerden biri olduğu için geri butonunu gizliyoruz
-              title: _isSelectionMode
-                  ? '${_selectedSongs.length} Seçildi'
-                  : langProvider.t('downloads'),
-              leading: _isSelectionMode
-                  ? IconButton(
-                      icon: CustomIcons.svgIcon(CustomIcons.close, size: 24),
-                      onPressed: () {
-                        setState(() {
-                          _isSelectionMode = false;
-                          _selectedSongs.clear();
-                        });
-                      },
-                    )
-                  : null,
-              actions: [
-                if (_isSelectionMode) ...[
-                  IconButton(
-                    icon: Icon(Icons.playlist_add, size: 24),
-                    tooltip: langProvider.t('add_to_playlist'),
-                    onPressed: () => _showAddToPlaylistBottomSheet(context),
+      child: Scaffold(
+        extendBody: true,
+        backgroundColor: const Color(0xFF121212),
+        appBar: CustomAppBar(
+          showLeading: true,
+          title: _isSelectionMode
+              ? '${_selectedSongs.length} Seçildi'
+              : langProvider.t('downloads'),
+          leading: _isSelectionMode
+              ? IconButton(
+                  icon: CustomIcons.svgIcon(CustomIcons.close, size: 24),
+                  onPressed: () {
+                    setState(() {
+                      _isSelectionMode = false;
+                      _selectedSongs.clear();
+                    });
+                  },
+                )
+              : const BackButton(color: Colors.white),
+          actions: [
+            if (_isSelectionMode) ...[
+              IconButton(
+                icon: const Icon(Icons.playlist_add, size: 24),
+                tooltip: langProvider.t('add_to_playlist'),
+                onPressed: () => _showAddToPlaylistBottomSheet(context),
+              ),
+              IconButton(
+                icon: CustomIcons.svgIcon(
+                  CustomIcons.delete,
+                  color: Colors.redAccent,
+                ),
+                tooltip: langProvider.t('delete'),
+                onPressed: () => _showDeleteSelectedDialog(context),
+              ),
+            ] else if (downloadedSongs.isNotEmpty) ...[
+              IconButton(
+                icon: CustomIcons.svgIcon(
+                  _isGridMode ? CustomIcons.list : CustomIcons.gridView,
+                  size: 24,
+                ),
+                tooltip: langProvider.t('view'),
+                onPressed: () {
+                  setState(() {
+                    _isGridMode = !_isGridMode;
+                  });
+                },
+              ),
+            ],
+          ],
+        ),
+        bottomNavigationBar: songProvider.currentSong != null
+            ? Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      const Color(0xFF121212).withOpacity(1),
+                      const Color(0xFF121212).withOpacity(0.8),
+                      const Color(0xFF121212).withOpacity(0.4),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.4, 0.8, 1.0],
                   ),
-                  IconButton(
-                    icon: CustomIcons.svgIcon(
-                      CustomIcons.delete,
-                      color: Colors.redAccent,
-                    ),
-                    tooltip: langProvider.t('delete'),
-                    onPressed: () => _showDeleteSelectedDialog(context),
+                ),
+                child: SafeArea(
+                  bottom: true,
+                  top: false,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: () => PlayerPage.show(context),
+                        child: const MiniPlayer(),
+                      ),
+                      const SizedBox(height: 2),
+                    ],
                   ),
-                ] else if (downloadedSongs.isNotEmpty) ...[
-                  IconButton(
-                    icon: CustomIcons.svgIcon(
-                      _isGridMode ? CustomIcons.list : CustomIcons.gridView,
-                      size: 24,
-                    ),
-                    tooltip: langProvider.t('view'),
-                    onPressed: () {
-                      setState(() {
-                        _isGridMode = !_isGridMode;
-                      });
-                    },
-                  ),
-                ],
-              ],
-            ),
-            body: CustomScrollView(
+                ),
+              )
+            : null,
+        body: Stack(
+          children: [
+            CustomScrollView(
               controller: _scrollController,
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               slivers: [
@@ -1238,7 +1247,6 @@ class _DownloadsPageState extends State<DownloadsPage> {
                       ),
                     ),
                   ),
-                // --- PLAY / SHUFFLE BUTONLARI ---
                 if (downloadedSongs.isNotEmpty)
                   SliverToBoxAdapter(
                     child: Padding(
@@ -1248,7 +1256,6 @@ class _DownloadsPageState extends State<DownloadsPage> {
                       ),
                       child: Row(
                         children: [
-                          // 1. Karışık Çal Butonu
                           ClipRRect(
                             borderRadius: BorderRadius.circular(30),
                             child: BackdropFilter(
@@ -1285,7 +1292,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                           context: context,
                                           message:
                                               "İndirilenler karışık çalınıyor.",
-                                          icon: Icon(
+                                          icon: const Icon(
                                             Icons.shuffle_rounded,
                                             color: Colors.white,
                                             size: 24,
@@ -1324,7 +1331,6 @@ class _DownloadsPageState extends State<DownloadsPage> {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          // 2. Oynat Butonu
                           ClipRRect(
                             borderRadius: BorderRadius.circular(30),
                             child: BackdropFilter(
@@ -1424,7 +1430,6 @@ class _DownloadsPageState extends State<DownloadsPage> {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          // 3. Ekle (+) Butonu
                           ClipRRect(
                             borderRadius: BorderRadius.circular(30),
                             child: BackdropFilter(
@@ -1577,10 +1582,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
                           const SizedBox(height: 40),
                           ElevatedButton(
                             onPressed: () {
-                              Navigator.of(
-                                context,
-                              ).popUntil((route) => route.isFirst);
-                              mainScreenKey.currentState?.switchToTab(0);
+                              Navigator.of(context).pop();
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.white.withOpacity(0.2),
@@ -1599,7 +1601,9 @@ class _DownloadsPageState extends State<DownloadsPage> {
                               elevation: 10,
                             ),
                             child: Text(
-                              langProvider.t('discover_songs'),
+                              langProvider.t(
+                                'discover_songs',
+                              ), // "Şarkıları Keşfet" (Bağlantı varken işlevsel, yoksa sadece döner)
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -1739,7 +1743,6 @@ class _DownloadsPageState extends State<DownloadsPage> {
                         final song = filteredSongs[index];
                         final isSelected = _selectedSongs.contains(song);
 
-                        // Dosya boyutunu hesapla
                         String sizeStr = _getFileSizeString(song.localPath);
                         String artistText =
                             "${song.artist} • ${_formatDate(song.dateAdded)}";
@@ -1747,7 +1750,6 @@ class _DownloadsPageState extends State<DownloadsPage> {
                           artistText += " • $sizeStr";
                         }
 
-                        // Tarihi göstermek için geçici bir Song nesnesi oluşturuyoruz
                         final displaySong = Song(
                           id: song.id,
                           title: song.title,
@@ -1812,73 +1814,76 @@ class _DownloadsPageState extends State<DownloadsPage> {
                   ),
               ],
             ),
-          ),
-          if (!_isSelectionMode && filteredSongs.isNotEmpty)
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeOutBack,
-              top: _showStickyPlayButton
-                  ? MediaQuery.of(context).padding.top + kToolbarHeight - 24
-                  : MediaQuery.of(context).padding.top + kToolbarHeight + 30,
-              right: MediaQuery.of(context).size.width * 0.05,
-              child: IgnorePointer(
-                ignoring: !_showStickyPlayButton,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: _showStickyPlayButton ? 1.0 : 0.0,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(28),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).primaryColor.withOpacity(0.5),
-                          borderRadius: BorderRadius.circular(28),
-                          border: Border.all(
+            if (!_isSelectionMode && filteredSongs.isNotEmpty)
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutBack,
+                top: _showStickyPlayButton
+                    ? MediaQuery.of(context).padding.top + kToolbarHeight - 24
+                    : MediaQuery.of(context).padding.top + kToolbarHeight + 30,
+                right: MediaQuery.of(context).size.width * 0.05,
+                child: IgnorePointer(
+                  ignoring: !_showStickyPlayButton,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 200),
+                    opacity: _showStickyPlayButton ? 1.0 : 0.0,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(28),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                        child: Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
                             color: Theme.of(
                               context,
-                            ).primaryColor.withOpacity(0.8),
-                            width: 1.5,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
+                            ).primaryColor.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(28),
+                            border: Border.all(
                               color: Theme.of(
                                 context,
-                              ).primaryColor.withOpacity(0.3),
-                              blurRadius: 15,
-                              spreadRadius: 1,
+                              ).primaryColor.withOpacity(0.8),
+                              width: 1.5,
                             ),
-                          ],
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: handlePlayTap,
-                            borderRadius: BorderRadius.circular(28),
-                            child: Center(
-                              child: StreamBuilder<bool>(
-                                stream: songProvider.audioPlayer.playingStream,
-                                builder: (context, snapshot) {
-                                  final playing = snapshot.data ?? false;
-                                  final isPlayingNow = isAnyLoaded && playing;
-                                  return AnimatedSwitcher(
-                                    duration: const Duration(milliseconds: 300),
-                                    child: Icon(
-                                      isPlayingNow
-                                          ? Icons.pause_rounded
-                                          : Icons.play_arrow_rounded,
-                                      key: ValueKey<bool>(isPlayingNow),
-                                      color: isPlayingNow
-                                          ? Colors.greenAccent
-                                          : Colors.white,
-                                      size: 28,
-                                    ),
-                                  );
-                                },
+                            boxShadow: [
+                              BoxShadow(
+                                color: Theme.of(
+                                  context,
+                                ).primaryColor.withOpacity(0.3),
+                                blurRadius: 15,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: handlePlayTap,
+                              borderRadius: BorderRadius.circular(28),
+                              child: Center(
+                                child: StreamBuilder<bool>(
+                                  stream:
+                                      songProvider.audioPlayer.playingStream,
+                                  builder: (context, snapshot) {
+                                    final playing = snapshot.data ?? false;
+                                    final isPlayingNow = isAnyLoaded && playing;
+                                    return AnimatedSwitcher(
+                                      duration: const Duration(
+                                        milliseconds: 300,
+                                      ),
+                                      child: Icon(
+                                        isPlayingNow
+                                            ? Icons.pause_rounded
+                                            : Icons.play_arrow_rounded,
+                                        key: ValueKey<bool>(isPlayingNow),
+                                        color: isPlayingNow
+                                            ? Colors.greenAccent
+                                            : Colors.white,
+                                        size: 28,
+                                      ),
+                                    );
+                                  },
+                                ),
                               ),
                             ),
                           ),
@@ -1888,8 +1893,8 @@ class _DownloadsPageState extends State<DownloadsPage> {
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

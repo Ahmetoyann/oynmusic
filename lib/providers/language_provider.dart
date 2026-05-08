@@ -245,6 +245,7 @@ class LanguageProvider with ChangeNotifier {
       'removed_from_favorites': 'Removed from favorites.',
       'an_error_occurred': 'An error occurred.',
       'slogan': 'Discover the rhythm of music',
+      'they_will_play_next': 'They will play next',
     },
     'tr': {
       'settings': 'Ayarlar',
@@ -323,7 +324,8 @@ class LanguageProvider with ChangeNotifier {
       'downloaded': 'İndirildi',
       'paused': 'Duraklatıldı',
       'play_song': 'Şarkıyı Çal',
-      'play_next': 'Sıradaki Çalacaklar',
+      'play_next': 'Sıraya Ekle',
+      'they_will_play_next': 'Sıradaki çalacaklar',
       'add_to_playlist': 'Çalma Listesine Ekle',
       'go_to_artist': 'Sanatçıya Git',
       'share': 'Paylaş',
@@ -458,6 +460,7 @@ class LanguageProvider with ChangeNotifier {
     },
     'fr': {
       'settings': 'Paramètres',
+      'they_will_play_next': 'Ils joueront ensuite',
       'language': 'Langue',
       'appearance': 'Apparence',
       'music': 'Musique',
@@ -669,6 +672,7 @@ class LanguageProvider with ChangeNotifier {
     },
     'de': {
       'settings': 'Einstellungen',
+      'they_will_play_next': 'Sie werden als Nächstes abgespielt',
       'language': 'Sprache',
       'appearance': 'Erscheinungsbild',
       'music': 'Musik',
@@ -882,6 +886,7 @@ class LanguageProvider with ChangeNotifier {
     },
     'es': {
       'settings': 'Ajustes',
+      'they_will_play_next': 'Se reproducirán a continuación',
       'language': 'Idioma',
       'appearance': 'Apariencia',
       'music': 'Música',
@@ -1093,6 +1098,7 @@ class LanguageProvider with ChangeNotifier {
     },
     'ar': {
       'settings': 'الإعدادات',
+      'they_will_play_next': 'سيتم تشغيلها بعد ذلك',
       'language': 'اللغة',
       'appearance': 'مظهر',
       'music': 'موسيقى',

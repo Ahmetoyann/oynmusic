@@ -8,6 +8,7 @@ import 'package:muzik_app/pages/lists_page.dart';
 import 'package:muzik_app/pages/search_page.dart';
 import 'package:muzik_app/pages/trend_page.dart';
 import 'package:muzik_app/pages/downloads_page.dart';
+import 'package:muzik_app/pages/offline_downloads_page.dart';
 import 'package:muzik_app/providers/song_provider.dart';
 import 'package:muzik_app/widgets/mini_player.dart';
 import 'package:provider/provider.dart';
@@ -36,6 +37,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:muzik_app/services/app_open_ad_manager.dart';
 
 // Global Navigator Key
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -62,18 +64,20 @@ void main() async {
     debugPrint("Zaman dilimi alınamadı: $e");
   }
 
+  // Hem üst durum çubuğunu hem de alt navigasyon tuşlarını gösterir
+  // NOT: Android'de şeffaf olabilmesi için edgeToEdge modunun setSystemUIOverlayStyle'dan ÖNCE çağrılması gerekir!
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
   // Durum çubuğu (şarj, saat vb.) görünür olsun ve arkaplanla uyumlu olsun
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: Color(0xFF121212),
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarDividerColor: Colors.transparent,
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
-
-  // Hem üst durum çubuğunu hem de alt navigasyon tuşlarını gösterir
-  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
   if (Platform.isAndroid || Platform.isIOS) {
     await MobileAds.instance.initialize();
@@ -111,8 +115,37 @@ void main() async {
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  late AppOpenAdManager appOpenAdManager;
+
+  @override
+  void initState() {
+    super.initState();
+    appOpenAdManager = AppOpenAdManager()..loadAd();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // YALNIZCA kullanıcı Ana Ekrana (ve ilerisine) ulaştıysa arka plandan dönüşlerde reklam göster
+    if (state == AppLifecycleState.resumed &&
+        AppOpenAdManager.isMainScreenVisible) {
+      appOpenAdManager.showAdIfAvailable();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -134,6 +167,13 @@ class MyApp extends StatelessWidget {
         appBarTheme: AppBarTheme(
           backgroundColor: const Color(0xFF121212),
           elevation: 0,
+          systemOverlayStyle: const SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.light,
+            systemNavigationBarColor: Colors.transparent,
+            systemNavigationBarDividerColor: Colors.transparent,
+            systemNavigationBarIconBrightness: Brightness.light,
+          ),
           titleTextStyle: GoogleFonts.montserrat(
             color: themeProvider.primaryColor,
             fontSize: 24,
@@ -352,7 +392,16 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     if (_seenOnboarding == null)
-      return const Scaffold(backgroundColor: Color(0xFF121212));
+      return const AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle(
+          systemNavigationBarColor: Colors.transparent,
+          systemNavigationBarDividerColor: Colors.transparent,
+          systemNavigationBarIconBrightness: Brightness.light,
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+        ),
+        child: Scaffold(backgroundColor: Color(0xFF121212)),
+      );
 
     if (!_seenOnboarding!) {
       return OnboardingPage(
@@ -368,9 +417,18 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
 
     if (songProvider.isFirebaseLoggedIn) {
       if (songProvider.isSyncingUserData) {
-        return const Scaffold(
-          backgroundColor: Color(0xFF121212),
-          body: Center(child: CircularProgressIndicator(color: Colors.white)),
+        return const AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle(
+            systemNavigationBarColor: Colors.transparent,
+            systemNavigationBarDividerColor: Colors.transparent,
+            systemNavigationBarIconBrightness: Brightness.light,
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.light,
+          ),
+          child: Scaffold(
+            backgroundColor: Color(0xFF121212),
+            body: Center(child: CircularProgressIndicator(color: Colors.white)),
+          ),
         );
       }
 
@@ -406,11 +464,15 @@ class MainScreenState extends State<MainScreen>
   late AnimationController _navAnimController;
   late List<ScrollController> _scrollControllers;
   late List<Widget> _pages;
+  late PageController _pageController;
 
   @override
   void initState() {
     super.initState();
+    // Ana ekrana geçiş yapıldı, artık arka plandan dönüşlerde reklam gösterilebilir
+    AppOpenAdManager.isMainScreenVisible = true;
     _selectedIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
     _navAnimController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -425,21 +487,29 @@ class MainScreenState extends State<MainScreen>
     ];
 
     _pages = [
-      PrimaryScrollController(
-        controller: _scrollControllers[0],
-        child: TrendPage(),
+      _KeepAlivePage(
+        child: PrimaryScrollController(
+          controller: _scrollControllers[0],
+          child: TrendPage(),
+        ),
       ),
-      PrimaryScrollController(
-        controller: _scrollControllers[1],
-        child: SearchPage(),
+      _KeepAlivePage(
+        child: PrimaryScrollController(
+          controller: _scrollControllers[1],
+          child: SearchPage(),
+        ),
       ),
-      PrimaryScrollController(
-        controller: _scrollControllers[2],
-        child: const DownloadsPage(),
+      _KeepAlivePage(
+        child: PrimaryScrollController(
+          controller: _scrollControllers[2],
+          child: const DownloadsPage(),
+        ),
       ),
-      PrimaryScrollController(
-        controller: _scrollControllers[3],
-        child: ListelerPage(),
+      _KeepAlivePage(
+        child: PrimaryScrollController(
+          controller: _scrollControllers[3],
+          child: ListelerPage(),
+        ),
       ),
     ];
 
@@ -451,6 +521,9 @@ class MainScreenState extends State<MainScreen>
 
   @override
   void dispose() {
+    // Ana ekrandan çıkılırsa (örn: Çıkış yapıp Login'e dönülürse) reklamları tekrar pasif et
+    AppOpenAdManager.isMainScreenVisible = false;
+    _pageController.dispose();
     _navAnimController.dispose();
     for (var c in _scrollControllers) {
       c.dispose();
@@ -459,9 +532,9 @@ class MainScreenState extends State<MainScreen>
   }
 
   void switchToTab(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    if (_pageController.hasClients) {
+      _pageController.jumpToPage(index);
+    }
   }
 
   void _onItemTapped(int index) {
@@ -476,7 +549,13 @@ class MainScreenState extends State<MainScreen>
         );
       }
     } else {
-      setState(() => _selectedIndex = index);
+      if (_pageController.hasClients) {
+        _pageController.animateToPage(
+          index,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
     }
   }
 
@@ -529,80 +608,145 @@ class MainScreenState extends State<MainScreen>
             context: context,
             barrierDismissible:
                 !forceUpdate, // Zorunluysa dışarı tıklayarak kapatılamaz
+            barrierColor: Colors.black.withOpacity(
+              0.8,
+            ), // Arka planı şık bir şekilde karartır
             builder: (context) => PopScope(
               canPop: !forceUpdate, // Zorunluysa geri tuşuyla da kapatılamaz
-              child: AlertDialog(
-                backgroundColor: Colors.grey.shade900,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                title: Row(
-                  children: [
-                    const Icon(
-                      Icons.system_update_rounded,
-                      color: Colors.greenAccent,
-                      size: 28,
+              child: Dialog(
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E1E1E),
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.1),
+                      width: 1.5,
                     ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        'Güncelleme Mevcut',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Theme.of(context).primaryColor.withOpacity(0.2),
+                        blurRadius: 40,
+                        spreadRadius: -10,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Modern İkon Başlığı
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).primaryColor.withOpacity(0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.rocket_launch_rounded,
+                          color: Theme.of(context).primaryColor,
+                          size: 48,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                content: Text(
-                  updateMessage.isNotEmpty
-                      ? updateMessage
-                      : 'Uygulamanın yeni bir sürümü yayınlandı. Daha iyi bir deneyim için lütfen güncelleyin.',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    height: 1.5,
-                    fontSize: 14,
+                      const SizedBox(height: 24),
+                      // Başlık
+                      const Text(
+                        'Yeni Sürüm Hazır! 🚀',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      // Açıklama Metni
+                      Text(
+                        updateMessage.isNotEmpty
+                            ? updateMessage
+                            : 'Uygulamamıza harika yeni özellikler ekledik. Kesintisiz müzik keyfi için hemen güncelleyin!',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.7),
+                          fontSize: 15,
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      // Tam Genişlikte Güncelle Butonu
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).primaryColor,
+                            foregroundColor:
+                                Theme.of(
+                                      context,
+                                    ).primaryColor.computeLuminance() >
+                                    0.5
+                                ? Colors.black
+                                : Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            elevation: 8,
+                            shadowColor: Theme.of(
+                              context,
+                            ).primaryColor.withOpacity(0.5),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          onPressed: () async {
+                            final url = storeUrl.isNotEmpty
+                                ? storeUrl
+                                : 'https://play.google.com/store/apps/details?id=com.ahmed.oyn_music';
+                            final uri = Uri.parse(url);
+                            if (await canLaunchUrl(uri)) {
+                              await launchUrl(
+                                uri,
+                                mode: LaunchMode.externalApplication,
+                              );
+                            }
+                          },
+                          child: const Text(
+                            'Şimdi Güncelle',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Daha Sonra Butonu (Zorunlu değilse)
+                      if (!forceUpdate) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            child: const Text(
+                              'Daha Sonra',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                actions: [
-                  if (!forceUpdate)
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text(
-                        'Daha Sonra',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    ),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).primaryColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: () async {
-                      final url = storeUrl.isNotEmpty
-                          ? storeUrl
-                          : 'https://play.google.com/store/apps/details?id=com.ahmed.oyn_music';
-                      final uri = Uri.parse(url);
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(
-                          uri,
-                          mode: LaunchMode.externalApplication,
-                        );
-                      }
-                    },
-                    child: const Text(
-                      'Şimdi Güncelle',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ),
           );
@@ -637,12 +781,12 @@ class MainScreenState extends State<MainScreen>
             ),
             decoration: BoxDecoration(
               color: isSelected
-                  ? primaryColor.withOpacity(0.2)
+                  ? Colors.white.withOpacity(0.2)
                   : Colors.white.withOpacity(0.05),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: isSelected
-                    ? primaryColor.withOpacity(0.5)
+                    ? Colors.white.withOpacity(0.5)
                     : Colors.white.withOpacity(0.1),
                 width: 1,
               ),
@@ -678,29 +822,46 @@ class MainScreenState extends State<MainScreen>
     );
     final langProvider = context.watch<LanguageProvider>();
 
+    // Eğer bağlantı yoksa YALNIZCA bu ekranı göster
+    if (!hasConnection) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF121212),
+        body: _buildNoConnectionView(),
+      );
+    }
+
     return Scaffold(
       extendBody: true,
       body: NotificationListener<UserScrollNotification>(
         onNotification: (notification) {
-          // Kullanıcı aşağı kaydırıyorsa gizle
-          if (notification.direction == ScrollDirection.reverse) {
-            if (_isBottomNavVisible) {
-              setState(() => _isBottomNavVisible = false);
-              _navAnimController.reverse();
-            }
-          }
-          // Kullanıcı yukarı kaydırıyorsa göster
-          else if (notification.direction == ScrollDirection.forward) {
-            if (!_isBottomNavVisible) {
-              setState(() => _isBottomNavVisible = true);
-              _navAnimController.forward();
+          // Sadece dikey kaydırmalarda alt menüyü gizle/göster (Yatayda yani sayfa geçişlerinde etkilenmesin)
+          if (notification.metrics.axis == Axis.vertical) {
+            if (notification.direction == ScrollDirection.reverse) {
+              if (_isBottomNavVisible) {
+                setState(() => _isBottomNavVisible = false);
+                _navAnimController.reverse();
+              }
+            } else if (notification.direction == ScrollDirection.forward) {
+              if (!_isBottomNavVisible) {
+                setState(() => _isBottomNavVisible = true);
+                _navAnimController.forward();
+              }
             }
           }
           return false;
         },
-        child: (!hasConnection && _selectedIndex != 3)
-            ? _buildNoConnectionView()
-            : IndexedStack(index: _selectedIndex, children: _pages),
+        child: Stack(
+          children: [
+            PageView(
+              controller: _pageController,
+              physics: const BouncingScrollPhysics(),
+              onPageChanged: (index) {
+                setState(() => _selectedIndex = index);
+              },
+              children: _pages,
+            ),
+          ],
+        ),
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -708,8 +869,11 @@ class MainScreenState extends State<MainScreen>
             begin: Alignment.bottomCenter,
             end: Alignment.topCenter,
             colors: [
-              const Color(0xFF121212),
-              const Color(0xFF121212).withOpacity(0.9),
+              const Color(0xFF121212).withOpacity(
+                1,
+              ), // İçeriklerin arkadan flulaşarak görünmesi için şeffaflaştırıldı
+
+              const Color(0xFF121212).withOpacity(0.7),
               const Color(0xFF121212).withOpacity(0.4),
               Colors.transparent,
             ],
@@ -735,9 +899,9 @@ class MainScreenState extends State<MainScreen>
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(
                     16,
+                    0,
                     16,
-                    16,
-                    12, // SafeArea kullanıldığı için manuel bottom hesaplamasına gerek kalmadı
+                    4, // Menüyü biraz daha aşağı hizalamak için alt boşluk sıfırlandı
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -785,108 +949,140 @@ class MainScreenState extends State<MainScreen>
     return Container(
       width: double.infinity,
       color: const Color(0xFF121212),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade900,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.wifi_off, size: 60, color: Colors.grey.shade600),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            langProvider.t('no_connection'),
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            langProvider.t('internet_required'),
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
-          ),
-          const SizedBox(height: 32),
-          if (_isRetrying)
-            const CircularProgressIndicator()
-          else
-            Column(
-              children: [
-                OutlinedButton(
-                  onPressed: () async {
-                    setState(() {
-                      _isRetrying = true;
-                    });
-                    await context
-                        .read<SongProvider>()
-                        .checkConnectionManually();
-                    // Kullanıcıya işlem yapıldığını hissettirmek için kısa bir gecikme
-                    await Future.delayed(const Duration(seconds: 1));
-                    if (mounted) {
-                      setState(() {
-                        _isRetrying = false;
-                      });
-                    }
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: BorderSide(color: Colors.grey.shade600),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 32,
-                      vertical: 12,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+      child: SafeArea(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade900,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Theme.of(context).primaryColor.withOpacity(0.2),
+                    blurRadius: 30,
+                    spreadRadius: 5,
                   ),
-                  child: Text(
-                    langProvider.t('retry'),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.wifi_off_rounded,
+                size: 80,
+                color: Theme.of(context).primaryColor,
+              ),
+            ),
+            const SizedBox(height: 32),
+            Text(
+              langProvider.t('no_connection'),
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                langProvider.t('internet_required'),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.grey.shade400,
+                  fontSize: 16,
+                  height: 1.5,
                 ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const DownloadsPage(),
+              ),
+            ),
+            const SizedBox(height: 48),
+            if (_isRetrying)
+              CircularProgressIndicator(color: Theme.of(context).primaryColor)
+            else
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Column(
+                  children: [
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          setState(() {
+                            _isRetrying = true;
+                          });
+                          await context
+                              .read<SongProvider>()
+                              .checkConnectionManually();
+                          await Future.delayed(
+                            const Duration(milliseconds: 800),
+                          );
+                          if (mounted) {
+                            setState(() {
+                              _isRetrying = false;
+                            });
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).primaryColor,
+                          foregroundColor:
+                              Theme.of(
+                                    context,
+                                  ).primaryColor.computeLuminance() >
+                                  0.5
+                              ? Colors.black
+                              : Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 8,
+                        ),
+                        child: Text(
+                          langProvider.t('retry'),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    foregroundColor:
-                        Theme.of(context).primaryColor.computeLuminance() > 0.5
-                        ? Colors.black
-                        : Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 32,
-                      vertical: 12,
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const OfflineDownloadsPage(),
+                            ),
+                          );
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: BorderSide(
+                            color: Colors.grey.shade700,
+                            width: 1.5,
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: Text(
+                          langProvider.t('listen_offline'),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                  child: Text(
-                    langProvider.t('listen_offline'),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-        ],
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -927,6 +1123,27 @@ class _ConnectionManagerState extends State<ConnectionManager> {
       });
     }
 
+    return widget.child;
+  }
+}
+
+/// Sayfalar arası kaydırmada sayfaların durumunu (scroll vb.) koruyan yardımcı widget
+class _KeepAlivePage extends StatefulWidget {
+  final Widget child;
+  const _KeepAlivePage({required this.child});
+
+  @override
+  State<_KeepAlivePage> createState() => _KeepAlivePageState();
+}
+
+class _KeepAlivePageState extends State<_KeepAlivePage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
     return widget.child;
   }
 }

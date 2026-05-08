@@ -15,7 +15,7 @@ class _CustomBannerAdState extends State<CustomBannerAd> {
 
   // Google AdMob Banner Reklam ID'leri
   final String _adUnitId = Platform.isAndroid
-      ? 'ca-app-pub-7993140773979821/8730935742' // Gerçek Android Banner ID
+      ? 'ca-app-pub-7993140773979821/5474809257' // Gerçek Android Banner ID
       : 'ca-app-pub-3940256099942544/2934735716'; // iOS Test ID
 
   @override

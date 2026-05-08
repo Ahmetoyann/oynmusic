@@ -18,12 +18,12 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'dart:isolate';
 import 'dart:ui';
 import 'package:muzik_app/providers/language_provider.dart';
 import 'package:timezone/timezone.dart' as tz;
+import 'package:muzik_app/services/interstitial_ad_manager.dart';
 
 @pragma('vm:entry-point')
 void backgroundNotificationHandler(NotificationResponse response) {
@@ -85,16 +85,15 @@ class SongProvider with ChangeNotifier {
 
   bool _isSyncingUserData = false;
   bool _seenInitialArtists = false;
-  // Reklam Değişkenleri
-  InterstitialAd? _interstitialAd;
-  int _songsPlayedCounter = 0;
-  final int _adFrequency = 2; // Her 2 şarkıda bir reklam göster
+
+  // Reklam Yöneticisi ve Sayaçlar
+  final InterstitialAdManager _interstitialAdManager = InterstitialAdManager();
   int _downloadAdCounter = 0;
-  final int _downloadAdFrequency = 2; // Her 2 indirmede bir reklam
-  int _artistPageAdCounter = 0;
-  final int _artistPageAdFrequency =
-      3; // Her 3 sanatçı sayfasına girişte bir reklam
-  bool _isAdLoaded = false;
+  int _songPlayAdCounter = 0;
+  Timer? _adTimer;
+  bool _isAdPending = false; // Şarkı bölünmesin diye reklamı bekletir
+  final Map<String, String> _artistAvatars =
+      {}; // Sanatçı avatarlarını önbellekte tutar
 
   // Uyku Zamanlayıcısı
   Timer? _sleepTimer;
@@ -142,6 +141,9 @@ class SongProvider with ChangeNotifier {
       false; // Sesin kısılarak azalma/artma animasyon durumunu tutar
   bool _isFadingOutAtEnd =
       false; // Şarkı bitmek üzereyken tetiklenip tetiklenmediğini tutar
+  // Çözümlenmiş YouTube müzik linklerini RAM'de tutarak sıfır gecikme sağlar
+  final Map<String, String> _resolvedStreamUrlCache = {};
+  final Map<String, Future<String>> _resolvingTasks = {};
   // Başlangıçta boş kalmaması için varsayılan popüler kategorileri ekliyoruz.
   List<String> _categories = [
     'Hepsi',
@@ -190,6 +192,7 @@ class SongProvider with ChangeNotifier {
   List<Song> get suggestedAlbums => _suggestedAlbums;
   bool get isSuggestionsLoading => _isSuggestionsLoading;
   List<String> get followedArtists => _followedArtists;
+  String? getArtistAvatar(String artistName) => _artistAvatars[artistName];
   bool get isSyncingUserData => _isSyncingUserData;
   bool get seenInitialArtists => _seenInitialArtists;
   List<Song> get playlist => _playlist;
@@ -284,17 +287,34 @@ class SongProvider with ChangeNotifier {
     _loadSearchHistory();
     _loadRecentlyPlayed();
     fetchCategories();
-    fetchSongsFromApi(); // Uygulama açılışında direkt çek
     _loadMostPlayed(); // En çok dinlenenleri yükle
     _loadDailySongs(); // Günün şarkılarını (varsa) yükle
     _loadSettings();
     _initConnectivity();
+    checkConnectionManually().then((_) {
+      fetchSongsFromApi(); // İnternet durumu belli olduktan sonra çek
+    });
     _initNotifications(); // Bildirim servisini başlat
     _scheduleRetentionNotification(); // Haftalık hatırlatıcı (Retention) başlat
     _scheduleDailyNotification(); // Günlük (Günün Şarkısı) hatırlatıcı başlat
     _scheduleEveningNotifications(); // Akşam hatırlatıcılarını başlat
-    _loadInterstitialAd(); // İlk reklamı yükle
     _startListeningTimer(); // Dinleme süresi takibini başlat
+
+    // Geçiş reklamlarını yükle ve 10 dakikalık zamanlayıcıyı başlat
+    _interstitialAdManager.loadAd();
+    _startAdTimer();
+  }
+
+  void _startAdTimer() {
+    _adTimer = Timer.periodic(const Duration(minutes: 10), (timer) {
+      // Eğer şu an bir şarkı çalıyorsa reklamı hemen gösterme, sıraya al
+      if (_isAudioServiceInitialized && audioPlayer.playing) {
+        _isAdPending = true;
+      } else {
+        // Çalmıyorsa hemen göster
+        _interstitialAdManager.showAdIfAvailable();
+      }
+    });
   }
 
   /// AuthProvider'dan kullanıcı bilgisini günceller
@@ -350,7 +370,8 @@ class SongProvider with ChangeNotifier {
           _syncFoldersWithFirestore(),
           _syncSettingsWithFirestore(),
           _syncFollowedArtistsWithFirestore(),
-        ]).then((_) {
+        ]).timeout(const Duration(seconds: 5)).whenComplete(() {
+          // Eğer 5 saniye içinde yanıt gelmezse sonsuz döngüden çık
           _isSyncingUserData = false;
           notifyListeners();
         });
@@ -1025,6 +1046,13 @@ class SongProvider with ChangeNotifier {
     _currentGenre = genre;
     _currentTimeRange = timeRange;
 
+    if (!_hasConnection) {
+      _isLoading = false;
+      _errorMessage = "İnternet bağlantısı yok";
+      notifyListeners();
+      return;
+    }
+
     _isLoading = true;
     _nextPageToken = null; // Token'ı sıfırla
     _errorMessage = null;
@@ -1170,6 +1198,14 @@ class SongProvider with ChangeNotifier {
 
       // Şarkı bittiğinde otomatik geçiş
       _audioHandler.audioPlayer.playerStateStream.listen((state) {
+        // Bekleyen bir reklam varsa ve şarkı durduysa veya bittiyse reklamı göster
+        if (_isAdPending &&
+            (state.processingState == ProcessingState.completed ||
+                !state.playing)) {
+          _interstitialAdManager.showAdIfAvailable();
+          _isAdPending = false;
+        }
+
         if (state.processingState == ProcessingState.completed) {
           playNext(userInitiated: false);
         }
@@ -1623,6 +1659,37 @@ class SongProvider with ChangeNotifier {
     }
   }
 
+  /// Sanatçı avatarını çeker ve önbelleğe kaydeder
+  Future<void> fetchArtistAvatar(String artistName) async {
+    // Eğer sanatçının avatarı önbellekte varsa ve varsayılan UI-Avatar değilse (yani daha önce gerçek resmi çekilmişse) tekrar çekme
+    if (_artistAvatars.containsKey(artistName) &&
+        _artistAvatars[artistName] != null &&
+        !_artistAvatars[artistName]!.contains('ui-avatars.com')) {
+      return;
+    }
+
+    _artistAvatars[artistName] =
+        ''; // Aynı anda mükerrer istekleri engellemek için geçici boşluk
+
+    try {
+      // Sanatçının şarkısı üzerinden kanalının gerçek profil fotoğrafını çekiyoruz
+      final searchResults = await _yt.search.search(artistName);
+      if (searchResults.isNotEmpty) {
+        final firstVideo = searchResults.first;
+        final channel = await _yt.channels.get(firstVideo.channelId);
+        _artistAvatars[artistName] = channel.logoUrl;
+      } else {
+        _artistAvatars[artistName] =
+            'https://ui-avatars.com/api/?name=${Uri.encodeComponent(artistName)}&background=random&color=fff&size=200';
+      }
+      notifyListeners();
+    } catch (e) {
+      _artistAvatars[artistName] =
+          'https://ui-avatars.com/api/?name=${Uri.encodeComponent(artistName)}&background=random&color=fff&size=200';
+      notifyListeners();
+    }
+  }
+
   /// Arama sayfası için rastgele önerilen şarkıları çeker
   Future<void> fetchSuggestedSongs() async {
     if (_suggestedSongs.isNotEmpty) return; // Zaten yüklendiyse tekrar çekme
@@ -1719,10 +1786,17 @@ class SongProvider with ChangeNotifier {
     for (int i = 0; i < artists.length; i++) {
       final String artistName = artists[i];
       try {
-        final results = await YoutubeService.searchSongs(artistName, limit: 1);
-        final realCover = results.isNotEmpty
-            ? results.first.coverUrl
-            : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(artistName)}&background=random&color=fff&size=200';
+        // Gerçek Youtube kanal resmini çekiyoruz
+        final searchResults = await _yt.search.search(artistName);
+        String realCover =
+            'https://ui-avatars.com/api/?name=${Uri.encodeComponent(artistName)}&background=random&color=fff&size=200';
+        if (searchResults.isNotEmpty) {
+          final firstVideo = searchResults.first;
+          final channel = await _yt.channels.get(firstVideo.channelId);
+          realCover = channel.logoUrl;
+          _artistAvatars[artistName] =
+              realCover; // Önbelleğe de atalım ki diğer sayfalarda da anında dolsun
+        }
 
         _suggestedArtists[i] = Song(
           id: _suggestedArtists[i].id,
@@ -2146,11 +2220,6 @@ class SongProvider with ChangeNotifier {
 
     bool isResuming = _pausedDownloads.contains(song.id);
 
-    // Sadece yeni bir indirme başlatıldığında reklam sayacını çalıştır (Duraklat/Devam Et durumlarında sayma)
-    if (!isResuming) {
-      checkAndShowAdForDownload();
-    }
-
     _pausedDownloads.remove(
       song.id,
     ); // Eğer duraklatılmışsa, artık devam ediyor
@@ -2159,10 +2228,16 @@ class SongProvider with ChangeNotifier {
     if (!isResuming) {
       _downloadProgress[song.id] =
           null; // Belirsiz ilerleme için null ile başla
+      if (_downloadProgressNotifiers.containsKey(song.id)) {
+        _downloadProgressNotifiers[song.id]!.value = null;
+      }
     }
     _downloadDetails[song.id] = isResuming
         ? "Devam ediliyor..."
         : "Hazırlanıyor...";
+    if (_downloadDetailsNotifiers.containsKey(song.id)) {
+      _downloadDetailsNotifiers[song.id]!.value = _downloadDetails[song.id]!;
+    }
     final cancelToken = CancelToken();
     _downloadCancelTokens[song.id] = cancelToken;
     notifyListeners();
@@ -2204,6 +2279,10 @@ class SongProvider with ChangeNotifier {
         // 1. İnternet kesikse bekle
         if (!_hasConnection) {
           _downloadDetails[song.id] = "Bağlantı bekleniyor...";
+          if (_downloadDetailsNotifiers.containsKey(song.id)) {
+            _downloadDetailsNotifiers[song.id]!.value =
+                "Bağlantı bekleniyor...";
+          }
           notifyListeners();
 
           // Bağlantı gelene veya iptal edilene kadar bekle
@@ -2218,6 +2297,10 @@ class SongProvider with ChangeNotifier {
             break;
 
           _downloadDetails[song.id] = "İndirme devam ediyor...";
+          if (_downloadDetailsNotifiers.containsKey(song.id)) {
+            _downloadDetailsNotifiers[song.id]!.value =
+                "İndirme devam ediyor...";
+          }
           notifyListeners();
         }
 
@@ -2233,23 +2316,7 @@ class SongProvider with ChangeNotifier {
           // Eski Audius dışındaki tüm şarkıları YouTube üzerinden çöz
           if (!downloadUrl.contains('audius.co')) {
             try {
-              final manifest = await _yt.videos.streamsClient.getManifest(
-                song.id,
-              );
-
-              // YouTube "Sadece Ses" akışlarına katı bot koruması (403) uyguladığı için
-              // mecburen Muxed (Video+Ses) akışına dönüyoruz.
-              Iterable<StreamInfo> streams = manifest.muxed.where(
-                (s) => s.container.name.toString().toLowerCase() == 'mp4',
-              );
-
-              if (streams.isEmpty) {
-                streams = manifest.muxed;
-              }
-
-              // Şarkının saniyeler içinde anında başlaması (veya inmesi) için en küçük boyutlu dosyayı alıyoruz
-              final streamInfo = streams.sortByBitrate().first;
-              downloadUrl = streamInfo.url.toString();
+              downloadUrl = await _resolveYoutubeStreamUrl(song.id);
             } catch (e) {
               debugPrint("Youtube Explode İndirme Hatası: $e");
               throw Exception("İndirme için ses akışı alınamadı.");
@@ -2305,13 +2372,21 @@ class SongProvider with ChangeNotifier {
 
               final currentTotal = downloadedBytes + receivedChunk;
               if (totalBytes > 0) {
-                _downloadProgress[song.id] = currentTotal / totalBytes;
+                final progressVal = currentTotal / totalBytes;
+                _downloadProgress[song.id] = progressVal;
+                if (_downloadProgressNotifiers.containsKey(song.id)) {
+                  _downloadProgressNotifiers[song.id]!.value = progressVal;
+                }
 
                 // MB Detay
                 final double receivedMB = currentTotal / (1024 * 1024);
                 final double totalMB = totalBytes / (1024 * 1024);
-                _downloadDetails[song.id] =
+                final detailStr =
                     "${receivedMB.toStringAsFixed(1)} MB / ${totalMB.toStringAsFixed(1)} MB";
+                _downloadDetails[song.id] = detailStr;
+                if (_downloadDetailsNotifiers.containsKey(song.id)) {
+                  _downloadDetailsNotifiers[song.id]!.value = detailStr;
+                }
 
                 // UI Güncelleme
                 int currentPercent = ((currentTotal / totalBytes) * 100)
@@ -2342,6 +2417,14 @@ class SongProvider with ChangeNotifier {
         } catch (e) {
           if (e is DioException && CancelToken.isCancel(e)) {
             rethrow; // İptal edildiyse dışarı fırlat
+          }
+          if (e is DioException &&
+              e.response != null &&
+              (e.response!.statusCode == 403 ||
+                  e.response!.statusCode == 404)) {
+            _resolvedStreamUrlCache.remove(
+              song.id,
+            ); // Zaman aşımı olduysa linki RAM'den sil ki döngü taze link çeksin
           }
           // Kullanıcı iptal etmediyse ve hata aldıysak (örneğin internet koptu)
           // Döngü başa dönecek ve internet kontrolü yapacak.
@@ -2403,13 +2486,7 @@ class SongProvider with ChangeNotifier {
           final publicSavePath =
               '${publicDir.path}/$cleanTitle - $cleanArtist.m4a'; // Müzik olarak tanınması için uzantıyı m4a yapıyoruz
 
-          final publicImagePath =
-              '${publicDir.path}/$cleanTitle - $cleanArtist.jpg'; // Resmi de aynı isimle kopyala
-
           await file.copy(publicSavePath);
-          if (File(imagePath).existsSync()) {
-            await File(imagePath).copy(publicImagePath);
-          }
 
           debugPrint("Şarkı genel klasöre kopyalandı: $publicSavePath");
         } catch (e) {
@@ -2427,6 +2504,16 @@ class SongProvider with ChangeNotifier {
 
       // Not: İlerleme bildiriminin (SnackBar) başarılı olduğunda aniden yeşile dönmesi
       // ve kendi kendini kapatması CustomSnackBar içerisindeki isDownloaded kontrolüyle sağlanmaktadır.
+
+      // İndirme bittiğinde reklam sayacını kontrol et
+      _downloadAdCounter++;
+      if (_downloadAdCounter % 2 == 0) {
+        if (_isAudioServiceInitialized && audioPlayer.playing) {
+          _isAdPending = true;
+        } else {
+          _interstitialAdManager.showAdIfAvailable();
+        }
+      }
 
       try {
         _showDownloadNotification(song); // İndirme bitince bildirim göster
@@ -2838,83 +2925,119 @@ class SongProvider with ChangeNotifier {
     }
   }
 
-  /// Geçiş reklamını yükler
-  void _loadInterstitialAd() {
-    if (!Platform.isAndroid && !Platform.isIOS)
-      return; // Sadece mobil için çalıştır
-    InterstitialAd.load(
-      adUnitId: Platform.isAndroid
-          ? 'ca-app-pub-7993140773979821/5116160803' // Gerçek Android Reklam ID
-          : 'ca-app-pub-3940256099942544/4411468910', // iOS Test ID
-      request: const AdRequest(),
-      adLoadCallback: InterstitialAdLoadCallback(
-        onAdLoaded: (InterstitialAd ad) {
-          _interstitialAd = ad;
-          _isAdLoaded = true;
-        },
-        onAdFailedToLoad: (LoadAdError error) {
-          debugPrint('InterstitialAd failed to load: $error');
-          _isAdLoaded = false;
-        },
-      ),
+  /// YouTube bağlantısını çözer. Eğer zaten arka planda çözülüyorsa aynı işlemi bekleyerek (Future sharing) kopya istek atılmasını engeller.
+  Future<String> _resolveYoutubeStreamUrl(String songId) {
+    if (_resolvedStreamUrlCache.containsKey(songId)) {
+      return Future.value(_resolvedStreamUrlCache[songId]!);
+    }
+
+    if (_resolvingTasks.containsKey(songId)) {
+      return _resolvingTasks[songId]!;
+    }
+
+    final future = _yt.videos.streamsClient
+        .getManifest(songId)
+        .then((manifest) {
+          // 1. Öncelik: Bot kısıtlamalarını aşmak için 'muxed' (ses+video) mp4 formatı
+          Iterable<StreamInfo> muxedStreams = manifest.muxed.where(
+            (s) => s.container.name.toString().toLowerCase() == 'mp4',
+          );
+
+          if (muxedStreams.isNotEmpty) {
+            final url = muxedStreams.sortByBitrate().first.url.toString();
+            _resolvedStreamUrlCache[songId] = url;
+            _resolvingTasks.remove(songId);
+            return url;
+          }
+
+          // 2. Yedek: Muxed bulunamazsa 'audioOnly' mp4 formatına geç
+          Iterable<StreamInfo> audioStreams = manifest.audioOnly.where(
+            (s) => s.container.name.toString().toLowerCase() == 'mp4',
+          );
+
+          if (audioStreams.isNotEmpty) {
+            final url = audioStreams.sortByBitrate().last.url.toString();
+            _resolvedStreamUrlCache[songId] = url;
+            _resolvingTasks.remove(songId);
+            return url;
+          }
+
+          // 3. Son çare
+          if (manifest.audioOnly.isNotEmpty) {
+            final url = manifest.audioOnly.sortByBitrate().last.url.toString();
+            _resolvedStreamUrlCache[songId] = url;
+            _resolvingTasks.remove(songId);
+            return url;
+          }
+
+          throw Exception("Ses akışı bulunamadı");
+        })
+        .catchError((Object e) {
+          _resolvingTasks.remove(songId);
+          throw e;
+        });
+
+    _resolvingTasks[songId] = future;
+    return future;
+  }
+
+  /// Sıradaki çalacak şarkının ses bağlantısını arka planda önceden hazırlar (Sıfır Gecikme)
+  void _preResolveNextSong() {
+    if (_playlist.isEmpty || _currentSongIndex == null) return;
+
+    int nextIndex;
+    if (_isShuffleEnabled) {
+      if (_shuffledIndices.isEmpty ||
+          _shuffledIndices.length != _playlist.length)
+        return;
+      int currentShuffledIndex = _shuffledIndices.indexOf(_currentSongIndex!);
+      if (currentShuffledIndex == -1) return;
+      if (currentShuffledIndex + 1 >= _shuffledIndices.length) {
+        nextIndex = _shuffledIndices[0];
+      } else {
+        nextIndex = _shuffledIndices[currentShuffledIndex + 1];
+      }
+    } else {
+      if (_currentSongIndex! + 1 >= _playlist.length) {
+        nextIndex = 0;
+      } else {
+        nextIndex = _currentSongIndex! + 1;
+      }
+    }
+
+    final nextSong = _playlist[nextIndex];
+
+    // Eğer yerel dosya ise internetten çözmeye gerek yok
+    final downloadedSong = _downloadedSongs.firstWhere(
+      (s) => s.id == nextSong.id,
+      orElse: () => nextSong,
     );
-  }
-
-  /// Oynatılan şarkı sayacını kontrol eder ve gerekirse reklam gösterir
-  Future<void> _checkAndShowAd() async {
-    _songsPlayedCounter++;
-    // Eğer sayaç frekansa ulaştıysa ve reklam yüklüyse
-    if (_songsPlayedCounter % _adFrequency == 0 &&
-        _isAdLoaded &&
-        _interstitialAd != null) {
-      await _showAdInternal();
+    if (downloadedSong.localPath != null &&
+        File(downloadedSong.localPath!).existsSync()) {
+      return;
     }
-  }
 
-  /// İndirme sayacını kontrol eder ve gerekirse reklam gösterir
-  Future<void> checkAndShowAdForDownload() async {
-    _downloadAdCounter++;
-    if (_downloadAdCounter % _downloadAdFrequency == 0 &&
-        _isAdLoaded &&
-        _interstitialAd != null) {
-      await _showAdInternal();
+    // YouTube şarkısıysa arka planda sessizce çöz
+    if (!nextSong.audioUrl.contains('audius.co')) {
+      _resolveYoutubeStreamUrl(nextSong.id).catchError((_) {
+        // Önceden yükleme sırasındaki hataları sessizce yutuyoruz, kullanıcı şarkıya tıkladığında zaten hatayı görür
+      });
     }
-  }
-
-  /// Sanatçı sayfasına giriş sayacını kontrol eder ve gerekirse reklam gösterir
-  Future<void> checkAndShowAdForArtist() async {
-    _artistPageAdCounter++;
-    if (_artistPageAdCounter % _artistPageAdFrequency == 0 &&
-        _isAdLoaded &&
-        _interstitialAd != null) {
-      await _showAdInternal();
-    }
-  }
-
-  /// Reklam gösterme işlemini sarmalayan ortak fonksiyon
-  Future<void> _showAdInternal() async {
-    final Completer<void> completer = Completer<void>();
-    _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
-      onAdDismissedFullScreenContent: (InterstitialAd ad) {
-        ad.dispose();
-        _isAdLoaded = false;
-        _loadInterstitialAd(); // Bir sonraki için yenisini yükle
-        completer.complete();
-      },
-      onAdFailedToShowFullScreenContent: (InterstitialAd ad, AdError error) {
-        ad.dispose();
-        _isAdLoaded = false;
-        _loadInterstitialAd();
-        completer.complete();
-      },
-    );
-    await _interstitialAd!.show();
-    await completer.future; // Reklam kapanana kadar bekle
   }
 
   Future<void> playSong(Song song, List<Song> playlist) async {
     _addToRecentlyPlayed(song);
     _addToMostPlayed(song); // En çok dinlenenler listesini güncelle
+
+    // Şarkı oynatma tıklaması sayacını artır ve reklam kontrolü yap
+    _songPlayAdCounter++;
+    if (_songPlayAdCounter % 10 == 0) {
+      if (_isAudioServiceInitialized && audioPlayer.playing) {
+        _isAdPending = true;
+      } else {
+        _interstitialAdManager.showAdIfAvailable();
+      }
+    }
 
     // Servis başlatılmadıysa başlatmayı dene (Örn: İlk açılışta hata olduysa)
     if (!_isAudioServiceInitialized) {
@@ -2968,10 +3091,6 @@ class SongProvider with ChangeNotifier {
       _generateShuffledIndices();
     }
 
-    // Yükleme süresini düşürmek için: Reklam kontrolünü paralel başlatıyoruz!
-    // Eğer reklam çıkarsa, kullanıcı reklamı izlerken arka planda YouTube linki çözülmüş olacak.
-    final adFuture = _checkAndShowAd();
-
     if (_currentSongIndex != -1) {
       try {
         // 1. ÖNCE YEREL DOSYAYI KONTROL ET
@@ -3001,7 +3120,6 @@ class SongProvider with ChangeNotifier {
         if (downloadedSong.localPath != null) {
           final file = File(downloadedSong.localPath!);
           if (await file.exists()) {
-            await adFuture; // Şarkıyı çalmadan önce varsa reklamın bitmesini bekle
             if (_pendingSongId != song.id) return;
             await _audioHandler.playSong(mediaItem, downloadedSong.localPath!);
             _fadeIn(); // Yeni şarkının sesini yavaşça aç
@@ -3019,31 +3137,13 @@ class SongProvider with ChangeNotifier {
         // Audius dışındaki her şeyi (YouTube) id üzerinden YouTubeExplode ile çöz
         if (!streamUrl.contains('audius.co')) {
           try {
-            final manifest = await _yt.videos.streamsClient.getManifest(
-              song.id,
-            );
-
-            // YouTube "Sadece Ses" akışlarına katı bot koruması (403) uyguladığı için
-            // mecburen Muxed (Video+Ses) akışına dönüyoruz. just_audio bunun sesini sorunsuz çalar.
-            Iterable<StreamInfo> streams = manifest.muxed.where(
-              (s) => s.container.name.toString().toLowerCase() == 'mp4',
-            );
-
-            if (streams.isEmpty) {
-              streams = manifest.muxed;
-            }
-
-            // Şarkının milisaniyeler içinde anında başlaması için en küçük boyutlu (144p) dosyayı alıyoruz
-            final streamInfo = streams.sortByBitrate().first;
-            streamUrl = streamInfo.url.toString();
+            streamUrl = await _resolveYoutubeStreamUrl(song.id);
           } catch (e) {
             debugPrint("Youtube Explode Akış Hatası: $e");
             throw Exception("Şarkı akışı alınamadı.");
           }
         }
 
-        // Arka planda çözülen URL hazır, şimdi eğer reklam gösteriliyorsa kapanmasını bekle
-        await adFuture;
         if (_pendingSongId != song.id) return;
 
         await _audioHandler.playSong(mediaItem, streamUrl);
@@ -3053,9 +3153,17 @@ class SongProvider with ChangeNotifier {
         if (_pendingSongId == song.id) {
           notifyListeners();
         }
+
+        // --- SIFIR GECİKME: Sonraki şarkıyı arka planda hazırla ---
+        _preResolveNextSong();
       } catch (e) {
         if (_pendingSongId != song.id)
           return; // Şarkı değiştiyse hatayı gösterme
+
+        _resolvedStreamUrlCache.remove(
+          song.id,
+        ); // Çalma hatası olduysa bozuk linki sil (süresi dolmuş olabilir)
+
         debugPrint("Ses çalınırken hata oluştu: $e");
         String errorStr = e.toString();
         if (errorStr.contains('PlayerException') ||
@@ -3243,6 +3351,7 @@ class SongProvider with ChangeNotifier {
   @override
   void dispose() {
     _listeningTimer?.cancel();
+    _adTimer?.cancel();
     _yt.close(); // Uygulama kapanırken persistent nesnemizi temizliyoruz
     if (_isAudioServiceInitialized) {
       _audioHandler.stop();

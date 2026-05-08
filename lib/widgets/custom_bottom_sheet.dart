@@ -47,127 +47,62 @@ class CustomBottomSheet extends StatelessWidget {
       barrierColor: Colors.transparent,
       barrierDismissible: isDismissible,
       barrierLabel: 'CustomDialog',
-      transitionDuration: const Duration(milliseconds: 250),
+      transitionDuration: const Duration(milliseconds: 300),
       pageBuilder: (context, animation, secondaryAnimation) {
         return Scaffold(
           backgroundColor: Colors.transparent,
           resizeToAvoidBottomInset: true,
           body: Stack(
             children: [
-              // Arka planı tamamen bulanıklaştıran katman
               Positioned.fill(
                 child: GestureDetector(
                   onTap: isDismissible ? () => Navigator.pop(context) : null,
-                  child: TweenAnimationBuilder<double>(
-                    tween: Tween(begin: 0.0, end: 1.0),
-                    duration: const Duration(milliseconds: 250),
-                    builder: (context, value, child) {
-                      return BackdropFilter(
-                        filter: ImageFilter.blur(
-                          sigmaX: 20 * value,
-                          sigmaY: 20 * value,
-                        ),
-                        child: Container(
-                          color: Colors.black.withOpacity(0.5 * value),
-                        ),
-                      );
-                    },
-                  ),
+                  child: Container(color: Colors.transparent),
                 ),
               ),
-              // İçerik ve Menü Kutusu
-              Center(
-                child: TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0.0, end: 1.0),
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOutBack,
-                  builder: (context, value, child) {
-                    return Transform.scale(
-                      scale: value,
-                      alignment: Alignment.center,
-                      child: Opacity(
-                        opacity: value.clamp(0.0, 1.0),
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                      child: Container(
-                        width: MediaQuery.of(context).size.width * 0.85,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.3),
-                            width: 1.2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.25),
-                              blurRadius: 20,
-                              spreadRadius: 2,
-                            ),
-                          ],
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: CustomBottomSheet(
-                            title: title,
-                            message: message,
-                            icon: icon,
-                            primaryButtonText: primaryButtonText,
-                            onPrimaryButtonTap: onPrimaryButtonTap,
-                            secondaryButtonText: secondaryButtonText,
-                            onSecondaryButtonTap: onSecondaryButtonTap,
-                            primaryButtonColor: primaryButtonColor,
-                            primaryButtonTextColor: primaryButtonTextColor,
-                          ),
-                        ),
-                      ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.only(
+                      bottom: 24,
+                      left: 16,
+                      right: 16,
                     ),
-                  ),
-                ),
-              ),
-              // Sağ Üst Kapatma (Çarpı) İkonu
-              Positioned(
-                top: MediaQuery.of(context).padding.top + 20,
-                right: 20,
-                child: TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0.0, end: 1.0),
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOutBack,
-                  builder: (context, value, child) {
-                    return Transform.scale(
-                      scale: value,
-                      child: Opacity(
-                        opacity: value.clamp(0.0, 1.0),
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: GestureDetector(
-                    onTap: () => Navigator.pop(context),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(24),
                       child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                         child: Container(
-                          padding: const EdgeInsets.all(8),
+                          width: double.infinity,
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
-                            shape: BoxShape.circle,
+                            color: Colors.white.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(24),
                             border: Border.all(
-                              color: Colors.white.withOpacity(0.2),
-                              width: 1.5,
+                              color: Colors.white.withOpacity(0.3),
+                              width: 1.2,
                             ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.25),
+                                blurRadius: 20,
+                                spreadRadius: 2,
+                              ),
+                            ],
                           ),
-                          child: const Icon(
-                            Icons.close_rounded,
-                            color: Colors.white,
-                            size: 24,
+                          child: Material(
+                            color: Colors.transparent,
+                            child: CustomBottomSheet(
+                              title: title,
+                              message: message,
+                              icon: icon,
+                              primaryButtonText: primaryButtonText,
+                              onPrimaryButtonTap: onPrimaryButtonTap,
+                              secondaryButtonText: secondaryButtonText,
+                              onSecondaryButtonTap: onSecondaryButtonTap,
+                              primaryButtonColor: primaryButtonColor,
+                              primaryButtonTextColor: primaryButtonTextColor,
+                            ),
                           ),
                         ),
                       ),
@@ -177,6 +112,32 @@ class CustomBottomSheet extends StatelessWidget {
               ),
             ],
           ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final blurredBackground = BackdropFilter(
+          filter: ImageFilter.blur(
+            sigmaX: 20 * animation.value,
+            sigmaY: 20 * animation.value,
+          ),
+          child: Container(
+            color: Colors.black.withOpacity(0.5 * animation.value),
+          ),
+        );
+
+        final slideAnimation =
+            Tween<Offset>(
+              begin: const Offset(0.0, 1.0),
+              end: Offset.zero,
+            ).animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+            );
+
+        return Stack(
+          children: [
+            blurredBackground,
+            SlideTransition(position: slideAnimation, child: child),
+          ],
         );
       },
     );
@@ -194,120 +155,59 @@ class CustomBottomSheet extends StatelessWidget {
       barrierColor: Colors.transparent,
       barrierDismissible: isDismissible,
       barrierLabel: 'CustomContentDialog',
-      transitionDuration: const Duration(milliseconds: 250),
+      transitionDuration: const Duration(milliseconds: 300),
       pageBuilder: (context, animation, secondaryAnimation) {
         return Scaffold(
           backgroundColor: Colors.transparent,
-          resizeToAvoidBottomInset:
-              true, // Klavyenin açıldığında pencereyi üste itmesini sağlar
+          resizeToAvoidBottomInset: true,
           body: Stack(
             children: [
               Positioned.fill(
                 child: GestureDetector(
                   onTap: isDismissible ? () => Navigator.pop(context) : null,
-                  child: TweenAnimationBuilder<double>(
-                    tween: Tween(begin: 0.0, end: 1.0),
-                    duration: const Duration(milliseconds: 250),
-                    builder: (context, value, animChild) {
-                      return BackdropFilter(
-                        filter: ImageFilter.blur(
-                          sigmaX: 20 * value,
-                          sigmaY: 20 * value,
-                        ),
-                        child: Container(
-                          color: Colors.black.withOpacity(0.5 * value),
-                        ),
-                      );
-                    },
-                  ),
+                  child: Container(color: Colors.transparent),
                 ),
               ),
-              Center(
-                child: TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0.0, end: 1.0),
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOutBack,
-                  builder: (context, value, animChild) {
-                    return Transform.scale(
-                      scale: value,
-                      alignment: Alignment.center,
-                      child: Opacity(
-                        opacity: value.clamp(0.0, 1.0),
-                        child: animChild,
-                      ),
-                    );
-                  },
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                      child: Container(
-                        width: MediaQuery.of(context).size.width * 0.9,
-                        constraints: BoxConstraints(
-                          maxHeight: MediaQuery.of(context).size.height * 0.85,
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        decoration: BoxDecoration(
-                          color:
-                              backgroundColor ?? Colors.white.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.3),
-                            width: 1.2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.25),
-                              blurRadius: 20,
-                              spreadRadius: 2,
-                            ),
-                          ],
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: SafeArea(child: child),
-                        ),
-                      ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.only(
+                      bottom: 24,
+                      left: 16,
+                      right: 16,
                     ),
-                  ),
-                ),
-              ),
-              Positioned(
-                top: MediaQuery.of(context).padding.top + 20,
-                right: 20,
-                child: TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0.0, end: 1.0),
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOutBack,
-                  builder: (context, value, animChild) {
-                    return Transform.scale(
-                      scale: value,
-                      child: Opacity(
-                        opacity: value.clamp(0.0, 1.0),
-                        child: animChild,
-                      ),
-                    );
-                  },
-                  child: GestureDetector(
-                    onTap: () => Navigator.pop(context),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(24),
                       child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                         child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.2),
-                              width: 1.5,
-                            ),
+                          width: double.infinity,
+                          constraints: BoxConstraints(
+                            maxHeight:
+                                MediaQuery.of(context).size.height * 0.85,
                           ),
-                          child: const Icon(
-                            Icons.close_rounded,
-                            color: Colors.white,
-                            size: 24,
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                            color:
+                                backgroundColor ??
+                                Colors.white.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.3),
+                              width: 1.2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.25),
+                                blurRadius: 20,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: child,
                           ),
                         ),
                       ),
@@ -317,6 +217,32 @@ class CustomBottomSheet extends StatelessWidget {
               ),
             ],
           ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final blurredBackground = BackdropFilter(
+          filter: ImageFilter.blur(
+            sigmaX: 20 * animation.value,
+            sigmaY: 20 * animation.value,
+          ),
+          child: Container(
+            color: Colors.black.withOpacity(0.5 * animation.value),
+          ),
+        );
+
+        final slideAnimation =
+            Tween<Offset>(
+              begin: const Offset(0.0, 1.0),
+              end: Offset.zero,
+            ).animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+            );
+
+        return Stack(
+          children: [
+            blurredBackground,
+            SlideTransition(position: slideAnimation, child: child),
+          ],
         );
       },
     );

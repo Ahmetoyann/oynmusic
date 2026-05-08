@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:muzik_app/main.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
@@ -221,69 +222,78 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).primaryColor;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF121212),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            AnimatedBuilder(
-              animation: _controller,
-              builder: (context, child) {
-                return Opacity(
-                  opacity: _opacityAnimation.value,
-                  child: Transform.scale(
-                    scale: _scaleAnimation.value,
-                    child: Container(
-                      decoration: BoxDecoration(shape: BoxShape.circle),
-                      child: Image.asset(
-                        'assets/icon/oyn_uyg_ikon.png',
-                        height: 160,
-                        width: 160,
-                        color: primaryColor,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+        systemNavigationBarIconBrightness: Brightness.light,
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+      ),
+      child: Scaffold(
+        backgroundColor: const Color(0xFF121212),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedBuilder(
+                animation: _controller,
+                builder: (context, child) {
+                  return Opacity(
+                    opacity: _opacityAnimation.value,
+                    child: Transform.scale(
+                      scale: _scaleAnimation.value,
+                      child: Container(
+                        decoration: BoxDecoration(shape: BoxShape.circle),
+                        child: Image.asset(
+                          'assets/icon/oyn_uyg_ikon.png',
+                          height: 160,
+                          width: 160,
+                          color: primaryColor,
+                        ),
                       ),
                     ),
+                  );
+                },
+              ),
+              const SizedBox(height: 40),
+              SlideTransition(
+                position: _textSlideAnimation,
+                child: FadeTransition(
+                  opacity: _textOpacityAnimation,
+                  child: Text(
+                    "OYN Music",
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                      color: primaryColor,
+                      letterSpacing: 1.5,
+                      shadows: [
+                        Shadow(
+                          blurRadius: 10.0,
+                          color: primaryColor.withOpacity(0.3),
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
                   ),
-                );
-              },
-            ),
-            const SizedBox(height: 40),
-            SlideTransition(
-              position: _textSlideAnimation,
-              child: FadeTransition(
-                opacity: _textOpacityAnimation,
+                ),
+              ),
+              const SizedBox(height: 12),
+              FadeTransition(
+                opacity: _sloganOpacityAnimation,
                 child: Text(
-                  "OYN Music",
+                  "Müziğin Ritmi",
                   style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w900,
-                    color: primaryColor,
-                    letterSpacing: 1.5,
-                    shadows: [
-                      Shadow(
-                        blurRadius: 10.0,
-                        color: primaryColor.withOpacity(0.3),
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+                    fontSize: 16,
+                    color: primaryColor.withOpacity(0.7),
+                    letterSpacing: 4,
+                    fontWeight: FontWeight.w300,
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            FadeTransition(
-              opacity: _sloganOpacityAnimation,
-              child: Text(
-                "Müziğin Ritmi",
-                style: TextStyle(
-                  fontSize: 16,
-                  color: primaryColor.withOpacity(0.7),
-                  letterSpacing: 4,
-                  fontWeight: FontWeight.w300,
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -18,6 +18,7 @@ import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/widgets/mini_player.dart';
 import 'package:muzik_app/widgets/custom_app_bar.dart';
+import 'package:muzik_app/widgets/custom_banner_ad.dart';
 import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/pages/player_page.dart';
 import 'package:palette_generator/palette_generator.dart';
@@ -117,9 +118,16 @@ class _ProfilePageState extends State<ProfilePage>
     return Scaffold(
       extendBody: true,
       appBar: CustomAppBar(title: langProvider.t('profile')),
-      body: user == null
-          ? Center(child: _buildLoginButton(context, authProvider))
-          : _buildUserProfile(context, authProvider, user),
+      body: Column(
+        children: [
+          Expanded(
+            child: user == null
+                ? Center(child: _buildLoginButton(context, authProvider))
+                : _buildUserProfile(context, authProvider, user),
+          ),
+          const CustomBannerAd(),
+        ],
+      ),
       bottomNavigationBar: songProvider.currentSong != null
           ? Container(
               decoration: BoxDecoration(
@@ -127,8 +135,11 @@ class _ProfilePageState extends State<ProfilePage>
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
                   colors: [
-                    const Color(0xFF121212),
-                    const Color(0xFF121212).withOpacity(0.9),
+                    const Color(0xFF121212).withOpacity(
+                      1,
+                    ), // İçeriklerin arkadan flulaşarak görünmesi için şeffaflaştırıldı
+
+                    const Color(0xFF121212).withOpacity(0.8),
                     const Color(0xFF121212).withOpacity(0.4),
                     Colors.transparent,
                   ],
@@ -145,7 +156,7 @@ class _ProfilePageState extends State<ProfilePage>
                       onTap: () => PlayerPage.show(context),
                       child: const MiniPlayer(),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 2),
                   ],
                 ),
               ),
@@ -468,7 +479,7 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-  Widget _buildRecentlyPlayedGridCard(BuildContext context, Song song) {
+  Widget _buildRecentlyPlayedListItem(BuildContext context, Song song) {
     final langProvider = context.watch<LanguageProvider>();
     return GestureDetector(
       onTap: () {
@@ -477,76 +488,66 @@ class _ProfilePageState extends State<ProfilePage>
           MaterialPageRoute(builder: (context) => const RecentlyPlayedPage()),
         );
       },
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.1),
-                width: 1.5,
+      child: Container(
+        color: Colors.transparent,
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: SizedBox(
+                width: 56,
+                height: 56,
+                child: _buildSingleImage(song),
               ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: _buildSingleImage(song),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          CustomIcons.svgIcon(
-                            CustomIcons.historyRounded,
-                            size: 14,
-                            color: Theme.of(context).primaryColor,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              langProvider.t('recently_played'),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: Theme.of(context).primaryColor,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                        ],
+                      CustomIcons.svgIcon(
+                        CustomIcons.historyRounded,
+                        size: 14,
+                        color: Theme.of(context).primaryColor,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        song.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          langProvider.t('recently_played'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Theme.of(context).primaryColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 14,
+              color: Colors.grey.shade600,
+            ),
+          ],
         ),
       ),
     );
@@ -652,7 +653,7 @@ class _ProfilePageState extends State<ProfilePage>
                                 songProvider.followedArtists.length,
                                 (val) => val.toInt().toString(),
                                 CustomIcons.person,
-                                Colors.amber,
+                                Theme.of(context).primaryColor,
                                 BorderRadius.circular(24),
                                 false, // isLeftAlignment (Sağdaki kutu için sağ kenarlar)
                                 () => _showFollowedArtistsBottomSheet(
@@ -680,7 +681,7 @@ class _ProfilePageState extends State<ProfilePage>
                                   return "${(s / 3600).toStringAsFixed(1)}sa";
                                 },
                                 CustomIcons.timerRounded,
-                                Colors.amber,
+                                Theme.of(context).primaryColor,
                                 BorderRadius.circular(24),
                                 true, // isLeftAlignment (Soldaki kutu)
                                 () => _showListeningHistoryBottomSheet(
@@ -797,19 +798,36 @@ class _ProfilePageState extends State<ProfilePage>
 
           // Sadece Çalma Listeleri Bölümü
           if (folders.isNotEmpty) ...[
-            GridView.builder(
+            ListView.separated(
               padding: EdgeInsets.zero,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: 0.85,
-              ),
               itemCount: folders.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 16),
               itemBuilder: (context, index) {
                 final folder = folders[index];
+
+                int totalSeconds = folder.songs.fold(
+                  0,
+                  (sum, item) => sum + (item.duration ?? 0),
+                );
+                String durationText = '';
+                if (totalSeconds > 0) {
+                  int h = totalSeconds ~/ 3600;
+                  int m = (totalSeconds % 3600) ~/ 60;
+                  int s = totalSeconds % 60;
+                  final isTr = langProvider.currentLanguage == 'tr';
+                  String hrStr = isTr ? 's' : 'h'; // TR için Saat
+                  String minStr = isTr ? 'd' : 'm'; // TR için Dakika
+                  String secStr = isTr ? 'sn' : 's'; // TR için Saniye
+
+                  if (h > 0) {
+                    durationText = '·$h$hrStr $m$minStr';
+                  } else {
+                    durationText = '·$m$minStr $s$secStr';
+                  }
+                }
+
                 return GestureDetector(
                   onTap: () {
                     Navigator.push(
@@ -819,61 +837,53 @@ class _ProfilePageState extends State<ProfilePage>
                       ),
                     );
                   },
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.1),
-                            width: 1.5,
+                  child: Container(
+                    color: Colors.transparent,
+                    child: Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: SizedBox(
+                            width: 56,
+                            height: 56,
+                            child: _buildFolderGridCover(folder),
                           ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(12),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: _buildFolderGridCover(folder),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                folder.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
                                 ),
                               ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    folder.name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '${folder.songs.length} ${langProvider.t('song')}',
-                                    style: TextStyle(
-                                      color: Colors.grey.shade400,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
+                              const SizedBox(height: 4),
+                              Text(
+                                '${folder.songs.length} ${langProvider.t('song')}$durationText',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Colors.grey.shade400,
+                                  fontSize: 13,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
+                        Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 14,
+                          color: Colors.grey.shade600,
+                        ),
+                      ],
                     ),
                   ),
                 );
@@ -882,19 +892,9 @@ class _ProfilePageState extends State<ProfilePage>
             const SizedBox(height: 24),
           ],
 
-          // Son Dinlenenler Kutusu (Grid yapısı korunarak tamamen ayrı bir bölüme alındı)
+          // Son Dinlenenler Bölümü
           if (lastPlayedSong != null) ...[
-            GridView.count(
-              padding: EdgeInsets.zero,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount:
-                  2, // Çalma listeleriyle aynı genişlikte (yarım ekran) olmasını sağlar
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 0.85, // Birebir aynı yüksekliği verir
-              children: [_buildRecentlyPlayedGridCard(context, lastPlayedSong)],
-            ),
+            _buildRecentlyPlayedListItem(context, lastPlayedSong),
             const SizedBox(height: 24),
           ],
 
@@ -1198,7 +1198,7 @@ class _ProfilePageState extends State<ProfilePage>
       context: context,
       isScrollControlled: true,
       child: StatefulBuilder(
-        builder: (context, setModalState) => Padding(
+        builder: (modalContext, setModalState) => Padding(
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(context).viewInsets.bottom,
             left: 24,
@@ -1969,9 +1969,9 @@ class _ProfilePageState extends State<ProfilePage>
                               ),
                             ),
                             IconButton(
-                              icon: CustomIcons.svgIcon(
-                                CustomIcons.favorite,
-                                color: Theme.of(context).primaryColor,
+                              icon: const Icon(
+                                Icons.check_circle_rounded,
+                                color: Colors.greenAccent,
                                 size: 20,
                               ),
                               onPressed: () {
@@ -2008,46 +2008,59 @@ class _ProfilePageState extends State<ProfilePage>
     final langProvider = context.read<LanguageProvider>();
     CustomBottomSheet.showContent(
       context: context,
+      isScrollControlled:
+          true, // Listenin rahatça sığması için paneli büyütüyoruz
       child: Consumer<SongProvider>(
         builder: (context, songProvider, child) {
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 24),
-              Text(
-                langProvider.t('following'),
-                style: TextStyle(
-                  color: Theme.of(context).primaryColor,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (songProvider.followedArtists.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(32.0),
-                  child: Text(
-                    langProvider.t('no_followed_artists'),
-                    style: TextStyle(color: Colors.grey),
+          return SizedBox(
+            height: MediaQuery.of(context).size.height * 0.7,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 24),
+                Text(
+                  langProvider.t('following'),
+                  style: TextStyle(
+                    color: Theme.of(context).primaryColor,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
                   ),
-                )
-              else
-                Flexible(
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: songProvider.followedArtists.length,
-                    itemBuilder: (context, index) {
-                      final artistName = songProvider.followedArtists[index];
+                ),
+                const SizedBox(height: 16),
+                if (songProvider.followedArtists.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(32.0),
+                    child: Text(
+                      langProvider.t('no_followed_artists'),
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  )
+                else
+                  Flexible(
+                    child: GridView.builder(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            childAspectRatio: 0.8,
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                          ),
+                      itemCount: songProvider.followedArtists.length,
+                      itemBuilder: (context, index) {
+                        final artistName = songProvider.followedArtists[index];
 
-                      return _FollowedArtistTile(
-                        artistName: artistName,
-                        songProvider: songProvider,
-                      );
-                    },
+                        return _FollowedArtistTile(
+                          artistName: artistName,
+                          songProvider: songProvider,
+                        );
+                      },
+                    ),
                   ),
-                ),
-              const SizedBox(height: 24),
-            ],
+                const SizedBox(height: 24),
+              ],
+            ),
           );
         },
       ),
@@ -2070,94 +2083,37 @@ class _FollowedArtistTile extends StatefulWidget {
 }
 
 class _FollowedArtistTileState extends State<_FollowedArtistTile> {
-  String? _imageUrl;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _fetchArtistImage();
+    _loadAvatar();
   }
 
-  Future<void> _fetchArtistImage() async {
-    try {
-      final results = await YoutubeService.searchSongs(
-        widget.artistName,
-        limit: 1,
-      );
-      if (mounted) {
-        setState(() {
-          _imageUrl = results.isNotEmpty
-              ? results.first.coverUrl
-              : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(widget.artistName)}&background=random&color=fff&size=100';
-          _isLoading = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _imageUrl =
-              'https://ui-avatars.com/api/?name=${Uri.encodeComponent(widget.artistName)}&background=random&color=fff&size=100';
-          _isLoading = false;
-        });
-      }
+  Future<void> _loadAvatar() async {
+    // Eğer profil resmi bellekte varsa anında göster
+    if (widget.songProvider.getArtistAvatar(widget.artistName) != null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
+    // Yoksa Youtube kanalındaki gerçek resmi çekilmesini bekle
+    await widget.songProvider.fetchArtistAvatar(widget.artistName);
+
+    if (mounted) {
+      setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final langProvider = context.watch<LanguageProvider>();
+    final artistAvatar = widget.songProvider.getArtistAvatar(widget.artistName);
+    final imageUrl = artistAvatar != null && artistAvatar.isNotEmpty
+        ? artistAvatar
+        : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(widget.artistName)}&background=random&color=fff&size=100';
 
-    return ListTile(
-      leading: _isLoading || _imageUrl == null
-          ? const _ProfileShimmer(width: 40, height: 40, borderRadius: 20)
-          : ClipOval(
-              child: Container(
-                width: 40,
-                height: 40,
-                color: Colors.grey.shade800,
-                child: Transform.scale(
-                  scale:
-                      (_imageUrl!.contains('ytimg.com') ||
-                          _imageUrl!.contains('youtube.com'))
-                      ? 1.35
-                      : 1.0,
-                  child: CachedNetworkImage(
-                    imageUrl: _imageUrl!,
-                    fit: BoxFit.cover,
-                    errorWidget: (context, url, error) => const SizedBox(),
-                  ),
-                ),
-              ),
-            ),
-      title: _isLoading || _imageUrl == null
-          ? const _ProfileShimmer(width: 100, height: 14, borderRadius: 4)
-          : Text(
-              widget.artistName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-      trailing: OutlinedButton(
-        onPressed: () {
-          widget.songProvider.toggleFollowArtist(widget.artistName);
-        },
-        style: OutlinedButton.styleFrom(
-          side: BorderSide(color: Theme.of(context).primaryColor),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-          minimumSize: const Size(0, 30),
-        ),
-        child: Text(
-          langProvider.t('unfollow'),
-          style: TextStyle(color: Theme.of(context).primaryColor, fontSize: 12),
-        ),
-      ),
+    return GestureDetector(
       onTap: () {
         Navigator.pop(context);
         Navigator.push(
@@ -2170,6 +2126,52 @@ class _FollowedArtistTileState extends State<_FollowedArtistTile> {
           ),
         );
       },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Expanded(
+            child: AspectRatio(
+              aspectRatio: 1,
+              child: ClipOval(
+                child: _isLoading
+                    ? const _ProfileShimmer(
+                        width: double.infinity,
+                        height: double.infinity,
+                        borderRadius: 0,
+                      )
+                    : Container(
+                        color: Colors.grey.shade800,
+                        child: Transform.scale(
+                          scale:
+                              (imageUrl.contains('ytimg.com') ||
+                                  imageUrl.contains('youtube.com'))
+                              ? 1.35
+                              : 1.0,
+                          child: CachedNetworkImage(
+                            imageUrl: imageUrl,
+                            fit: BoxFit.cover,
+                            errorWidget: (context, url, error) =>
+                                const SizedBox(),
+                          ),
+                        ),
+                      ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.artistName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -2275,13 +2277,13 @@ class _PulsingStarState extends State<_PulsingStar>
       builder: (context, child) {
         return Transform.scale(
           scale: _scaleAnimation.value,
-          child: const Icon(
+          child: Icon(
             Icons.star_rounded,
-            color: Colors.amber,
+            color: Theme.of(context).primaryColor,
             size: 36,
             shadows: [
               Shadow(
-                color: Colors.orangeAccent,
+                color: Theme.of(context).primaryColor.withOpacity(0.5),
                 blurRadius: 15,
                 offset: Offset(0, 0),
               ),

@@ -220,7 +220,11 @@ class _SearchPageState extends State<SearchPage> {
         ],
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.only(
+          left: MediaQuery.of(context).size.width * 0.025,
+          right: MediaQuery.of(context).size.width * 0.025,
+          top: 16.0,
+        ),
         child: Column(
           children: [
             // Arama Kutusu
@@ -362,10 +366,6 @@ class _SearchPageState extends State<SearchPage> {
             Expanded(
               child: _buildResultsBody(context, aramaMetni, arananSarkilar),
             ),
-
-            // Banner Reklam Alanı
-            const SizedBox(height: 10),
-            const CustomBannerAd(),
           ],
         ),
       ),
@@ -409,8 +409,8 @@ class _SearchPageState extends State<SearchPage> {
           // 1. Arama Geçmişi Bölümü
           if (songProvider.searchHistory.isNotEmpty) ...[
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
+              padding: EdgeInsets.symmetric(
+                horizontal: MediaQuery.of(context).size.width * 0.025,
                 vertical: 8,
               ),
               child: Row(
@@ -436,61 +436,73 @@ class _SearchPageState extends State<SearchPage> {
             Builder(
               builder: (context) {
                 final history = songProvider.searchHistory;
-                final showAll = _isHistoryExpanded || history.length <= 3;
+                // Kutucuklar yatayda daha az yer kapladığı için limiti 3'ten 5'e çıkardık
+                final showAll = _isHistoryExpanded || history.length <= 5;
                 final itemsToShow = showAll
                     ? history
-                    : history.take(3).toList();
-                final remainingCount = history.length - 3;
+                    : history.take(5).toList();
+                final remainingCount = history.length - 5;
 
                 return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    ...itemsToShow.map((historyItem) {
-                      return Dismissible(
-                        key: Key('history_$historyItem'),
-                        direction: DismissDirection.endToStart,
-                        background: Container(
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 20),
-                          color: Colors.redAccent.withOpacity(0.8),
-                          child: CustomIcons.svgIcon(
-                            CustomIcons.delete,
-                            color: Colors.white,
-                          ),
-                        ),
-                        onDismissed: (direction) {
-                          songProvider.removeFromSearchHistory(historyItem);
-                        },
-                        child: ListTile(
-                          leading: CustomIcons.svgIcon(
-                            CustomIcons.history,
-                            color: Colors.grey,
-                            size: 24,
-                          ),
-                          title: Text(
-                            historyItem,
-                            style: const TextStyle(color: Colors.white70),
-                          ),
-                          trailing: IconButton(
-                            icon: CustomIcons.svgIcon(
-                              CustomIcons.clear,
-                              size: 18,
-                              color: Colors.grey,
+                    Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: MediaQuery.of(context).size.width * 0.025,
+                      ),
+                      child: Wrap(
+                        spacing: 8.0,
+                        runSpacing: 10.0,
+                        children: itemsToShow.map((historyItem) {
+                          return GestureDetector(
+                            onTap: () {
+                              _searchController.text = historyItem;
+                              _searchController.selection =
+                                  TextSelection.fromPosition(
+                                    TextPosition(offset: historyItem.length),
+                                  );
+                              songProvider.updateSearchText(historyItem);
+                              songProvider.addToSearchHistory(historyItem);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade900,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.1),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    historyItem,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  GestureDetector(
+                                    onTap: () => songProvider
+                                        .removeFromSearchHistory(historyItem),
+                                    child: const Icon(
+                                      Icons.close_rounded,
+                                      size: 16,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            onPressed: () => songProvider
-                                .removeFromSearchHistory(historyItem),
-                          ),
-                          onTap: () {
-                            _searchController.text = historyItem;
-                            _searchController.selection =
-                                TextSelection.fromPosition(
-                                  TextPosition(offset: historyItem.length),
-                                );
-                            songProvider.updateSearchText(historyItem);
-                            songProvider.addToSearchHistory(historyItem);
-                          },
-                        ),
-                      );
-                    }),
+                          );
+                        }).toList(),
+                      ),
+                    ),
                     // +X Daha Fazla Göster Butonu
                     if (!showAll && remainingCount > 0)
                       InkWell(
@@ -513,7 +525,7 @@ class _SearchPageState extends State<SearchPage> {
                         ),
                       ),
                     // Kapatma (Yukarı Ok) Butonu
-                    if (showAll && history.length > 3)
+                    if (showAll && history.length > 5)
                       InkWell(
                         onTap: () {
                           setState(() {
@@ -534,7 +546,7 @@ class _SearchPageState extends State<SearchPage> {
                 );
               },
             ),
-            const Divider(color: Colors.grey),
+            const SizedBox(height: 16),
           ],
 
           // 2. Önerilen Şarkılar Bölümü
@@ -545,7 +557,12 @@ class _SearchPageState extends State<SearchPage> {
             )
           else if (suggestionsToDisplay.isNotEmpty) ...[
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              padding: EdgeInsets.fromLTRB(
+                MediaQuery.of(context).size.width * 0.025,
+                16,
+                MediaQuery.of(context).size.width * 0.025,
+                8,
+              ),
               child: Text(
                 suggestionTitle,
                 style: const TextStyle(
@@ -557,7 +574,9 @@ class _SearchPageState extends State<SearchPage> {
             ),
             if (selectedTab == 'collections')
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                padding: EdgeInsets.symmetric(
+                  horizontal: MediaQuery.of(context).size.width * 0.025,
+                ),
                 child: GridView.builder(
                   padding: EdgeInsets.zero,
                   shrinkWrap: true,
@@ -599,6 +618,8 @@ class _SearchPageState extends State<SearchPage> {
                 );
               }),
           ],
+          const SizedBox(height: 16),
+          const CustomBannerAd(),
         ],
       );
     }
@@ -614,8 +635,8 @@ class _SearchPageState extends State<SearchPage> {
         slivers: [
           selectedTab == 'collections'
               ? SliverPadding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: MediaQuery.of(context).size.width * 0.025,
                     vertical: 8.0,
                   ),
                   sliver: SliverGrid(
@@ -671,6 +692,8 @@ class _SearchPageState extends State<SearchPage> {
                 child: Center(child: CircularProgressIndicator()),
               ),
             ),
+          const SliverToBoxAdapter(child: SizedBox(height: 16)),
+          const SliverToBoxAdapter(child: CustomBannerAd()),
           SliverToBoxAdapter(child: SizedBox(height: bottomPadding)),
         ],
       );
@@ -683,20 +706,33 @@ class _SearchPageState extends State<SearchPage> {
     final isFollowed = songProvider.isArtistFollowed(song.artist);
     final primaryColor = Theme.of(context).primaryColor;
 
+    String coverUrl = song.coverUrl;
+    final artistAvatar = songProvider.getArtistAvatar(song.artist);
+    if (artistAvatar != null && artistAvatar.isNotEmpty) {
+      coverUrl = artistAvatar;
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        context.read<SongProvider>().fetchArtistAvatar(song.artist);
+      });
+    }
+
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      leading: song.coverUrl.isEmpty
-          ? const CustomShimmer(width: 56, height: 56, borderRadius: 12)
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: MediaQuery.of(context).size.width * 0.025,
+        vertical: 8,
+      ),
+      leading: coverUrl.isEmpty
+          ? const CustomShimmer(width: 56, height: 56, borderRadius: 28)
           : ClipRRect(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(28),
               child: Transform.scale(
                 scale:
-                    (song.coverUrl.contains('ytimg.com') ||
-                        song.coverUrl.contains('youtube.com'))
+                    (coverUrl.contains('ytimg.com') ||
+                        coverUrl.contains('youtube.com'))
                     ? 1.35
                     : 1.0,
                 child: CachedNetworkImage(
-                  imageUrl: song.coverUrl,
+                  imageUrl: coverUrl,
                   memCacheHeight: 200,
                   width: 56,
                   height: 56,
@@ -710,7 +746,7 @@ class _SearchPageState extends State<SearchPage> {
                 ),
               ),
             ),
-      title: song.coverUrl.isEmpty
+      title: coverUrl.isEmpty
           ? const CustomShimmer(width: 120, height: 16, borderRadius: 4)
           : Text(
               song.artist,
@@ -724,17 +760,16 @@ class _SearchPageState extends State<SearchPage> {
             ),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 4.0),
-        child: song.coverUrl.isEmpty
+        child: coverUrl.isEmpty
             ? const CustomShimmer(width: 60, height: 12, borderRadius: 4)
             : Text(
                 langProvider.t('artist'),
                 style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
               ),
       ),
-      onTap: song.coverUrl.isEmpty
+      onTap: coverUrl.isEmpty
           ? null
           : () {
-              context.read<SongProvider>().checkAndShowAdForArtist();
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -743,7 +778,7 @@ class _SearchPageState extends State<SearchPage> {
                 ),
               );
             },
-      trailing: song.coverUrl.isEmpty
+      trailing: coverUrl.isEmpty
           ? null
           : GestureDetector(
               onTap: () {
@@ -835,7 +870,6 @@ class _SearchPageState extends State<SearchPage> {
       showFavorite: false,
       placeholderIcon: CustomIcons.album,
       onTap: () {
-        context.read<SongProvider>().checkAndShowAdForArtist();
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -852,40 +886,54 @@ class _SearchPageState extends State<SearchPage> {
 
   Widget _buildEmptyState(BuildContext context, String query) {
     final langProvider = context.watch<LanguageProvider>();
+    final songProvider = context.watch<SongProvider>();
+    final double bottomPadding = songProvider.currentSong != null ? 160 : 100;
 
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade900,
-              shape: BoxShape.circle,
-            ),
-            child: CustomIcons.svgIcon(
-              CustomIcons.searchOff,
-              size: 64,
-              color: Theme.of(context).primaryColor.withOpacity(0.5),
-            ),
+    return CustomScrollView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      slivers: [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade900,
+                  shape: BoxShape.circle,
+                ),
+                child: CustomIcons.svgIcon(
+                  CustomIcons.searchOff,
+                  size: 64,
+                  color: Theme.of(context).primaryColor.withOpacity(0.5),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                langProvider.t('no_results'),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                langProvider
+                    .t('search_no_results_query')
+                    .replaceAll('%s', query),
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
+              ),
+              const Spacer(),
+              const CustomBannerAd(),
+              SizedBox(height: bottomPadding),
+            ],
           ),
-          const SizedBox(height: 24),
-          Text(
-            langProvider.t('no_results'),
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            langProvider.t('search_no_results_query').replaceAll('%s', query),
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

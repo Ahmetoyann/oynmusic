@@ -10,6 +10,7 @@ import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:muzik_app/widgets/custom_app_bar.dart';
 import 'package:muzik_app/providers/language_provider.dart';
+import 'package:muzik_app/widgets/custom_banner_ad.dart';
 
 class RecentlyPlayedPage extends StatefulWidget {
   const RecentlyPlayedPage({super.key});
@@ -102,8 +103,11 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
                   colors: [
-                    const Color(0xFF121212),
-                    const Color(0xFF121212).withOpacity(0.9),
+                    const Color(0xFF121212).withOpacity(
+                      1,
+                    ), // İçeriklerin arkadan flulaşarak görünmesi için şeffaflaştırıldı
+
+                    const Color(0xFF121212).withOpacity(0.8),
                     const Color(0xFF121212).withOpacity(0.4),
                     Colors.transparent,
                   ],
@@ -120,7 +124,7 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
                       onTap: () => PlayerPage.show(context),
                       child: const MiniPlayer(),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 2),
                   ],
                 ),
               ),
@@ -246,6 +250,7 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
                     },
                   ),
           ),
+          const CustomBannerAd(),
         ],
       ),
     );

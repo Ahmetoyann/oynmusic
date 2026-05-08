@@ -19,7 +19,6 @@ import 'package:muzik_app/widgets/song_card.dart';
 import 'package:muzik_app/widgets/song_grid_card.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/pages/player_page.dart';
-import 'package:muzik_app/widgets/custom_banner_ad.dart';
 import 'package:muzik_app/providers/language_provider.dart';
 import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:muzik_app/pages/login_page.dart';
@@ -134,7 +133,7 @@ class _TrendPageState extends State<TrendPage> {
         ),
         title: SizedBox(
           height:
-              32, // Yüksekliği azaltıp daha zarif hale getirdik (Orijinalinden de küçük)
+              28, // Yüksekliği azaltıp daha zarif hale getirdik (Orijinalinden de küçük)
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: _filterKeys.length,
@@ -150,21 +149,21 @@ class _TrendPageState extends State<TrendPage> {
                 },
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(
-                    16,
+                    14,
                   ), // Yüksekliğe uygun daha dar kavis
                   child: BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
+                        horizontal: 10,
                       ), // Yan boşlukları biraz kıstık
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: isSelected
                             ? Theme.of(context).primaryColor.withOpacity(0.2)
                             : Colors.white.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(14),
                         border: Border.all(
                           color: isSelected
                               ? Theme.of(context).primaryColor.withOpacity(0.5)
@@ -180,7 +179,7 @@ class _TrendPageState extends State<TrendPage> {
                               : Colors.grey.shade400,
                           fontWeight: FontWeight.w600,
                           fontSize:
-                              12, // Metin boyutunu daha minimal hale getirdik
+                              11, // Metin boyutunu daha minimal hale getirdik
                           letterSpacing: 0.3,
                         ),
                       ),
@@ -194,12 +193,7 @@ class _TrendPageState extends State<TrendPage> {
         titleSpacing: 0,
       ),
       // İçerik Alanı (Yükleniyor, Hata veya Liste)
-      body: Column(
-        children: [
-          Expanded(child: _buildBody(context, songProvider)),
-          const CustomBannerAd(),
-        ],
-      ),
+      body: _buildBody(context, songProvider),
     );
   }
 
@@ -221,7 +215,10 @@ class _TrendPageState extends State<TrendPage> {
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: Center(
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: MediaQuery.of(context).size.width * 0.025,
+                    vertical: 16.0,
+                  ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -406,7 +403,12 @@ class _TrendPageState extends State<TrendPage> {
         if (displayedAlbums.isNotEmpty)
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+              padding: EdgeInsets.fromLTRB(
+                MediaQuery.of(context).size.width * 0.025,
+                16,
+                MediaQuery.of(context).size.width * 0.025,
+                12,
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -428,7 +430,9 @@ class _TrendPageState extends State<TrendPage> {
         if (displayedAlbums.isNotEmpty)
           useGrid
               ? SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: MediaQuery.of(context).size.width * 0.025,
+                  ),
                   sliver: SliverGrid(
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
@@ -453,7 +457,9 @@ class _TrendPageState extends State<TrendPage> {
                     height: 190,
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: MediaQuery.of(context).size.width * 0.025,
+                      ),
                       itemCount: displayedAlbums.length,
                       itemBuilder: (context, index) {
                         final entry = displayedAlbums[index];
@@ -517,7 +523,6 @@ class _TrendPageState extends State<TrendPage> {
         placeholderIcon: CustomIcons.album,
         titleMaxLines: 2,
         onTap: () {
-          context.read<SongProvider>().checkAndShowAdForArtist();
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -539,7 +544,6 @@ class _TrendPageState extends State<TrendPage> {
       song: song,
       showOptions: true,
       onTap: () {
-        context.read<SongProvider>().checkAndShowAdForArtist();
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -562,7 +566,6 @@ class _TrendPageState extends State<TrendPage> {
       title: song.title,
       subtitle: song.artist,
       onTap: () {
-        context.read<SongProvider>().checkAndShowAdForArtist();
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -589,7 +592,12 @@ class _TrendPageState extends State<TrendPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          padding: EdgeInsets.fromLTRB(
+            MediaQuery.of(context).size.width * 0.025,
+            12,
+            MediaQuery.of(context).size.width * 0.025,
+            12,
+          ),
           child: Row(
             children: [
               Icon(
@@ -613,7 +621,9 @@ class _TrendPageState extends State<TrendPage> {
           height: artistSongWidth + 48,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: EdgeInsets.symmetric(
+              horizontal: MediaQuery.of(context).size.width * 0.025,
+            ),
             itemCount: mostPlayed.length > 20 ? 20 : mostPlayed.length,
             itemBuilder: (context, index) {
               final song = mostPlayed[index];
@@ -746,14 +756,18 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+          padding: EdgeInsets.fromLTRB(
+            MediaQuery.of(context).size.width * 0.025,
+            24,
+            MediaQuery.of(context).size.width * 0.025,
+            12,
+          ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Flexible(
                 child: GestureDetector(
                   onTap: () {
-                    context.read<SongProvider>().checkAndShowAdForArtist();
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -865,7 +879,9 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget>
           height: artistSongWidth + 48,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: EdgeInsets.symmetric(
+              horizontal: MediaQuery.of(context).size.width * 0.025,
+            ),
             itemCount: _songs.length > 10 ? 11 : _songs.length,
             itemBuilder: (context, index) {
               if (_songs.length > 10 && index == 10) {
@@ -922,7 +938,6 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget>
 
     return GestureDetector(
       onTap: () {
-        context.read<SongProvider>().checkAndShowAdForArtist();
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -1065,9 +1080,15 @@ class _DailySongCardState extends State<DailySongCard> {
       context,
       authProvider.user?.displayName,
     );
+    final horizontalPadding = MediaQuery.of(context).size.width * 0.025;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      padding: EdgeInsets.fromLTRB(
+        horizontalPadding,
+        16,
+        horizontalPadding,
+        16,
+      ),
       child: RepaintBoundary(
         child: GestureDetector(
           onTap: () {

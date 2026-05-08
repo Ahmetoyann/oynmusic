@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:muzik_app/providers/auth_provider.dart';
 import 'package:muzik_app/providers/song_provider.dart';
 import 'package:muzik_app/widgets/google_logo_painter.dart';
@@ -48,205 +49,214 @@ class _LoginPageState extends State<LoginPage>
     final primaryColor = Theme.of(context).primaryColor;
     final langProvider = context.watch<LanguageProvider>();
 
-    return Scaffold(
-      backgroundColor: const Color(
-        0xFF121212,
-      ), // Spotify benzeri koyu gri/siyah
-      body: Stack(
-        children: [
-          // Arka Plan Parlaması (Onboarding'e uyumlu)
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 500),
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: const Alignment(0, -0.2),
-                radius: 0.8,
-                colors: [
-                  primaryColor.withValues(alpha: 0.25),
-                  const Color(0xFF121212),
-                ],
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+        systemNavigationBarIconBrightness: Brightness.light,
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+      ),
+      child: Scaffold(
+        backgroundColor: const Color(0xFF121212),
+        body: Stack(
+          children: [
+            // Arka Plan Parlaması (Onboarding'e uyumlu)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 500),
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(0, -0.2),
+                  radius: 0.8,
+                  colors: [
+                    primaryColor.withValues(alpha: 0.25),
+                    const Color(0xFF121212),
+                  ],
+                ),
               ),
             ),
-          ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 30.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Spacer(),
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 30.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Spacer(),
 
-                  // Animasyonlu ve Cam Efektli Logo
-                  SlideTransition(
-                    position: _floatAnimation,
-                    child: Container(
-                      padding: const EdgeInsets.all(32),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.05),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: primaryColor.withValues(alpha: 0.3),
-                          width: 2,
+                    // Animasyonlu ve Cam Efektli Logo
+                    SlideTransition(
+                      position: _floatAnimation,
+                      child: Container(
+                        padding: const EdgeInsets.all(32),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.05),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: primaryColor.withValues(alpha: 0.3),
+                            width: 2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: primaryColor.withValues(alpha: 0.2),
+                              blurRadius: 30,
+                              spreadRadius: 5,
+                            ),
+                          ],
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: primaryColor.withValues(alpha: 0.2),
-                            blurRadius: 30,
-                            spreadRadius: 5,
+                        child: Image.asset(
+                          'assets/icon/oyn_uyg_ikon.png',
+                          height:
+                              90, // Padding eklendiği için boyutu biraz küçülttük
+                          width: 90,
+                          color: primaryColor,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+
+                    Text(
+                      "OYN Music",
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w900,
+                        color: primaryColor,
+                        letterSpacing: 1.5,
+                        shadows: [
+                          Shadow(
+                            blurRadius: 10.0,
+                            color: primaryColor.withValues(alpha: 0.3),
+                            offset: const Offset(0, 2),
                           ),
                         ],
                       ),
-                      child: Image.asset(
-                        'assets/icon/oyn_uyg_ikon.png',
-                        height:
-                            90, // Padding eklendiği için boyutu biraz küçülttük
-                        width: 90,
-                        color: primaryColor,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      langProvider.t('slogan'),
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: primaryColor.withValues(alpha: 0.7),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 28),
 
-                  Text(
-                    "OYN Music",
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w900,
-                      color: primaryColor,
-                      letterSpacing: 1.5,
-                      shadows: [
-                        Shadow(
-                          blurRadius: 10.0,
-                          color: primaryColor.withValues(alpha: 0.3),
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    langProvider.t('slogan'),
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: primaryColor.withValues(alpha: 0.7),
-                    ),
-                  ),
+                    const Spacer(),
 
-                  const Spacer(),
-
-                  // Google Giriş Butonu
-                  Center(
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 400),
-                      curve: Curves.easeInOut,
-                      width: _isLoading
-                          ? 55
-                          : MediaQuery.of(context).size.width - 60,
-                      height: 55,
-                      decoration: BoxDecoration(
-                        color: _isLoading ? Colors.grey.shade800 : Colors.white,
-                        borderRadius: BorderRadius.circular(
-                          _isLoading ? 50 : 12,
-                        ),
-                        boxShadow: _isLoading
-                            ? []
-                            : [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.15),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 5),
-                                ),
-                              ],
-                      ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
+                    // Google Giriş Butonu
+                    Center(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 400),
+                        curve: Curves.easeInOut,
+                        width: _isLoading
+                            ? 55
+                            : MediaQuery.of(context).size.width - 60,
+                        height: 55,
+                        decoration: BoxDecoration(
+                          color: _isLoading
+                              ? Colors.grey.shade800
+                              : Colors.white,
                           borderRadius: BorderRadius.circular(
                             _isLoading ? 50 : 12,
                           ),
-                          onTap: _isLoading
-                              ? null
-                              : () async {
-                                  setState(() => _isLoading = true);
-                                  try {
-                                    final user = await context
-                                        .read<AuthProvider>()
-                                        .signInWithGoogle();
-                                    if (mounted && user != null) {
-                                      context
-                                          .read<SongProvider>()
-                                          .fetchSongsFromApi();
-                                      if (Navigator.canPop(context)) {
-                                        Navigator.pop(context);
+                          boxShadow: _isLoading
+                              ? []
+                              : [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.15),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 5),
+                                  ),
+                                ],
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(
+                              _isLoading ? 50 : 12,
+                            ),
+                            onTap: _isLoading
+                                ? null
+                                : () async {
+                                    setState(() => _isLoading = true);
+                                    try {
+                                      final user = await context
+                                          .read<AuthProvider>()
+                                          .signInWithGoogle();
+                                      if (mounted && user != null) {
+                                        context
+                                            .read<SongProvider>()
+                                            .fetchSongsFromApi();
+                                        if (Navigator.canPop(context)) {
+                                          Navigator.pop(context);
+                                        }
+                                      }
+                                    } catch (e) {
+                                      debugPrint("Google Sign-In Error: $e");
+                                    } finally {
+                                      if (mounted) {
+                                        setState(() => _isLoading = false);
                                       }
                                     }
-                                  } catch (e) {
-                                    debugPrint("Google Sign-In Error: $e");
-                                  } finally {
-                                    if (mounted) {
-                                      setState(() => _isLoading = false);
-                                    }
-                                  }
-                                },
-                          child: Center(
-                            child: AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 300),
-                              child: _isLoading
-                                  ? const SizedBox(
-                                      width: 24,
-                                      height: 24,
-                                      child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2.5,
-                                      ),
-                                    )
-                                  : Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        CustomPaint(
-                                          size: const Size(24, 24),
-                                          painter: GoogleLogoPainter(),
+                                  },
+                            child: Center(
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 300),
+                                child: _isLoading
+                                    ? const SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2.5,
                                         ),
-                                        const SizedBox(width: 12),
-                                        Text(
-                                          langProvider.t('login_with_google'),
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.black,
+                                      )
+                                    : Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          CustomPaint(
+                                            size: const Size(24, 24),
+                                            painter: GoogleLogoPainter(),
                                           ),
-                                        ),
-                                      ],
-                                    ),
+                                          const SizedBox(width: 12),
+                                          Text(
+                                            langProvider.t('login_with_google'),
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.black,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
 
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  // Giriş Yapmadan Devam Et (Opsiyonel)
-                  TextButton(
-                    onPressed: () {
-                      provider.continueAsGuest();
-                      if (Navigator.canPop(context)) {
-                        Navigator.pop(context);
-                      }
-                    },
-                    child: Text(
-                      langProvider.t('continue_as_guest'),
-                      style: const TextStyle(color: Colors.white),
+                    // Giriş Yapmadan Devam Et (Opsiyonel)
+                    TextButton(
+                      onPressed: () {
+                        provider.continueAsGuest();
+                        if (Navigator.canPop(context)) {
+                          Navigator.pop(context);
+                        }
+                      },
+                      child: Text(
+                        langProvider.t('continue_as_guest'),
+                        style: const TextStyle(color: Colors.white),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 40),
-                ],
+                    const SizedBox(height: 40),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

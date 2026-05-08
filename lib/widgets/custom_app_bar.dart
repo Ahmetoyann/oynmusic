@@ -59,8 +59,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                 titleStyle ??
                 TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 22,
-                  color: Theme.of(context).primaryColor,
+                  fontSize: 20,
+                  color: Colors.white,
                 ),
           ),
       centerTitle: centerTitle,
@@ -105,7 +105,7 @@ class _AppBarIconBox extends StatelessWidget {
         height: 46,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: Colors.transparent.withOpacity(0.1),
+          color: Colors.grey.withOpacity(0.15),
           shape: BoxShape.circle,
           border: Border.all(color: Colors.grey.withOpacity(0.2)),
         ),

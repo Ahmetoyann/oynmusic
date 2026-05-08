@@ -54,7 +54,7 @@ class CustomSnackBar {
             color: Colors.transparent,
             child: Container(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(8),
                 boxShadow: [
                   BoxShadow(
                     color: accentColor.withOpacity(0.2),
@@ -65,17 +65,17 @@ class CustomSnackBar {
                 ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(8),
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
+                      horizontal: 12,
+                      vertical: 10,
                     ),
                     decoration: BoxDecoration(
                       color: accentColor.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: accentColor.withOpacity(0.5),
                         width: 1.2,
@@ -83,24 +83,14 @@ class CustomSnackBar {
                     ),
                     child: Row(
                       children: [
-                        if (icon != null) ...[
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: accentColor.withOpacity(0.25),
-                              shape: BoxShape.circle,
-                            ),
-                            child: icon,
-                          ),
-                          const SizedBox(width: 12),
-                        ],
+                        if (icon != null) ...[icon!, const SizedBox(width: 12)],
                         Expanded(
                           child: Text(
                             message,
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
-                              fontSize: 14,
+                              fontSize: 13,
                             ),
                           ),
                         ),
@@ -137,7 +127,11 @@ class CustomSnackBar {
       context: context,
       message: message,
       backgroundColor: Colors.green.shade500, // Gölge için daha canlı yeşil
-      icon: const Icon(Icons.check_circle_rounded, color: Colors.white),
+      icon: const Icon(
+        Icons.check_circle_rounded,
+        color: Colors.greenAccent,
+        size: 24,
+      ),
       duration: duration,
     );
   }
@@ -152,7 +146,11 @@ class CustomSnackBar {
       context: context,
       message: message,
       backgroundColor: Colors.redAccent,
-      icon: const Icon(Icons.error_outline_rounded, color: Colors.white),
+      icon: const Icon(
+        Icons.error_outline_rounded,
+        color: Colors.redAccent,
+        size: 24,
+      ),
       duration: duration,
     );
   }
@@ -169,7 +167,9 @@ class CustomSnackBar {
       context: context,
       message: message,
       backgroundColor: primaryColor,
-      icon: icon ?? const Icon(Icons.info_outline_rounded, color: Colors.white),
+      icon:
+          icon ??
+          Icon(Icons.info_outline_rounded, color: primaryColor, size: 24),
       duration: duration,
     );
   }
@@ -185,7 +185,6 @@ class CustomSnackBar {
         Overlay.maybeOf(context) ?? navigatorKey.currentState?.overlay;
     if (overlay == null) return;
 
-    bool isMinimized = false; // Küçültülme durumu
     bool isClosing = false; // Kapanma zamanlayıcısı başladı mı
 
     _currentOverlay = OverlayEntry(
@@ -194,668 +193,304 @@ class CustomSnackBar {
           top: MediaQuery.of(context).padding.top + 20,
           left: 20,
           right: 20,
-          child: StatefulBuilder(
-            builder: (context, setState) {
-              return TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0.0, end: 1.0),
-                duration: const Duration(milliseconds: 400),
-                curve: Curves.easeOutBack,
-                builder: (context, value, child) {
-                  return Transform.translate(
-                    offset: Offset(0, -30 * (1 - value)),
-                    child: Opacity(
-                      opacity: value.clamp(0.0, 1.0),
-                      child: child,
-                    ),
-                  );
-                },
-                child: Align(
-                  alignment: Alignment.topRight, // Sağ üstte küçülecek
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onHorizontalDragEnd: (details) {
-                      // Sağa veya sola yeterli hızda kaydırılırsa küçült
-                      if (details.primaryVelocity != null &&
-                          details.primaryVelocity!.abs() > 100) {
-                        if (!isMinimized) setState(() => isMinimized = true);
-                      }
-                    },
-                    onTap: () {
-                      // Üzerine tıklanınca geri büyüt
-                      if (isMinimized) setState(() => isMinimized = false);
-                    },
-                    child: Material(
-                      color: Colors.transparent,
-                      child: Consumer<SongProvider>(
-                        builder: (context, provider, child) {
-                          final isDownloaded = provider.isSongDownloaded(
-                            song.id,
-                          );
-                          if (isDownloaded && !isClosing) {
-                            isClosing = true;
-                            Future.delayed(const Duration(seconds: 2), () {
-                              hideCurrent();
-                            });
-                          }
-
-                          final isCanceling = provider.isCanceling(song.id);
-                          final isPaused = provider.isPaused(song.id);
-                          final primaryColor = Theme.of(context).primaryColor;
-                          final langProvider = context
-                              .watch<LanguageProvider>();
-
-                          return ValueListenableBuilder<double?>(
-                            valueListenable: provider
-                                .getDownloadProgressNotifier(song.id),
-                            builder: (context, progressValue, child) {
-                              return ValueListenableBuilder<String>(
-                                valueListenable: provider
-                                    .getDownloadDetailsNotifier(song.id),
-                                builder: (context, detailsValue, child) {
-                                  final progress =
-                                      progressValue ??
-                                      (isDownloaded ? 1.0 : 0.0);
-                                  final percentage = (progress * 100).toInt();
-                                  return AnimatedContainer(
-                                    duration: const Duration(milliseconds: 300),
-                                    curve: Curves.easeInOut,
-                                    // Küçültüldüğünde tam yuvarlak, genişlediğinde ekranın tamamı eksi kenar payları
-                                    width: isMinimized
-                                        ? 68
-                                        : MediaQuery.of(context).size.width -
-                                              40,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(
-                                        isMinimized ? 34 : 16,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: isDownloaded
-                                              ? Colors.greenAccent.withOpacity(
-                                                  0.2,
-                                                )
-                                              : primaryColor.withOpacity(0.2),
-                                          blurRadius: 20,
-                                          spreadRadius: 2,
-                                          offset: const Offset(0, 6),
-                                        ),
-                                      ],
-                                    ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(
-                                        isMinimized ? 34 : 16,
-                                      ),
-                                      child: BackdropFilter(
-                                        filter: ImageFilter.blur(
-                                          sigmaX: 20,
-                                          sigmaY: 20,
-                                        ),
-                                        child: AnimatedContainer(
-                                          duration: const Duration(
-                                            milliseconds: 300,
-                                          ),
-                                          padding: EdgeInsets
-                                              .zero, // Padding'i içeri taşıyoruz ki tıklamalar bozulmasın
-                                          decoration: BoxDecoration(
-                                            color: isDownloaded
-                                                ? Colors.greenAccent
-                                                      .withOpacity(0.15)
-                                                : primaryColor.withOpacity(
-                                                    0.15,
-                                                  ),
-                                            borderRadius: BorderRadius.circular(
-                                              isMinimized ? 34 : 16,
-                                            ),
-                                            border: Border.all(
-                                              color: isDownloaded
-                                                  ? Colors.greenAccent
-                                                        .withOpacity(0.5)
-                                                  : primaryColor.withOpacity(
-                                                      0.5,
-                                                    ),
-                                              width: 1.2,
-                                            ),
-                                          ),
-                                          // İçeriğin değişmesini güzel bir solma animasyonu ile yapar
-                                          child: AnimatedSwitcher(
-                                            duration: const Duration(
-                                              milliseconds: 200,
-                                            ),
-                                            child: isMinimized
-                                                ? Padding(
-                                                    key: const ValueKey(
-                                                      'minimized',
-                                                    ),
-                                                    padding:
-                                                        const EdgeInsets.all(6),
-                                                    child: SizedBox(
-                                                      width: 56,
-                                                      height: 56,
-                                                      child: Stack(
-                                                        alignment:
-                                                            Alignment.center,
-                                                        children: [
-                                                          ClipRRect(
-                                                            borderRadius:
-                                                                BorderRadius.circular(
-                                                                  28,
-                                                                ),
-                                                            child: SizedBox(
-                                                              width: 56,
-                                                              height: 56,
-                                                              child: Stack(
-                                                                children: [
-                                                                  Positioned.fill(
-                                                                    child: Transform.scale(
-                                                                      scale:
-                                                                          (song.coverUrl.contains(
-                                                                                'ytimg.com',
-                                                                              ) ||
-                                                                              song.coverUrl.contains(
-                                                                                'youtube.com',
-                                                                              ))
-                                                                          ? 1.35
-                                                                          : 1.0,
-                                                                      child:
-                                                                          (song.localImagePath !=
-                                                                                  null &&
-                                                                              File(
-                                                                                song.localImagePath!,
-                                                                              ).existsSync())
-                                                                          ? Image.file(
-                                                                              File(
-                                                                                song.localImagePath!,
-                                                                              ),
-                                                                              fit: BoxFit.cover,
-                                                                              cacheHeight: 200,
-                                                                            )
-                                                                          : CachedNetworkImage(
-                                                                              imageUrl: song.coverUrl,
-                                                                              fit: BoxFit.cover,
-                                                                              memCacheHeight: 200,
-                                                                              errorWidget:
-                                                                                  (
-                                                                                    context,
-                                                                                    url,
-                                                                                    error,
-                                                                                  ) => Container(
-                                                                                    color: Colors.grey.shade800,
-                                                                                    child: const Icon(
-                                                                                      Icons.music_note,
-                                                                                      color: Colors.white54,
-                                                                                    ),
-                                                                                  ),
-                                                                            ),
-                                                                    ),
-                                                                  ),
-                                                                  if (isDownloaded)
-                                                                    Positioned.fill(
-                                                                      child: TweenAnimationBuilder<double>(
-                                                                        tween: Tween(
-                                                                          begin:
-                                                                              0.0,
-                                                                          end:
-                                                                              1.0,
-                                                                        ),
-                                                                        duration: const Duration(
-                                                                          milliseconds:
-                                                                              500,
-                                                                        ),
-                                                                        curve: Curves
-                                                                            .elasticOut,
-                                                                        builder:
-                                                                            (
-                                                                              context,
-                                                                              val,
-                                                                              child,
-                                                                            ) {
-                                                                              return Transform.scale(
-                                                                                scale: val,
-                                                                                child: Container(
-                                                                                  color: Colors.black.withOpacity(
-                                                                                    0.4,
-                                                                                  ),
-                                                                                  child: const Icon(
-                                                                                    Icons.check_circle_rounded,
-                                                                                    color: Colors.greenAccent,
-                                                                                    size: 28,
-                                                                                  ),
-                                                                                ),
-                                                                              );
-                                                                            },
-                                                                      ),
-                                                                    ),
-                                                                ],
-                                                              ),
-                                                            ),
-                                                          ),
-                                                          if (isPaused &&
-                                                              !isDownloaded)
-                                                            Container(
-                                                              width: 48,
-                                                              height: 48,
-                                                              decoration: BoxDecoration(
-                                                                color: Colors
-                                                                    .black
-                                                                    .withOpacity(
-                                                                      0.4,
-                                                                    ),
-                                                                shape: BoxShape
-                                                                    .circle,
-                                                              ),
-                                                              child: Icon(
-                                                                Icons
-                                                                    .pause_rounded,
-                                                                color:
-                                                                    primaryColor,
-                                                                size: 24,
-                                                              ),
-                                                            ),
-                                                          if (!isDownloaded)
-                                                            SizedBox(
-                                                              width: 56,
-                                                              height: 56,
-                                                              child: CircularProgressIndicator(
-                                                                value:
-                                                                    (progress ==
-                                                                            0.0 &&
-                                                                        !isPaused)
-                                                                    ? null
-                                                                    : progress,
-                                                                color:
-                                                                    primaryColor,
-                                                                strokeWidth: 3,
-                                                              ),
-                                                            ),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                  )
-                                                : Stack(
-                                                    key: const ValueKey(
-                                                      'expanded',
-                                                    ),
-                                                    clipBehavior: Clip.none,
-                                                    children: [
-                                                      Padding(
-                                                        padding:
-                                                            const EdgeInsets.symmetric(
-                                                              horizontal: 14,
-                                                              vertical: 18,
-                                                            ),
-                                                        child: SingleChildScrollView(
-                                                          scrollDirection:
-                                                              Axis.horizontal,
-                                                          physics:
-                                                              const NeverScrollableScrollPhysics(),
-                                                          reverse: true,
-                                                          child: SizedBox(
-                                                            width:
-                                                                MediaQuery.of(
-                                                                  context,
-                                                                ).size.width -
-                                                                68,
-                                                            child: Row(
-                                                              crossAxisAlignment:
-                                                                  CrossAxisAlignment
-                                                                      .center,
-                                                              children: [
-                                                                ClipRRect(
-                                                                  borderRadius:
-                                                                      BorderRadius.circular(
-                                                                        10,
-                                                                      ),
-                                                                  child: SizedBox(
-                                                                    width: 48,
-                                                                    height: 48,
-                                                                    child: Stack(
-                                                                      children: [
-                                                                        Positioned.fill(
-                                                                          child: Transform.scale(
-                                                                            scale:
-                                                                                (song.coverUrl.contains(
-                                                                                      'ytimg.com',
-                                                                                    ) ||
-                                                                                    song.coverUrl.contains(
-                                                                                      'youtube.com',
-                                                                                    ))
-                                                                                ? 1.35
-                                                                                : 1.0,
-                                                                            child:
-                                                                                (song.localImagePath !=
-                                                                                        null &&
-                                                                                    File(
-                                                                                      song.localImagePath!,
-                                                                                    ).existsSync())
-                                                                                ? Image.file(
-                                                                                    File(
-                                                                                      song.localImagePath!,
-                                                                                    ),
-                                                                                    fit: BoxFit.cover,
-                                                                                    cacheHeight: 200,
-                                                                                  )
-                                                                                : CachedNetworkImage(
-                                                                                    imageUrl: song.coverUrl,
-                                                                                    fit: BoxFit.cover,
-                                                                                    memCacheHeight: 200,
-                                                                                    errorWidget:
-                                                                                        (
-                                                                                          c,
-                                                                                          url,
-                                                                                          error,
-                                                                                        ) => Container(
-                                                                                          color: Colors.grey.shade800,
-                                                                                          child: const Icon(
-                                                                                            Icons.music_note,
-                                                                                            color: Colors.white54,
-                                                                                          ),
-                                                                                        ),
-                                                                                  ),
-                                                                          ),
-                                                                        ),
-                                                                        if (isDownloaded)
-                                                                          Positioned.fill(
-                                                                            child:
-                                                                                TweenAnimationBuilder<
-                                                                                  double
-                                                                                >(
-                                                                                  tween: Tween(
-                                                                                    begin: 0.0,
-                                                                                    end: 1.0,
-                                                                                  ),
-                                                                                  duration: const Duration(
-                                                                                    milliseconds: 500,
-                                                                                  ),
-                                                                                  curve: Curves.elasticOut,
-                                                                                  builder:
-                                                                                      (
-                                                                                        context,
-                                                                                        val,
-                                                                                        child,
-                                                                                      ) {
-                                                                                        return Transform.scale(
-                                                                                          scale: val,
-                                                                                          child: Container(
-                                                                                            color: Colors.black.withOpacity(
-                                                                                              0.4,
-                                                                                            ),
-                                                                                            child: const Icon(
-                                                                                              Icons.check_circle_rounded,
-                                                                                              color: Colors.greenAccent,
-                                                                                              size: 28,
-                                                                                            ),
-                                                                                          ),
-                                                                                        );
-                                                                                      },
-                                                                                ),
-                                                                          ),
-                                                                      ],
-                                                                    ),
-                                                                  ),
-                                                                ),
-                                                                const SizedBox(
-                                                                  width: 14,
-                                                                ),
-                                                                Expanded(
-                                                                  child: Column(
-                                                                    crossAxisAlignment:
-                                                                        CrossAxisAlignment
-                                                                            .start,
-                                                                    mainAxisSize:
-                                                                        MainAxisSize
-                                                                            .min,
-                                                                    children: [
-                                                                      Text(
-                                                                        isDownloaded
-                                                                            ? langProvider
-                                                                                  .t(
-                                                                                    'downloaded',
-                                                                                  )
-                                                                                  .toUpperCase()
-                                                                            : isCanceling
-                                                                            ? langProvider
-                                                                                  .t(
-                                                                                    'canceling',
-                                                                                  )
-                                                                                  .toUpperCase()
-                                                                            : isPaused
-                                                                            ? langProvider
-                                                                                  .t(
-                                                                                    'paused',
-                                                                                  )
-                                                                                  .toUpperCase()
-                                                                            : langProvider
-                                                                                  .t(
-                                                                                    'downloading',
-                                                                                  )
-                                                                                  .toUpperCase(),
-                                                                        style: TextStyle(
-                                                                          color:
-                                                                              isDownloaded
-                                                                              ? Colors.greenAccent
-                                                                              : primaryColor,
-                                                                          fontWeight:
-                                                                              FontWeight.w900,
-                                                                          fontSize:
-                                                                              10,
-                                                                          letterSpacing:
-                                                                              0.8,
-                                                                        ),
-                                                                      ),
-                                                                      const SizedBox(
-                                                                        height:
-                                                                            2,
-                                                                      ),
-                                                                      Text(
-                                                                        song.title,
-                                                                        style: const TextStyle(
-                                                                          fontWeight:
-                                                                              FontWeight.bold,
-                                                                          color:
-                                                                              Colors.white,
-                                                                          fontSize:
-                                                                              14,
-                                                                        ),
-                                                                        maxLines:
-                                                                            1,
-                                                                        overflow:
-                                                                            TextOverflow.ellipsis,
-                                                                      ),
-                                                                      if (isDownloaded) ...[
-                                                                        const SizedBox(
-                                                                          height:
-                                                                              2,
-                                                                        ),
-                                                                        Text(
-                                                                          "%100 • Başarılı",
-                                                                          style: TextStyle(
-                                                                            color:
-                                                                                Colors.greenAccent.shade100,
-                                                                            fontSize:
-                                                                                11,
-                                                                            fontWeight:
-                                                                                FontWeight.w500,
-                                                                          ),
-                                                                        ),
-                                                                      ] else if (detailsValue
-                                                                              .isNotEmpty &&
-                                                                          !isCanceling) ...[
-                                                                        const SizedBox(
-                                                                          height:
-                                                                              2,
-                                                                        ),
-                                                                        _AnimatedDownloadDetails(
-                                                                          details:
-                                                                              detailsValue,
-                                                                          percentage:
-                                                                              percentage,
-                                                                        ),
-                                                                      ],
-                                                                    ],
-                                                                  ),
-                                                                ),
-                                                                const SizedBox(
-                                                                  width: 8,
-                                                                ),
-                                                                if (!isCanceling &&
-                                                                    !isDownloaded) ...[
-                                                                  GestureDetector(
-                                                                    onTap: () {
-                                                                      if (isPaused) {
-                                                                        provider
-                                                                            .downloadSong(
-                                                                              song,
-                                                                            );
-                                                                      } else {
-                                                                        provider
-                                                                            .pauseDownload(
-                                                                              song,
-                                                                            );
-                                                                      }
-                                                                    },
-                                                                    child: Stack(
-                                                                      alignment:
-                                                                          Alignment
-                                                                              .center,
-                                                                      children: [
-                                                                        SizedBox(
-                                                                          width:
-                                                                              38,
-                                                                          height:
-                                                                              38,
-                                                                          child: CircularProgressIndicator(
-                                                                            value:
-                                                                                progress ==
-                                                                                    0.0
-                                                                                ? null
-                                                                                : progress,
-                                                                            backgroundColor: Colors.white.withOpacity(
-                                                                              0.1,
-                                                                            ),
-                                                                            color:
-                                                                                primaryColor,
-                                                                            strokeWidth:
-                                                                                3,
-                                                                          ),
-                                                                        ),
-                                                                        Container(
-                                                                          width:
-                                                                              28,
-                                                                          height:
-                                                                              28,
-                                                                          decoration: BoxDecoration(
-                                                                            color: primaryColor.withOpacity(
-                                                                              0.2,
-                                                                            ),
-                                                                            shape:
-                                                                                BoxShape.circle,
-                                                                          ),
-                                                                          child: Icon(
-                                                                            isPaused
-                                                                                ? Icons.play_arrow_rounded
-                                                                                : Icons.pause_rounded,
-                                                                            color:
-                                                                                primaryColor,
-                                                                            size:
-                                                                                18,
-                                                                          ),
-                                                                        ),
-                                                                      ],
-                                                                    ),
-                                                                  ),
-                                                                  const SizedBox(
-                                                                    width: 12,
-                                                                  ),
-                                                                  GestureDetector(
-                                                                    onTap: () =>
-                                                                        provider.cancelDownload(
-                                                                          song.id,
-                                                                        ),
-                                                                    child: Container(
-                                                                      padding:
-                                                                          const EdgeInsets.all(
-                                                                            8,
-                                                                          ),
-                                                                      decoration: BoxDecoration(
-                                                                        color: Colors
-                                                                            .white
-                                                                            .withOpacity(
-                                                                              0.1,
-                                                                            ),
-                                                                        shape: BoxShape
-                                                                            .circle,
-                                                                      ),
-                                                                      child: const Icon(
-                                                                        Icons
-                                                                            .close_rounded,
-                                                                        color: Colors
-                                                                            .white70,
-                                                                        size:
-                                                                            16,
-                                                                      ),
-                                                                    ),
-                                                                  ),
-                                                                ],
-                                                              ],
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ),
-
-                                                      Positioned(
-                                                        top: 6,
-                                                        right: 6,
-                                                        child: GestureDetector(
-                                                          onTap: () => setState(
-                                                            () => isMinimized =
-                                                                true,
-                                                          ),
-                                                          behavior:
-                                                              HitTestBehavior
-                                                                  .opaque,
-                                                          child: Container(
-                                                            padding:
-                                                                const EdgeInsets.all(
-                                                                  5,
-                                                                ),
-                                                            decoration:
-                                                                BoxDecoration(
-                                                                  color: Colors
-                                                                      .black
-                                                                      .withOpacity(
-                                                                        0.4,
-                                                                      ),
-                                                                  shape: BoxShape
-                                                                      .circle,
-                                                                ),
-                                                            child: const Icon(
-                                                              Icons
-                                                                  .close_fullscreen_rounded,
-                                                              color:
-                                                                  Colors.white,
-                                                              size: 14,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              );
-                            },
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.0, end: 1.0),
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeOutBack,
+            builder: (context, value, child) {
+              return Transform.translate(
+                offset: Offset(0, -30 * (1 - value)),
+                child: Opacity(opacity: value.clamp(0.0, 1.0), child: child),
               );
             },
+            child: Material(
+              color: Colors.transparent,
+              child: Consumer<SongProvider>(
+                builder: (context, provider, child) {
+                  final isDownloaded = provider.isSongDownloaded(song.id);
+                  if (isDownloaded && !isClosing) {
+                    isClosing = true;
+                    Future.delayed(const Duration(seconds: 2), () {
+                      hideCurrent();
+                    });
+                  }
+
+                  final isCanceling = provider.isCanceling(song.id);
+                  final isPaused = provider.isPaused(song.id);
+                  final primaryColor = Theme.of(context).primaryColor;
+                  final langProvider = context.watch<LanguageProvider>();
+
+                  return ValueListenableBuilder<double?>(
+                    valueListenable: provider.getDownloadProgressNotifier(
+                      song.id,
+                    ),
+                    builder: (context, progressValue, child) {
+                      return ValueListenableBuilder<String>(
+                        valueListenable: provider.getDownloadDetailsNotifier(
+                          song.id,
+                        ),
+                        builder: (context, detailsValue, child) {
+                          final progress =
+                              progressValue ?? (isDownloaded ? 1.0 : 0.0);
+                          final percentage = (progress * 100).toInt();
+
+                          return Container(
+                            width: MediaQuery.of(context).size.width - 40,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: isDownloaded
+                                      ? Colors.greenAccent.withOpacity(0.2)
+                                      : primaryColor.withOpacity(0.2),
+                                  blurRadius: 20,
+                                  spreadRadius: 2,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(
+                                  sigmaX: 20,
+                                  sigmaY: 20,
+                                ),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: isDownloaded
+                                        ? Colors.greenAccent.withOpacity(0.15)
+                                        : primaryColor.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: isDownloaded
+                                          ? Colors.greenAccent.withOpacity(0.5)
+                                          : primaryColor.withOpacity(0.5),
+                                      width: 1.2,
+                                    ),
+                                  ),
+                                  child: Stack(
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
+                                          children: [
+                                            // Kapak Resmi
+                                            ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                              child: SizedBox(
+                                                width: 44,
+                                                height: 44,
+                                                child: Stack(
+                                                  children: [
+                                                    Positioned.fill(
+                                                      child: Transform.scale(
+                                                        scale:
+                                                            (song.coverUrl
+                                                                    .contains(
+                                                                      'ytimg.com',
+                                                                    ) ||
+                                                                song.coverUrl
+                                                                    .contains(
+                                                                      'youtube.com',
+                                                                    ))
+                                                            ? 1.35
+                                                            : 1.0,
+                                                        child:
+                                                            (song.localImagePath !=
+                                                                    null &&
+                                                                File(
+                                                                  song.localImagePath!,
+                                                                ).existsSync())
+                                                            ? Image.file(
+                                                                File(
+                                                                  song.localImagePath!,
+                                                                ),
+                                                                fit: BoxFit
+                                                                    .cover,
+                                                                cacheHeight:
+                                                                    200,
+                                                              )
+                                                            : CachedNetworkImage(
+                                                                imageUrl: song
+                                                                    .coverUrl,
+                                                                fit: BoxFit
+                                                                    .cover,
+                                                                memCacheHeight:
+                                                                    200,
+                                                                errorWidget: (c, url, error) => Container(
+                                                                  color: Colors
+                                                                      .grey
+                                                                      .shade800,
+                                                                  child: const Icon(
+                                                                    Icons
+                                                                        .music_note,
+                                                                    color: Colors
+                                                                        .white54,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                      ),
+                                                    ),
+                                                    if (isDownloaded)
+                                                      Positioned.fill(
+                                                        child: Container(
+                                                          color: Colors.black
+                                                              .withOpacity(0.4),
+                                                          child: const Icon(
+                                                            Icons
+                                                                .check_circle_rounded,
+                                                            color: Colors
+                                                                .greenAccent,
+                                                            size: 24,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            // Şarkı Bilgileri
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Text(
+                                                    song.title,
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Colors.white,
+                                                      fontSize: 13,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  if (isDownloaded)
+                                                    Text(
+                                                      "%100 • Başarılı",
+                                                      style: TextStyle(
+                                                        color: Colors
+                                                            .greenAccent
+                                                            .shade100,
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                    )
+                                                  else if (detailsValue
+                                                          .isNotEmpty &&
+                                                      !isCanceling)
+                                                    _AnimatedDownloadDetails(
+                                                      details: detailsValue,
+                                                      percentage: percentage,
+                                                    )
+                                                  else if (isCanceling)
+                                                    Text(
+                                                      langProvider.t(
+                                                        'canceling',
+                                                      ),
+                                                      style: TextStyle(
+                                                        color: Colors
+                                                            .grey
+                                                            .shade400,
+                                                        fontSize: 11,
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            // Butonlar
+                                            if (!isCanceling &&
+                                                !isDownloaded) ...[
+                                              GestureDetector(
+                                                onTap: () {
+                                                  if (isPaused) {
+                                                    provider.downloadSong(song);
+                                                  } else {
+                                                    provider.pauseDownload(
+                                                      song,
+                                                    );
+                                                  }
+                                                },
+                                                behavior:
+                                                    HitTestBehavior.opaque,
+                                                child: Container(
+                                                  width: 40,
+                                                  height: 40,
+                                                  alignment: Alignment.center,
+                                                  child: Icon(
+                                                    isPaused
+                                                        ? Icons
+                                                              .play_arrow_rounded
+                                                        : Icons.pause_rounded,
+                                                    color: Colors.white,
+                                                    size: 32,
+                                                  ),
+                                                ),
+                                              ),
+                                              GestureDetector(
+                                                onTap: () => provider
+                                                    .cancelDownload(song.id),
+                                                behavior:
+                                                    HitTestBehavior.opaque,
+                                                child: Container(
+                                                  width: 40,
+                                                  height: 40,
+                                                  alignment: Alignment.center,
+                                                  child: const Icon(
+                                                    Icons.close_rounded,
+                                                    color: Colors.white70,
+                                                    size: 24,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                      if (!isDownloaded && !isCanceling)
+                                        Positioned(
+                                          bottom: 0,
+                                          left: 0,
+                                          right: 0,
+                                          child: LinearProgressIndicator(
+                                            value: progress == 0.0 && !isPaused
+                                                ? null
+                                                : progress,
+                                            minHeight: 2,
+                                            backgroundColor: Colors.transparent,
+                                            valueColor:
+                                                const AlwaysStoppedAnimation<
+                                                  Color
+                                                >(Colors.white),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
           ),
         );
       },

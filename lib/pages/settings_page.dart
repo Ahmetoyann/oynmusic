@@ -15,8 +15,21 @@ import 'package:muzik_app/pages/player_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  late Future<PackageInfo> _packageInfoFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _packageInfoFuture = PackageInfo.fromPlatform();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,8 +51,11 @@ class SettingsPage extends StatelessWidget {
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
                   colors: [
-                    const Color(0xFF121212),
-                    const Color(0xFF121212).withOpacity(0.9),
+                    const Color(0xFF121212).withOpacity(
+                      1,
+                    ), // İçeriklerin arkadan flulaşarak görünmesi için şeffaflaştırıldı
+
+                    const Color(0xFF121212).withOpacity(0.8),
                     const Color(0xFF121212).withOpacity(0.4),
                     Colors.transparent,
                   ],
@@ -56,361 +72,333 @@ class SettingsPage extends StatelessWidget {
                       onTap: () => PlayerPage.show(context),
                       child: const MiniPlayer(),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 2),
                   ],
                 ),
               ),
             )
           : null,
-      body: Stack(
+      body: ListView(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          16,
+          16,
+          (context.watch<SongProvider>().currentSong != null ? 160.0 : 40.0) +
+              MediaQuery.of(context).padding.bottom,
+        ),
         children: [
-          // Modern Arka Plan Parlaması
-          Positioned(
-            top: -100,
-            right: -50,
-            child: Container(
-              width: 250,
-              height: 250,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Theme.of(context).primaryColor.withOpacity(0.15),
-              ),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 80, sigmaY: 80),
-                child: Container(color: Colors.transparent),
-              ),
-            ),
-          ),
-          ListView(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              16,
-              16,
-              (context.watch<SongProvider>().currentSong != null
-                      ? 160.0
-                      : 40.0) +
-                  MediaQuery.of(context).padding.bottom,
-            ),
+          // Dil Ayarları
+          _buildSectionHeader(context, languageProvider.t('language')),
+          _buildSettingsCard(
+            context,
             children: [
-              // Dil Ayarları
-              _buildSectionHeader(context, languageProvider.t('language')),
-              _buildSettingsCard(
-                context,
-                children: [
-                  ListTile(
-                    leading: _buildLeadingIcon(
-                      Colors.blueGrey,
-                      const Icon(
-                        Icons.language_rounded,
-                        color: Colors.blueGrey,
-                        size: 24,
-                      ),
-                    ),
-                    title: Text(
-                      languageProvider.t('language'),
-                      style: const TextStyle(color: textColor),
-                    ),
-                    subtitle: Text(
-                      languageProvider.getCurrentLanguageName(),
-                      style: TextStyle(color: subTextColor, fontSize: 12),
-                    ),
-                    trailing: Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      color: Colors.grey.shade600,
-                      size: 14,
-                    ),
-                    onTap: () => _showLanguageBottomSheet(context),
+              ListTile(
+                leading: _buildLeadingIcon(
+                  Colors.blueGrey,
+                  const Icon(
+                    Icons.language_rounded,
+                    color: Colors.blueGrey,
+                    size: 24,
                   ),
-                ],
+                ),
+                title: Text(
+                  languageProvider.t('language'),
+                  style: const TextStyle(color: textColor),
+                ),
+                subtitle: Text(
+                  languageProvider.getCurrentLanguageName(),
+                  style: TextStyle(color: subTextColor, fontSize: 12),
+                ),
+                trailing: Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: Colors.grey.shade600,
+                  size: 14,
+                ),
+                onTap: () => _showLanguageBottomSheet(context),
               ),
+            ],
+          ),
 
-              // 1. Görünüm Ayarları
-              _buildSectionHeader(
-                context,
-                languageProvider.t('appearance') ?? 'Görünüm',
-              ),
-              _buildSettingsCard(
-                context,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+          // 1. Görünüm Ayarları
+          _buildSectionHeader(
+            context,
+            languageProvider.t('appearance') ?? 'Görünüm',
+          ),
+          _buildSettingsCard(
+            context,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Row(
-                          children: [
-                            _buildLeadingIcon(
-                              Theme.of(context).primaryColor,
-                              Icon(
-                                Icons.color_lens_rounded,
-                                color: Theme.of(context).primaryColor,
-                                size: 24,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    languageProvider.t('theme_color'),
-                                    style: TextStyle(
-                                      color: textColor,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    languageProvider.t('theme_color_desc'),
-                                    style: TextStyle(
-                                      color: subTextColor,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                        _buildLeadingIcon(
+                          Theme.of(context).primaryColor,
+                          Icon(
+                            Icons.color_lens_rounded,
+                            color: Theme.of(context).primaryColor,
+                            size: 24,
+                          ),
                         ),
-                        const SizedBox(height: 20),
-                        SizedBox(
-                          height: 60,
-                          child: ListView(
-                            scrollDirection: Axis.horizontal,
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildColorOption(context, Colors.amber),
-                              _buildColorOption(context, Colors.green),
-                              _buildColorOption(context, Colors.teal),
-                              _buildColorOption(context, Colors.cyan),
-                              _buildColorOption(context, Colors.lightBlue),
-                              _buildColorOption(context, Colors.blue),
-                              _buildColorOption(context, Colors.indigo),
-                              _buildColorOption(context, Colors.deepPurple),
-                              _buildColorOption(context, Colors.purple),
-                              _buildColorOption(context, Colors.pink),
-                              _buildColorOption(context, Colors.red),
-                              _buildColorOption(
-                                context,
-                                const Color(0xFF8B0000),
+                              Text(
+                                languageProvider.t('theme_color'),
+                                style: TextStyle(
+                                  color: textColor,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                              _buildColorOption(context, Colors.deepOrange),
-                              _buildColorOption(context, Colors.orange),
-                              _buildColorOption(
-                                context,
-                                const Color.fromARGB(255, 101, 144, 32),
+                              const SizedBox(height: 4),
+                              Text(
+                                languageProvider.t('theme_color_desc'),
+                                style: TextStyle(
+                                  color: subTextColor,
+                                  fontSize: 12,
+                                ),
                               ),
-                              _buildColorOption(context, Colors.yellow),
-                              _buildColorOption(context, Colors.brown),
-                              _buildColorOption(context, Colors.blueGrey),
                             ],
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      height: 60,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          _buildColorOption(context, Colors.white),
+                          _buildColorOption(context, Colors.amber),
+                          _buildColorOption(context, Colors.green),
+                          _buildColorOption(context, Colors.teal),
+                          _buildColorOption(context, Colors.cyan),
+                          _buildColorOption(context, Colors.lightBlue),
+                          _buildColorOption(context, Colors.blue),
+                          _buildColorOption(context, Colors.indigo),
+                          _buildColorOption(context, Colors.deepPurple),
+                          _buildColorOption(context, Colors.purple),
+                          _buildColorOption(context, Colors.pink),
+                          _buildColorOption(context, Colors.red),
+                          _buildColorOption(context, const Color(0xFF8B0000)),
+                          _buildColorOption(context, Colors.deepOrange),
+                          _buildColorOption(context, Colors.orange),
+                          _buildColorOption(
+                            context,
+                            const Color.fromARGB(255, 101, 144, 32),
+                          ),
+                          _buildColorOption(context, Colors.yellow),
+                          _buildColorOption(context, Colors.brown),
+                          _buildColorOption(context, Colors.blueGrey),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
+            ],
+          ),
 
-              // 2. Müzik Ayarları
-              _buildSectionHeader(context, languageProvider.t('music')),
-              _buildSettingsCard(
-                context,
-                children: [
-                  ListTile(
-                    leading: _buildLeadingIcon(
-                      Colors.orange,
-                      CustomIcons.svgIcon(
-                        CustomIcons.timerRounded,
-                        color: Colors.orange,
+          // 2. Müzik Ayarları
+          _buildSectionHeader(context, languageProvider.t('music')),
+          _buildSettingsCard(
+            context,
+            children: [
+              ListTile(
+                leading: _buildLeadingIcon(
+                  Colors.orange,
+                  CustomIcons.svgIcon(
+                    CustomIcons.timerRounded,
+                    color: Colors.orange,
+                    size: 24,
+                  ),
+                ),
+                title: Text(
+                  languageProvider.t('sleep_timer'),
+                  style: const TextStyle(color: Colors.white),
+                ),
+                subtitle: Text(
+                  context.watch<SongProvider>().isSleepTimerActive
+                      ? 'Bitiş: ${_formatTime(context.watch<SongProvider>().sleepTimerEndTime!)}'
+                      : languageProvider.t('off'),
+                  style: TextStyle(color: subTextColor, fontSize: 12),
+                ),
+                trailing: Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: Colors.grey.shade600,
+                  size: 14,
+                ),
+                onTap: () => _showSleepTimerDialog(context),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Divider(
+                  height: 1,
+                  color: Colors.white.withOpacity(0.05),
+                ),
+              ),
+              Consumer<SongProvider>(
+                builder: (context, provider, child) {
+                  return SwitchListTile(
+                    secondary: _buildLeadingIcon(
+                      Colors.blueAccent,
+                      const Icon(
+                        Icons.data_usage_rounded,
+                        color: Colors.blueAccent,
                         size: 24,
                       ),
                     ),
                     title: Text(
-                      languageProvider.t('sleep_timer'),
+                      languageProvider.t('data_saver'),
                       style: const TextStyle(color: Colors.white),
                     ),
                     subtitle: Text(
-                      context.watch<SongProvider>().isSleepTimerActive
-                          ? 'Bitiş: ${_formatTime(context.watch<SongProvider>().sleepTimerEndTime!)}'
-                          : languageProvider.t('off'),
+                      languageProvider.t('data_saver_desc'),
                       style: TextStyle(color: subTextColor, fontSize: 12),
                     ),
-                    trailing: Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      color: Colors.grey.shade600,
-                      size: 14,
-                    ),
-                    onTap: () => _showSleepTimerDialog(context),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Divider(
-                      height: 1,
-                      color: Colors.white.withOpacity(0.05),
-                    ),
-                  ),
-                  Consumer<SongProvider>(
-                    builder: (context, provider, child) {
-                      return SwitchListTile(
-                        secondary: _buildLeadingIcon(
-                          Colors.blueAccent,
-                          const Icon(
-                            Icons.data_usage_rounded,
-                            color: Colors.blueAccent,
-                            size: 24,
-                          ),
-                        ),
-                        title: Text(
-                          languageProvider.t('data_saver'),
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        subtitle: Text(
-                          languageProvider.t('data_saver_desc'),
-                          style: TextStyle(color: subTextColor, fontSize: 12),
-                        ),
-                        value: provider.isLowDataMode,
-                        activeColor: Theme.of(context).primaryColor,
-                        onChanged: (bool value) {
-                          provider.toggleLowDataMode(value);
-                        },
-                      );
+                    value: provider.isLowDataMode,
+                    activeColor: Theme.of(context).primaryColor,
+                    onChanged: (bool value) {
+                      provider.toggleLowDataMode(value);
                     },
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Divider(
-                      height: 1,
-                      color: Colors.white.withOpacity(0.05),
-                    ),
-                  ),
-                  ListTile(
-                    leading: _buildLeadingIcon(
-                      Colors.purpleAccent,
-                      const Icon(
-                        Icons.equalizer_rounded,
-                        color: Colors.purpleAccent,
-                        size: 24,
-                      ),
-                    ),
-                    title: Text(
-                      languageProvider.t('equalizer'),
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    subtitle: Text(
-                      languageProvider.t('equalizer_desc'),
-                      style: TextStyle(color: subTextColor, fontSize: 12),
-                    ),
-                    trailing: Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      color: Colors.grey.shade600,
-                      size: 14,
-                    ),
-                    onTap: () => _showEqualizerBottomSheet(context),
-                  ),
-                ],
+                  );
+                },
               ),
-
-              // 3. Veri ve Depolama
-              _buildSectionHeader(context, languageProvider.t('data_storage')),
-              _buildSettingsCard(
-                context,
-                children: [
-                  ListTile(
-                    leading: _buildLeadingIcon(
-                      Colors.orange,
-                      const Icon(
-                        Icons.cleaning_services_rounded,
-                        color: Colors.orange,
-                        size: 24,
-                      ),
-                    ),
-                    title: Text(
-                      languageProvider.t('clear_search_cache'),
-                      style: TextStyle(color: textColor),
-                    ),
-                    subtitle: Text(
-                      languageProvider.t('clear_search_cache_desc'),
-                      style: TextStyle(color: subTextColor, fontSize: 12),
-                    ),
-                    trailing: Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      color: Colors.grey.shade600,
-                      size: 14,
-                    ),
-                    onTap: () => _showClearApiCacheDialog(context),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Divider(
-                      height: 1,
-                      color: Colors.white.withOpacity(0.05),
-                    ),
-                  ),
-                  ListTile(
-                    leading: _buildLeadingIcon(
-                      Colors.red,
-                      CustomIcons.svgIcon(
-                        CustomIcons.delete,
-                        color: Colors.red,
-                      ),
-                    ),
-                    title: Text(
-                      languageProvider.t('clear_cache'),
-                      style: TextStyle(color: textColor),
-                    ),
-                    subtitle: Text(
-                      languageProvider.t('clear_cache_desc'),
-                      style: TextStyle(color: subTextColor, fontSize: 12),
-                    ),
-                    trailing: Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      color: Colors.grey.shade600,
-                      size: 14,
-                    ),
-                    onTap: () => _showClearCacheDialog(context),
-                  ),
-                ],
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Divider(
+                  height: 1,
+                  color: Colors.white.withOpacity(0.05),
+                ),
               ),
+              ListTile(
+                leading: _buildLeadingIcon(
+                  Colors.purpleAccent,
+                  const Icon(
+                    Icons.equalizer_rounded,
+                    color: Colors.purpleAccent,
+                    size: 24,
+                  ),
+                ),
+                title: Text(
+                  languageProvider.t('equalizer'),
+                  style: const TextStyle(color: Colors.white),
+                ),
+                subtitle: Text(
+                  languageProvider.t('equalizer_desc'),
+                  style: TextStyle(color: subTextColor, fontSize: 12),
+                ),
+                trailing: Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: Colors.grey.shade600,
+                  size: 14,
+                ),
+                onTap: () => _showEqualizerBottomSheet(context),
+              ),
+            ],
+          ),
 
-              // 4. Uygulama Hakkında
-              _buildSectionHeader(context, languageProvider.t('app')),
-              _buildSettingsCard(
-                context,
-                children: [
-                  ListTile(
-                    leading: _buildLeadingIcon(
-                      Theme.of(context).primaryColor,
-                      Image.asset(
-                        'assets/icon/oyn_uyg_ikon.png',
-                        width: 24,
-                        height: 24,
+          // 3. Veri ve Depolama
+          _buildSectionHeader(context, languageProvider.t('data_storage')),
+          _buildSettingsCard(
+            context,
+            children: [
+              ListTile(
+                leading: _buildLeadingIcon(
+                  Colors.orange,
+                  const Icon(
+                    Icons.cleaning_services_rounded,
+                    color: Colors.orange,
+                    size: 24,
+                  ),
+                ),
+                title: Text(
+                  languageProvider.t('clear_search_cache'),
+                  style: TextStyle(color: textColor),
+                ),
+                subtitle: Text(
+                  languageProvider.t('clear_search_cache_desc'),
+                  style: TextStyle(color: subTextColor, fontSize: 12),
+                ),
+                trailing: Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: Colors.grey.shade600,
+                  size: 14,
+                ),
+                onTap: () => _showClearApiCacheDialog(context),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Divider(
+                  height: 1,
+                  color: Colors.white.withOpacity(0.05),
+                ),
+              ),
+              ListTile(
+                leading: _buildLeadingIcon(
+                  Colors.red,
+                  CustomIcons.svgIcon(CustomIcons.delete, color: Colors.red),
+                ),
+                title: Text(
+                  languageProvider.t('clear_cache'),
+                  style: TextStyle(color: textColor),
+                ),
+                subtitle: Text(
+                  languageProvider.t('clear_cache_desc'),
+                  style: TextStyle(color: subTextColor, fontSize: 12),
+                ),
+                trailing: Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: Colors.grey.shade600,
+                  size: 14,
+                ),
+                onTap: () => _showClearCacheDialog(context),
+              ),
+            ],
+          ),
+
+          // 4. Uygulama Hakkında
+          _buildSectionHeader(context, languageProvider.t('app')),
+          _buildSettingsCard(
+            context,
+            children: [
+              ListTile(
+                leading: _buildLeadingIcon(
+                  Theme.of(context).primaryColor,
+                  Image.asset(
+                    'assets/icon/oyn_uyg_ikon.png',
+                    width: 24,
+                    height: 24,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                ),
+                title: Text(
+                  languageProvider.t('app_version'),
+                  style: const TextStyle(color: textColor),
+                ),
+                trailing: FutureBuilder<PackageInfo>(
+                  future: _packageInfoFuture,
+                  builder: (context, snapshot) {
+                    final version = snapshot.hasData
+                        ? snapshot.data!.version
+                        : '...';
+                    return Text(
+                      version,
+                      style: TextStyle(
                         color: Theme.of(context).primaryColor,
+                        fontWeight: FontWeight.bold,
                       ),
-                    ),
-                    title: Text(
-                      languageProvider.t('app_version'),
-                      style: const TextStyle(color: textColor),
-                    ),
-                    trailing: FutureBuilder<PackageInfo>(
-                      future: PackageInfo.fromPlatform(),
-                      builder: (context, snapshot) {
-                        final version = snapshot.hasData
-                            ? snapshot.data!.version
-                            : '...';
-                        return Text(
-                          version,
-                          style: TextStyle(
-                            color: Theme.of(context).primaryColor,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const _UpdateCheckButton(),
-                ],
+                    );
+                  },
+                ),
               ),
+              const _UpdateCheckButton(),
             ],
           ),
         ],
@@ -544,27 +532,50 @@ class SettingsPage extends StatelessWidget {
   }
 
   Widget _buildColorOption(BuildContext context, Color color) {
-    final themeProvider = context.read<ThemeProvider>();
+    final themeProvider = context.watch<ThemeProvider>();
     final isSelected = themeProvider.primaryColor.value == color.value;
 
     return GestureDetector(
-      onTap: () => themeProvider.setPrimaryColor(color),
-      child: Container(
-        margin: const EdgeInsets.only(right: 12),
-        width: 40,
-        height: 40,
+      onTap: () => context.read<ThemeProvider>().setPrimaryColor(color),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutBack,
+        margin: const EdgeInsets.only(right: 16),
+        width: isSelected ? 48 : 40,
+        height: isSelected ? 48 : 40,
+        padding: EdgeInsets.all(isSelected ? 3 : 0),
         decoration: BoxDecoration(
-          color: color,
           shape: BoxShape.circle,
-          border: isSelected ? Border.all(color: Colors.white, width: 2) : null,
+          border: Border.all(
+            color: isSelected ? color : Colors.transparent,
+            width: 2,
+          ),
         ),
-        child: isSelected
-            ? CustomIcons.svgIcon(
-                CustomIcons.check,
-                color: Colors.white,
-                size: 20,
-              )
-            : null,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            boxShadow: [
+              if (isSelected)
+                BoxShadow(
+                  color: color.withOpacity(0.5),
+                  blurRadius: 10,
+                  spreadRadius: 1,
+                  offset: const Offset(0, 2),
+                ),
+            ],
+          ),
+          child: isSelected
+              ? Center(
+                  child: Icon(
+                    Icons.check_rounded,
+                    color: color == Colors.white ? Colors.black : Colors.white,
+                    size: 20,
+                  ),
+                )
+              : null,
+        ),
       ),
     );
   }
@@ -879,68 +890,74 @@ class _UpdateCheckButtonState extends State<_UpdateCheckButton> {
             ),
             Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.green.shade500, Colors.green.shade700],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.green.withOpacity(0.3),
-                      blurRadius: 15,
-                      spreadRadius: 1,
-                      offset: const Offset(0, 4),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.greenAccent.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.greenAccent.withOpacity(0.5),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.greenAccent.withOpacity(0.2),
+                          blurRadius: 15,
+                          spreadRadius: 1,
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () async {
-                      const storeUrl =
-                          'https://play.google.com/store/apps/details?id=com.ahmed.oyn_music';
-                      final uri = Uri.parse(storeUrl);
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(
-                          uri,
-                          mode: LaunchMode.externalApplication,
-                        );
-                      } else {
-                        if (context.mounted) {
-                          CustomSnackBar.showError(
-                            context: context,
-                            message: "Mağaza linki açılamadı.",
-                          );
-                        }
-                      }
-                    },
-                    borderRadius: BorderRadius.circular(16),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.system_update_rounded,
-                            color: Colors.white,
-                            size: 22,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () async {
+                          const storeUrl =
+                              'https://play.google.com/store/apps/details?id=com.ahmed.oyn_music';
+                          final uri = Uri.parse(storeUrl);
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(
+                              uri,
+                              mode: LaunchMode.externalApplication,
+                            );
+                          } else {
+                            if (context.mounted) {
+                              CustomSnackBar.showError(
+                                context: context,
+                                message: "Mağaza linki açılamadı.",
+                              );
+                            }
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.system_update_rounded,
+                                color: Colors.greenAccent,
+                                size: 24,
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                languageProvider.currentLanguage == 'tr'
+                                    ? 'Yeni Güncelleme Mevcut'
+                                    : 'New Update Available',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            languageProvider.currentLanguage == 'tr'
-                                ? 'Güncelleme Mevcut'
-                                : 'Update Available',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
