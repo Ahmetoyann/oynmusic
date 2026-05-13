@@ -41,6 +41,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
   @override
   void initState() {
     super.initState();
+
     _scrollController.addListener(() {
       if (_scrollController.hasClients) {
         if (_scrollController.offset > 120 && !_showStickyPlayButton) {
@@ -1680,7 +1681,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
                   ),
                 ),
                 // Banner Reklam Alanı
-                const CustomBannerAd(),
+                // Reklamlar geçici olarak kapatıldığı için gizlendi.
+                // const CustomBannerAd(),
               ],
             ),
           ),

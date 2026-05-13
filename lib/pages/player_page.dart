@@ -564,7 +564,8 @@ class _PlayerPageState extends State<PlayerPage> {
                             ],
                           ),
                           const SizedBox(height: 8),
-                          const CustomBannerAd(),
+                          // Reklamlar geçici olarak kapatıldığı için gizlendi. Daha sonra açmak isterseniz alttaki satırın yorumunu kaldırabilirsiniz.
+                          // const CustomBannerAd(),
                         ],
                       ),
                     ),

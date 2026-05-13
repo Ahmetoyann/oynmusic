@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:muzik_app/pages/lists_page.dart';
@@ -79,7 +80,7 @@ void main() async {
     ),
   );
 
-  if (Platform.isAndroid || Platform.isIOS) {
+  if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
     await MobileAds.instance.initialize();
   }
   try {
@@ -265,15 +266,17 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
 
   Future<void> _requestPermissions() async {
     List<Permission> permissions = [];
-    if (Platform.isAndroid) {
-      permissions = [
-        Permission.storage,
-        Permission.audio,
-        Permission.notification,
-      ];
-    } else if (Platform.isIOS) {
-      // iOS için bildirim izni istenir (uygulamanızın özelliklerine göre eklenebilir)
-      permissions = [Permission.notification];
+    if (!kIsWeb) {
+      if (Platform.isAndroid) {
+        permissions = [
+          Permission.storage,
+          Permission.audio,
+          Permission.notification,
+        ];
+      } else if (Platform.isIOS) {
+        // iOS için bildirim izni istenir (uygulamanızın özelliklerine göre eklenebilir)
+        permissions = [Permission.notification];
+      }
     }
 
     if (permissions.isEmpty) return;
@@ -283,7 +286,8 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
     bool isPermanentlyDenied = false;
     statuses.forEach((permission, status) {
       // Android 13 ve üstü cihazlarda storage otomatik reddedilir. Eğer audio izni verildiyse bunu yoksayabiliriz.
-      if (Platform.isAndroid &&
+      if (!kIsWeb &&
+          Platform.isAndroid &&
           permission == Permission.storage &&
           statuses[Permission.audio]?.isGranted == true) {
         return;
@@ -349,20 +353,23 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
 
   Future<void> _checkPermissionsStatus() async {
     List<Permission> permissions = [];
-    if (Platform.isAndroid) {
-      permissions = [
-        Permission.storage,
-        Permission.audio,
-        Permission.notification,
-      ];
-    } else if (Platform.isIOS) {
-      permissions = [Permission.notification];
+    if (!kIsWeb) {
+      if (Platform.isAndroid) {
+        permissions = [
+          Permission.storage,
+          Permission.audio,
+          Permission.notification,
+        ];
+      } else if (Platform.isIOS) {
+        permissions = [Permission.notification];
+      }
     }
 
     bool hasDenied = false;
     for (var p in permissions) {
       var status = await p.status;
-      if (Platform.isAndroid &&
+      if (!kIsWeb &&
+          Platform.isAndroid &&
           p == Permission.storage &&
           await Permission.audio.status.isGranted) {
         continue;

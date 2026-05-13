@@ -1,8 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 class AppOpenAdManager {
+  // Reklam gösterimini geçici olarak kapatmak/açmak için bu değeri değiştirin (Geçici olarak: false)
+  static const bool isAdsEnabled = false;
+
   // Uygulamanın ana akışına (MainScreen) geçilip geçilmediğini tutar
   static bool isMainScreenVisible = false;
 
@@ -11,11 +15,14 @@ class AppOpenAdManager {
   DateTime? _appOpenLoadTime;
 
   // Uygulama Açıkken (App Open) Reklam Birim Kimlikleri
-  final String adUnitId = Platform.isAndroid
-      ? 'ca-app-pub-7993140773979821/1724862393' // Sizin Android Kimliğiniz
-      : 'ca-app-pub-3940256099942544/5662855259'; // iOS test kimliği
+  final String adUnitId = kIsWeb
+      ? ''
+      : (Platform.isAndroid
+            ? 'ca-app-pub-7993140773979821/1724862393' // Sizin Android Kimliğiniz
+            : 'ca-app-pub-3940256099942544/5662855259'); // iOS test kimliği
 
   void loadAd() {
+    if (!isAdsEnabled || kIsWeb) return;
     AppOpenAd.load(
       adUnitId: adUnitId,
       request: const AdRequest(),
@@ -36,6 +43,7 @@ class AppOpenAdManager {
   }
 
   void showAdIfAvailable() {
+    if (!isAdsEnabled || kIsWeb) return;
     if (!isAdAvailable) {
       loadAd();
       return;

@@ -226,6 +226,7 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
                           ...songs.map((song) {
                             final isCurrentSong =
                                 songProvider.currentSong?.id == song.id;
+
                             return Padding(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
@@ -250,7 +251,7 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
                     },
                   ),
           ),
-          const CustomBannerAd(),
+          //const CustomBannerAd(),
         ],
       ),
     );

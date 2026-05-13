@@ -294,71 +294,82 @@ class _SearchPageState extends State<SearchPage> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
 
-            // Tab (Segmented Control) Alanı
-            ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  height: 46,
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.1),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: tabKeys.map((tabKey) {
-                      final isSelected = selectedTab == tabKey;
-                      return Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            songProvider.setSearchFilter(tabKey);
-                          },
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
+            // Tab (Segmented Control) Alanı - Sadece arama yapıldığında kayarak gösterilir
+            AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: aramaMetni.isNotEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 16.0),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: Container(
+                            height: 46,
+                            padding: const EdgeInsets.all(4),
                             decoration: BoxDecoration(
-                              color: isSelected
-                                  ? Theme.of(
-                                      context,
-                                    ).primaryColor.withOpacity(0.2)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(16),
-                              border: isSelected
-                                  ? Border.all(
-                                      color: Theme.of(
-                                        context,
-                                      ).primaryColor.withOpacity(0.5),
-                                      width: 1,
-                                    )
-                                  : Border.all(
-                                      color: Colors.transparent,
-                                      width: 1,
-                                    ),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              langProvider.t(tabKey),
-                              style: TextStyle(
-                                color: isSelected
-                                    ? Colors.white
-                                    : Colors.grey.shade400,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
+                              color: Colors.white.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.1),
+                                width: 1,
                               ),
+                            ),
+                            child: Row(
+                              children: tabKeys.map((tabKey) {
+                                final isSelected = selectedTab == tabKey;
+                                return Expanded(
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      songProvider.setSearchFilter(tabKey);
+                                    },
+                                    child: AnimatedContainer(
+                                      duration: const Duration(
+                                        milliseconds: 200,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? Theme.of(
+                                                context,
+                                              ).primaryColor.withOpacity(0.2)
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: isSelected
+                                            ? Border.all(
+                                                color: Theme.of(
+                                                  context,
+                                                ).primaryColor.withOpacity(0.5),
+                                                width: 1,
+                                              )
+                                            : Border.all(
+                                                color: Colors.transparent,
+                                                width: 1,
+                                              ),
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        langProvider.t(tabKey),
+                                        style: TextStyle(
+                                          color: isSelected
+                                              ? Colors.white
+                                              : Colors.grey.shade400,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
                             ),
                           ),
                         ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ),
+                      ),
+                    )
+                  : const SizedBox(width: double.infinity, height: 0),
             ),
             const SizedBox(height: 16),
 
@@ -595,11 +606,14 @@ class _SearchPageState extends State<SearchPage> {
                   ),
                 ),
               )
-            else
-              ...suggestionsToDisplay.map((song) {
-                if (selectedTab == 'artists') {
-                  return _buildArtistTile(context, song);
-                }
+            else if (selectedTab == 'artists')
+              ...suggestionsToDisplay.map(
+                (song) => _buildArtistTile(context, song),
+              )
+            else ...[
+              // SİZİN İÇİN ÖNERİLENLER (KOMPOZİT GÖRÜNÜM)
+              // 1. Önerilen Şarkılar (Üstte 4 adet SongCard)
+              ...suggestionsToDisplay.take(4).map((song) {
                 return SongCard(
                   song: song,
                   showOptions: true,
@@ -617,9 +631,93 @@ class _SearchPageState extends State<SearchPage> {
                   },
                 );
               }),
+
+              // 2. Önerilen Sanatçılar (Büyük Küreler)
+              if (songProvider.suggestedArtists.isNotEmpty) ...[
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    MediaQuery.of(context).size.width * 0.025,
+                    24,
+                    MediaQuery.of(context).size.width * 0.025,
+                    12,
+                  ),
+                  child: const Text(
+                    "Popüler Sanatçılar",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  height: 140,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: MediaQuery.of(context).size.width * 0.025,
+                    ),
+                    itemCount: songProvider.suggestedArtists.length,
+                    itemBuilder: (context, index) {
+                      final artistSong = songProvider.suggestedArtists[index];
+                      return _buildLargeArtistAvatar(
+                        context,
+                        artistSong,
+                        songProvider,
+                      );
+                    },
+                  ),
+                ),
+              ],
+
+              // 3. Önerilen Mix'ler (Yana kaydırılabilir SongGrid)
+              if (songProvider.suggestedAlbums.isNotEmpty) ...[
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    MediaQuery.of(context).size.width * 0.025,
+                    24,
+                    MediaQuery.of(context).size.width * 0.025,
+                    12,
+                  ),
+                  child: const Text(
+                    "Sizin İçin Mix'ler",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  height: 190, // SongGridCard için uygun yükseklik
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: MediaQuery.of(context).size.width * 0.025,
+                    ),
+                    itemCount: songProvider.suggestedAlbums.length,
+                    itemBuilder: (context, index) {
+                      final mixSong = songProvider.suggestedAlbums[index];
+                      return Container(
+                        width: 140,
+                        margin: const EdgeInsets.only(right: 16),
+                        child: _buildAlbumGridCard(
+                          context,
+                          mixSong,
+                          songProvider.suggestedAlbums,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ],
           ],
           const SizedBox(height: 16),
-          const CustomBannerAd(),
+          // Reklamlar geçici olarak kapatıldığı için gizlendi.
+          // const CustomBannerAd(),
         ],
       );
     }
@@ -693,7 +791,8 @@ class _SearchPageState extends State<SearchPage> {
               ),
             ),
           const SliverToBoxAdapter(child: SizedBox(height: 16)),
-          const SliverToBoxAdapter(child: CustomBannerAd()),
+          // Reklamlar geçici olarak kapatıldığı için gizlendi.
+          // const SliverToBoxAdapter(child: CustomBannerAd()),
           SliverToBoxAdapter(child: SizedBox(height: bottomPadding)),
         ],
       );
@@ -884,6 +983,85 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
+  Widget _buildLargeArtistAvatar(
+    BuildContext context,
+    Song song,
+    SongProvider songProvider,
+  ) {
+    String coverUrl = song.coverUrl;
+    final artistAvatar = songProvider.getArtistAvatar(song.artist);
+    if (artistAvatar != null && artistAvatar.isNotEmpty) {
+      coverUrl = artistAvatar;
+    } else if (coverUrl.isEmpty) {
+      coverUrl =
+          'https://ui-avatars.com/api/?name=${Uri.encodeComponent(song.artist)}&background=random&color=fff&size=200';
+    }
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ArtistDetailPage(
+              artistName: song.artist,
+              songs:
+                  const [], // Sanatçı detayı sayfasında zaten API'den güncel şarkılar çekilecek
+            ),
+          ),
+        );
+      },
+      child: Container(
+        width: 110,
+        margin: const EdgeInsets.only(right: 16),
+        child: Column(
+          children: [
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipOval(
+                child: CachedNetworkImage(
+                  imageUrl: coverUrl,
+                  fit: BoxFit.cover,
+                  memCacheHeight: 300,
+                  errorWidget: (context, url, error) => Container(
+                    color: Colors.grey.shade800,
+                    child: const Icon(
+                      Icons.person,
+                      color: Colors.white54,
+                      size: 40,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              song.artist,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildEmptyState(BuildContext context, String query) {
     final langProvider = context.watch<LanguageProvider>();
     final songProvider = context.watch<SongProvider>();
@@ -928,7 +1106,8 @@ class _SearchPageState extends State<SearchPage> {
                 style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
               ),
               const Spacer(),
-              const CustomBannerAd(),
+              // Reklamlar geçici olarak kapatıldığı için gizlendi.
+              // const CustomBannerAd(),
               SizedBox(height: bottomPadding),
             ],
           ),

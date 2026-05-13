@@ -581,6 +581,7 @@ class _TrendPageState extends State<TrendPage> {
     if (songs.isEmpty) return const SizedBox.shrink();
     // Listeden sadece ilk şarkıyı alıp "Günün Şarkısı" kartına gönderiyoruz.
     // İsteğe bağlı olarak Rastgele bir şarkı da seçilebilir (songs..shuffle()).
+
     return DailySongCard(song: songs.first, playlist: songs);
   }
 
@@ -627,6 +628,7 @@ class _TrendPageState extends State<TrendPage> {
             itemCount: mostPlayed.length > 20 ? 20 : mostPlayed.length,
             itemBuilder: (context, index) {
               final song = mostPlayed[index];
+
               return Container(
                 width: artistSongWidth,
                 margin: const EdgeInsets.only(right: 16),
@@ -891,10 +893,13 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget>
                   child: _buildSeeMoreCard(context),
                 );
               }
+
+              final song = _songs[index];
+
               return Container(
                 width: artistSongWidth,
                 margin: const EdgeInsets.only(right: 16),
-                child: _buildSongCard(_songs[index]),
+                child: _buildSongCard(song),
               );
             },
           ),

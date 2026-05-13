@@ -1264,6 +1264,7 @@ class _FolderDetailPageState extends State<FolderDetailPage>
   ) {
     final langProvider = context.read<LanguageProvider>();
     final isCurrentSong = songProvider.currentSong?.id == song.id;
+
     return Material(
       key: ValueKey(song.id),
       color: isSelected

@@ -125,7 +125,8 @@ class _ProfilePageState extends State<ProfilePage>
                 ? Center(child: _buildLoginButton(context, authProvider))
                 : _buildUserProfile(context, authProvider, user),
           ),
-          const CustomBannerAd(),
+          // Reklamlar geçici olarak kapatıldığı için gizlendi.
+          // const CustomBannerAd(),
         ],
       ),
       bottomNavigationBar: songProvider.currentSong != null
