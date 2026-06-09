@@ -5,6 +5,7 @@ import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/widgets/song_card.dart';
 import 'package:provider/provider.dart';
 import 'package:muzik_app/providers/song_provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class SongGridCard extends StatelessWidget {
   final Song? song;
@@ -46,84 +47,66 @@ class SongGridCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
+          AspectRatio(
+            aspectRatio: 16 / 9,
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(4), // Köşe yarıçapını azalt
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(4), // Köşe yarıçapını azalt
-                child: Transform.scale(
-                  scale:
-                      (imageUrl.contains('ytimg.com') ||
-                          imageUrl.contains('youtube.com'))
-                      ? 1.35
-                      : 1.0,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      (song?.localImagePath != null &&
-                              File(song!.localImagePath!).existsSync())
-                          ? Image.file(
-                              File(song!.localImagePath!),
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          Colors.grey.shade800,
-                                          Colors.black,
-                                        ],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                      ),
-                                    ),
-                                  ),
-                            )
-                          : Image.network(
-                              imageUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          Colors.grey.shade800,
-                                          Colors.black,
-                                        ],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                      ),
-                                    ),
-                                  ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    (song?.localImagePath != null &&
+                            File(song!.localImagePath!).existsSync())
+                        ? Image.file(
+                            File(song!.localImagePath!),
+                            fit: BoxFit.cover,
+                            cacheHeight: 300,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [Colors.grey.shade800, Colors.black],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                              ),
                             ),
-                      if (isFav)
-                        Positioned(
-                          top: 6,
-                          right: 6,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.6),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.favorite_rounded,
-                              color: Theme.of(context).primaryColor,
-                              size: 14,
+                          )
+                        : CachedNetworkImage(
+                            imageUrl: imageUrl,
+                            fit: BoxFit.cover,
+                            memCacheHeight: 300,
+                            errorWidget: (context, url, error) => Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [Colors.grey.shade800, Colors.black],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                              ),
                             ),
                           ),
+                    if (isFav)
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.6),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.check_circle_rounded,
+                            color: Colors.greenAccent,
+                            size: 20,
+                          ),
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
               ),
             ),

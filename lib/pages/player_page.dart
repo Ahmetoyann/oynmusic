@@ -20,9 +20,9 @@ import 'package:muzik_app/widgets/custom_banner_ad.dart';
 import 'package:text_scroll/text_scroll.dart';
 import 'package:muzik_app/providers/language_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:video_player/video_player.dart';
-import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:muzik_app/pages/artist_detail_page.dart';
+import 'package:muzik_app/widgets/mini_player.dart';
+import 'package:muzik_app/services/custom_winning_add.dart';
 
 class PlayerPage extends StatefulWidget {
   const PlayerPage({super.key});
@@ -49,12 +49,191 @@ class PlayerPage extends StatefulWidget {
     );
   }
 
+  static void showModernMenu(BuildContext context, Song song) {
+    final songProvider = Provider.of<SongProvider>(context, listen: false);
+    final langProvider = Provider.of<LanguageProvider>(context, listen: false);
+    final bool isDeviceSong =
+        song.localPath != null && song.audioUrl == song.localPath;
+
+    CustomBottomSheet.showContent(
+      context: context,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 24),
+          ListTile(
+            leading: CustomIcons.svgIcon(
+              CustomIcons.playlistPlay,
+              color: Colors.white,
+              size: 24,
+            ),
+            title: Text(
+              langProvider.t('add_to_playlist'),
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              _showAddToPlaylistSheetStatic(
+                context,
+                song,
+                songProvider,
+                langProvider,
+              );
+            },
+          ),
+          if (!isDeviceSong)
+            ListTile(
+              leading: CustomIcons.svgIcon(
+                CustomIcons.person,
+                color: Colors.white,
+                size: 24,
+              ),
+              title: Text(
+                langProvider.t('go_to_artist'),
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ArtistDetailPage(
+                      artistName: song.artist,
+                      songs: [song],
+                    ),
+                  ),
+                );
+              },
+            ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  static void _showAddToPlaylistSheetStatic(
+    BuildContext context,
+    Song song,
+    SongProvider songProvider,
+    LanguageProvider langProvider,
+  ) {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (pageContext, animation, secondaryAnimation) {
+          return Scaffold(
+            backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
+            body: SafeArea(
+              child: Column(
+                children: [
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: IconButton(
+                        icon: const Icon(Icons.close_rounded,
+                            color: Colors.white, size: 32),
+                        onPressed: () => Navigator.pop(pageContext),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Icon(Icons.playlist_add_check_circle_rounded,
+                      size: 64, color: Theme.of(context).primaryColor),
+                  const SizedBox(height: 16),
+                  Text(
+                    langProvider.t('add_to_playlist'),
+                    style: TextStyle(
+                      color: Theme.of(context).primaryColor,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  if (songProvider.folders.isEmpty)
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          langProvider.t('no_playlists'),
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: songProvider.folders.length,
+                        itemBuilder: (context, index) {
+                          final folder = songProvider.folders[index];
+                          final isAlreadyAdded =
+                              folder.songs.any((s) => s.id == song.id);
+                          return ListTile(
+                            title: Text(
+                              folder.name,
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            trailing: isAlreadyAdded
+                                ? const Icon(Icons.check, color: Colors.green)
+                                : null,
+                            onTap: isAlreadyAdded
+                                ? null
+                                : () {
+                                    songProvider.addSongsToFolder(
+                                      folder,
+                                      [song],
+                                    );
+                                    Navigator.pop(pageContext);
+                                    CustomSnackBar.showSuccess(
+                                      context: context,
+                                      message: langProvider.t('song_added'),
+                                    );
+                                  },
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+      ),
+    );
+  }
+
   @override
   State<PlayerPage> createState() => _PlayerPageState();
 }
 
 class _PlayerPageState extends State<PlayerPage> {
   final ScrollController _scrollController = ScrollController();
+  Color? _dominantColor;
+  String? _currentSongId;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final currentSong = context.watch<SongProvider>().currentSong;
+    if (currentSong != null && currentSong.id != _currentSongId) {
+      _currentSongId = currentSong.id;
+      _loadDominantColor(currentSong);
+    }
+  }
+
+  Future<void> _loadDominantColor(Song song) async {
+    final color = await MiniPlayer.getDominantColor(song);
+    if (mounted && _currentSongId == song.id) {
+      setState(() {
+        _dominantColor = color;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -75,15 +254,23 @@ class _PlayerPageState extends State<PlayerPage> {
       return Scaffold(body: Center(child: Text(langProvider.t('error'))));
     }
 
+    // Cihaz şarkılarında audioUrl ve localPath aynıdır (ikisi de yerel dosya yoludur)
+    final bool isDeviceSong = currentSong.localPath != null &&
+        currentSong.audioUrl == currentSong.localPath;
+
     return Dismissible(
       key: const Key('player_page_dismiss'),
       direction: DismissDirection.down,
       onDismissed: (_) => Navigator.of(context).pop(),
       child: Scaffold(
-        backgroundColor: Colors.transparent, // Arka planı şeffaf yapıyoruz
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         extendBodyBehindAppBar: true, // AppBar'ın arkasına içerik taşsın
         appBar: AppBar(
-          backgroundColor: Colors.transparent,
+          backgroundColor:
+              Colors.white.withOpacity(0.0001), // Düz hafif beyaz şeffaflık
+          scrolledUnderElevation: 0, // Material 3 kaydırma efektini kapatır
+          surfaceTintColor:
+              Colors.transparent, // Primary rengin sızmasını engeller
           elevation: 0,
           centerTitle: true,
           leading: IconButton(
@@ -139,10 +326,20 @@ class _PlayerPageState extends State<PlayerPage> {
         body: Stack(
           fit: StackFit.expand,
           children: [
-            // 1. ve 2. KATMAN: Video Arka Planı VEYA Fallback Resim Katmanı
-            _VideoBackgroundLayer(song: currentSong),
-
-            // 3. KATMAN: İçerik (Spotify tarzı kaydırılabilir ekran ve alt bölüm)
+            // Şarkının Baskın Rengine Göre Arka Plan (Renk Geçişi)
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    (_dominantColor ?? primaryColor).withOpacity(0.35),
+                    Theme.of(context).scaffoldBackgroundColor,
+                  ],
+                  stops: const [0.0, 1.0],
+                ),
+              ),
+            ),
             CustomScrollView(
               controller: _scrollController,
               physics: const BouncingScrollPhysics(),
@@ -171,27 +368,26 @@ class _PlayerPageState extends State<PlayerPage> {
                               child: _GlowingAlbumCover(
                                 song: currentSong,
                                 provider: songProvider,
-                                // Ekran yüksekliğine göre kapağı dinamik küçülterek overflow (taşma) hatasını önlüyoruz
-                                size: math.min(
-                                  screenWidth * 0.84,
-                                  MediaQuery.of(context).size.height * 0.4,
-                                ),
+                                // Ekran genişliğinin %90'ı kadar genişlik (Yükseklik 16:9 oranına göre içeride hesaplanacak)
+                                size: screenWidth * 0.9,
                               ),
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          // İndirme ve Paylaş Butonları
+                          const Spacer(),
+                          // İndirme ve Paylaş Butonları (Aynı Hizada)
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              const SizedBox(
-                                width: 48,
-                              ), // İndirme butonunu tam ortalamak için sol tarafa eklenen görünmez dengeleyici
-                              _buildDownloadButton(
-                                context,
-                                songProvider,
-                                currentSong,
-                              ),
+                              if (!isDeviceSong) ...[
+                                _buildDownloadButton(
+                                    context, songProvider, currentSong,
+                                    isMp4: false),
+                                const SizedBox(width: 12),
+                                _buildDownloadButton(
+                                    context, songProvider, currentSong,
+                                    isMp4: true),
+                              ],
+                              const Spacer(), // Temas etmemeleri için arayı açar ve Paylaş ikonunu en sağa iter
                               IconButton(
                                 icon: Icon(
                                   Icons.ios_share,
@@ -202,7 +398,7 @@ class _PlayerPageState extends State<PlayerPage> {
                               ),
                             ],
                           ),
-                          const Spacer(), // Alanı eşit dağıtmak için varsayılan esnekliğe alındı
+                          const SizedBox(height: 20),
                           // Şarkı Başlığı ve Sanatçı
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -231,29 +427,45 @@ class _PlayerPageState extends State<PlayerPage> {
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 400),
-                                switchInCurve: Curves.easeOut,
-                                switchOutCurve: Curves.easeIn,
-                                child: TextScroll(
-                                  currentSong.artist,
-                                  key: ValueKey('${currentSong.id}_artist'),
-                                  mode: TextScrollMode.bouncing,
-                                  velocity: const Velocity(
-                                    pixelsPerSecond: Offset(30, 0),
-                                  ),
-                                  delayBefore: const Duration(seconds: 2),
-                                  pauseBetween: const Duration(seconds: 2),
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.7),
-                                    fontSize: (screenWidth * 0.035).clamp(
-                                      11.0,
-                                      15.0,
+                              GestureDetector(
+                                onTap: isDeviceSong
+                                    ? null
+                                    : () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                ArtistDetailPage(
+                                              artistName: currentSong.artist,
+                                              songs: [currentSong],
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 400),
+                                  switchInCurve: Curves.easeOut,
+                                  switchOutCurve: Curves.easeIn,
+                                  child: TextScroll(
+                                    currentSong.artist,
+                                    key: ValueKey('${currentSong.id}_artist'),
+                                    mode: TextScrollMode.bouncing,
+                                    velocity: const Velocity(
+                                      pixelsPerSecond: Offset(30, 0),
                                     ),
-                                    fontWeight: FontWeight.bold,
+                                    delayBefore: const Duration(seconds: 2),
+                                    pauseBetween: const Duration(seconds: 2),
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.7),
+                                      fontSize: (screenWidth * 0.035).clamp(
+                                        11.0,
+                                        15.0,
+                                      ),
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
-                              ),
+                              )
                             ],
                           ),
                           const SizedBox(height: 12),
@@ -268,11 +480,11 @@ class _PlayerPageState extends State<PlayerPage> {
                                 final duration = songProvider.isSongLoading
                                     ? Duration.zero
                                     : (songProvider.audioPlayer.duration ??
-                                          Duration.zero);
+                                        Duration.zero);
                                 final maxDuration =
                                     duration.inSeconds.toDouble() > 0
-                                    ? duration.inSeconds.toDouble()
-                                    : 1.0;
+                                        ? duration.inSeconds.toDouble()
+                                        : 1.0;
 
                                 return Column(
                                   mainAxisSize: MainAxisSize.min,
@@ -286,13 +498,13 @@ class _PlayerPageState extends State<PlayerPage> {
                                         ),
                                         overlayShape:
                                             const RoundSliderOverlayShape(
-                                              overlayRadius: 14,
-                                            ),
+                                          overlayRadius: 14,
+                                        ),
                                         thumbColor: Colors.white,
                                         trackHeight: 4,
                                         activeTrackColor: Colors.white,
-                                        inactiveTrackColor: Colors.white
-                                            .withOpacity(0.3),
+                                        inactiveTrackColor:
+                                            Colors.white.withOpacity(0.3),
                                       ),
                                       child: Slider(
                                         value: position.inSeconds
@@ -386,35 +598,19 @@ class _PlayerPageState extends State<PlayerPage> {
                                 ),
                                 onPressed: () => songProvider.playPrevious(),
                               ),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(37.5),
-                                child: BackdropFilter(
-                                  filter: ImageFilter.blur(
-                                    sigmaX: 15,
-                                    sigmaY: 15,
+                              Container(
+                                width: 75,
+                                height: 75,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.1),
+                                    width: 1.5,
                                   ),
-                                  child: Container(
-                                    width: 75,
-                                    height: 75,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.1),
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: Colors.white.withOpacity(0.2),
-                                        width: 1.5,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.2),
-                                          blurRadius: 15,
-                                          spreadRadius: 1,
-                                        ),
-                                      ],
-                                    ),
-                                    child: _buildAudioPlayPauseButton(
-                                      songProvider,
-                                    ),
-                                  ),
+                                ),
+                                child: _buildAudioPlayPauseButton(
+                                  songProvider,
                                 ),
                               ),
                               IconButton(
@@ -442,8 +638,7 @@ class _PlayerPageState extends State<PlayerPage> {
                                             ? CustomIcons.repeatOneRounded
                                             : CustomIcons.repeatRounded,
                                         size: 24,
-                                        color:
-                                            songProvider.loopMode ==
+                                        color: songProvider.loopMode ==
                                                 LoopMode.off
                                             ? Colors.white.withOpacity(0.6)
                                             : primaryColor,
@@ -481,9 +676,9 @@ class _PlayerPageState extends State<PlayerPage> {
                                       ),
                                       transitionBuilder: (child, animation) =>
                                           ScaleTransition(
-                                            scale: animation,
-                                            child: child,
-                                          ),
+                                        scale: animation,
+                                        child: child,
+                                      ),
                                       child: Icon(
                                         currentSong.isFavorite
                                             ? Icons.check_circle_rounded
@@ -509,7 +704,10 @@ class _PlayerPageState extends State<PlayerPage> {
                                 child: GestureDetector(
                                   onTap: () {
                                     _scrollController.animateTo(
-                                      MediaQuery.of(context).size.height,
+                                      // Kaydırdığında AppBar'ın hemen altına (şarkı sözleri alanına) tam oturtur
+                                      MediaQuery.of(context).size.height -
+                                          (MediaQuery.of(context).padding.top +
+                                              kToolbarHeight),
                                       duration: const Duration(
                                         milliseconds: 500,
                                       ),
@@ -526,7 +724,11 @@ class _PlayerPageState extends State<PlayerPage> {
                                           vertical: 6,
                                         ),
                                         child: Text(
-                                          langProvider.t('they_will_play_next'),
+                                          isDeviceSong
+                                              ? langProvider
+                                                  .t('they_will_play_next')
+                                              : langProvider
+                                                  .t('lyrics_and_up_next'),
                                           maxLines:
                                               1, // Tek satırda kalmasını zorunlu kılar
                                           overflow: TextOverflow
@@ -557,7 +759,7 @@ class _PlayerPageState extends State<PlayerPage> {
                                     ),
                                     tooltip: langProvider.t('sleep_timer'),
                                     onPressed: () =>
-                                        _showSleepTimerDialog(context),
+                                        _showSleepTimerFullScreen(context),
                                   ),
                                 ),
                               ),
@@ -571,6 +773,20 @@ class _PlayerPageState extends State<PlayerPage> {
                     ),
                   ),
                 ),
+
+                // ŞARKI SÖZLERİ BÖLÜMÜ
+                if (!isDeviceSong)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        screenWidth * 0.025,
+                        0,
+                        screenWidth * 0.025,
+                        16,
+                      ),
+                      child: _LyricsBlock(song: currentSong),
+                    ),
+                  ),
 
                 // SIRADAKİ ŞARKILAR (QUEUE) BÖLÜMÜ
                 SliverToBoxAdapter(
@@ -612,85 +828,76 @@ class _PlayerPageState extends State<PlayerPage> {
                           child: Container(
                             decoration: BoxDecoration(
                               color: isCurrent
-                                  ? Theme.of(
-                                      context,
-                                    ).primaryColor.withOpacity(0.15)
-                                  : Colors.white.withOpacity(0.05),
-                              borderRadius: BorderRadius.circular(12),
+                                  ? Theme.of(context)
+                                      .primaryColor
+                                      .withOpacity(0.2)
+                                  : Colors.black.withOpacity(0.4),
+                              borderRadius: BorderRadius.circular(8),
                               border: Border.all(
                                 color: isCurrent
-                                    ? Theme.of(
-                                        context,
-                                      ).primaryColor.withOpacity(0.4)
-                                    : Colors.white.withOpacity(0.1),
+                                    ? Theme.of(context)
+                                        .primaryColor
+                                        .withOpacity(0.5)
+                                    : Colors.white.withOpacity(0.05),
                               ),
                             ),
                             child: ListTile(
                               contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
+                                horizontal: 10,
+                                vertical: 4,
                               ),
                               leading: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(6),
                                 child: SizedBox(
-                                  width: 48,
-                                  height: 48,
+                                  width: 71, // 16:9 Oranı için genişletildi
+                                  height: 40,
                                   child: Stack(
                                     fit: StackFit.expand,
-                                    children: [
-                                      (song.localImagePath != null &&
-                                              File(
-                                                song.localImagePath!,
-                                              ).existsSync())
-                                          ? Transform.scale(
-                                              scale:
-                                                  (song.coverUrl.contains(
-                                                        'ytimg.com',
-                                                      ) ||
-                                                      song.coverUrl.contains(
-                                                        'youtube.com',
-                                                      ))
-                                                  ? 1.35
-                                                  : 1.0,
-                                              child: Image.file(
-                                                File(song.localImagePath!),
-                                                fit: BoxFit.cover,
-                                                cacheHeight: 200,
-                                              ),
-                                            )
-                                          : Transform.scale(
-                                              scale:
-                                                  (song.coverUrl.contains(
-                                                        'ytimg.com',
-                                                      ) ||
-                                                      song.coverUrl.contains(
-                                                        'youtube.com',
-                                                      ))
-                                                  ? 1.35
-                                                  : 1.0,
-                                              child: CachedNetworkImage(
-                                                imageUrl: song.coverUrl,
-                                                fit: BoxFit.cover,
-                                                memCacheHeight: 200,
-                                                errorWidget:
-                                                    (
-                                                      context,
-                                                      url,
-                                                      error,
-                                                    ) => Container(
-                                                      color:
-                                                          Colors.grey.shade800,
-                                                      child:
-                                                          CustomIcons.svgIcon(
-                                                            CustomIcons
-                                                                .musicNote,
-                                                            color:
-                                                                Colors.white54,
-                                                            size: 24,
-                                                          ),
-                                                    ),
+                                    children: <Widget>[
+                                      if (song.localImagePath != null &&
+                                          File(song.localImagePath!)
+                                              .existsSync())
+                                        Image.file(
+                                          File(song.localImagePath!),
+                                          fit: BoxFit.cover,
+                                          cacheHeight: 200,
+                                        )
+                                      else if (song.coverUrl.isEmpty)
+                                        Container(
+                                          color: Colors.black,
+                                          child: Center(
+                                            child: Image.asset(
+                                              'assets/icon/OYN_ana_logo_seffaf.png',
+                                              color: Theme.of(context)
+                                                  .primaryColor,
+                                              width: 24,
+                                              height: 24,
+                                            ),
+                                          ),
+                                        )
+                                      else
+                                        CachedNetworkImage(
+                                          imageUrl: song.coverUrl,
+                                          fit: BoxFit.cover,
+                                          memCacheHeight: 200,
+                                          errorWidget: (
+                                            context,
+                                            url,
+                                            error,
+                                          ) =>
+                                              Container(
+                                            color: Colors.black,
+                                            child: Center(
+                                              child: Image.asset(
+                                                'assets/icon/OYN_ana_logo_seffaf.png',
+                                                color: Theme.of(context)
+                                                    .primaryColor,
+                                                width: 24,
+                                                height: 24,
                                               ),
                                             ),
+                                          ),
+                                        ),
                                       if (isCurrent)
                                         Container(
                                           color: Colors.black.withOpacity(0.6),
@@ -717,7 +924,7 @@ class _PlayerPageState extends State<PlayerPage> {
                                       ? Theme.of(context).primaryColor
                                       : Colors.white,
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 15,
+                                  fontSize: 13,
                                 ),
                               ),
                               subtitle: Text(
@@ -730,7 +937,7 @@ class _PlayerPageState extends State<PlayerPage> {
                                           context,
                                         ).primaryColor.withOpacity(0.7)
                                       : Colors.grey.shade400,
-                                  fontSize: 13,
+                                  fontSize: 11,
                                 ),
                               ),
                               trailing: ReorderableDragStartListener(
@@ -770,8 +977,7 @@ class _PlayerPageState extends State<PlayerPage> {
   }
 
   Future<void> _shareSong(Song song) async {
-    final shareText =
-        '${song.title} - ${song.artist}\n\n'
+    final shareText = '${song.title} - ${song.artist}\n\n'
         'OYN Müzik\'te dinle: https://play.google.com/store/apps/details?id=com.ahmed.oyn_music';
 
     try {
@@ -813,6 +1019,9 @@ class _PlayerPageState extends State<PlayerPage> {
     SongProvider songProvider,
     LanguageProvider langProvider,
   ) {
+    final bool isDeviceSong = currentSong.localPath != null &&
+        currentSong.audioUrl == currentSong.localPath;
+
     CustomBottomSheet.showContent(
       context: context,
       child: Column(
@@ -839,29 +1048,30 @@ class _PlayerPageState extends State<PlayerPage> {
               );
             },
           ),
-          ListTile(
-            leading: CustomIcons.svgIcon(
-              CustomIcons.person,
-              color: Colors.white,
-              size: 24,
-            ),
-            title: Text(
-              langProvider.t('go_to_artist'),
-              style: const TextStyle(color: Colors.white, fontSize: 16),
-            ),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ArtistDetailPage(
-                    artistName: currentSong.artist,
-                    songs: [currentSong],
+          if (!isDeviceSong)
+            ListTile(
+              leading: CustomIcons.svgIcon(
+                CustomIcons.person,
+                color: Colors.white,
+                size: 24,
+              ),
+              title: Text(
+                langProvider.t('go_to_artist'),
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ArtistDetailPage(
+                      artistName: currentSong.artist,
+                      songs: [currentSong],
+                    ),
                   ),
-                ),
-              );
-            },
-          ),
+                );
+              },
+            ),
           const SizedBox(height: 16),
         ],
       ),
@@ -874,75 +1084,196 @@ class _PlayerPageState extends State<PlayerPage> {
     SongProvider songProvider,
     LanguageProvider langProvider,
   ) {
-    CustomBottomSheet.showContent(
-      context: context,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 24),
-          Text(
-            langProvider.t('add_to_playlist'),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 24),
-          if (songProvider.folders.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(32.0),
-              child: Text(
-                langProvider.t('no_lists'),
-                style: const TextStyle(color: Colors.grey),
-              ),
-            )
-          else
-            Flexible(
-              child: ListView.separated(
-                shrinkWrap: true,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: songProvider.folders.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  final folder = songProvider.folders[index];
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade900,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: ListTile(
-                      leading: CustomIcons.svgIcon(
-                        CustomIcons.folderOpenRounded,
-                        color: Theme.of(context).primaryColor,
-                        size: 24,
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (pageContext, animation, secondaryAnimation) {
+          return Scaffold(
+            backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
+            body: SafeArea(
+              child: Column(
+                children: [
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: IconButton(
+                        icon: const Icon(Icons.close_rounded,
+                            color: Colors.white, size: 32),
+                        onPressed: () => Navigator.pop(pageContext),
                       ),
-                      title: Text(
-                        folder.name,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Icon(Icons.playlist_add_check_circle_rounded,
+                      size: 64, color: Theme.of(context).primaryColor),
+                  const SizedBox(height: 16),
+                  Text(
+                    langProvider.t('add_to_playlist'),
+                    style: TextStyle(
+                      color: Theme.of(context).primaryColor,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  if (songProvider.folders.isEmpty)
+                    Expanded(
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CustomIcons.svgIcon(
+                              CustomIcons.folderOpenRounded,
+                              size: 48,
+                              color: Colors.grey.shade800,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              langProvider.t('no_lists'),
+                              style: const TextStyle(color: Colors.grey),
+                            ),
+                          ],
                         ),
                       ),
-                      subtitle: Text(
-                        '${folder.songs.length} ${langProvider.t('song')}',
-                        style: TextStyle(color: Colors.grey.shade400),
+                    )
+                  else
+                    Expanded(
+                      child: ListView.separated(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 8),
+                        itemCount: songProvider.folders.length,
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final folder = songProvider.folders[index];
+
+                          Widget coverWidget;
+                          if (folder.customImagePath != null &&
+                              File(folder.customImagePath!).existsSync()) {
+                            coverWidget = Image.file(
+                              File(folder.customImagePath!),
+                              fit: BoxFit.cover,
+                            );
+                          } else if (folder.songs.isNotEmpty) {
+                            final firstSong = folder.songs.first;
+                            if (firstSong.localImagePath != null &&
+                                File(firstSong.localImagePath!).existsSync()) {
+                              coverWidget = Image.file(
+                                File(firstSong.localImagePath!),
+                                fit: BoxFit.cover,
+                              );
+                            } else {
+                              coverWidget = CachedNetworkImage(
+                                imageUrl: firstSong.coverUrl,
+                                fit: BoxFit.cover,
+                                errorWidget: (c, e, s) => Container(
+                                  color: Colors.grey.shade800,
+                                  child: CustomIcons.svgIcon(
+                                    CustomIcons.musicNote,
+                                    color: Colors.white54,
+                                    size: 24,
+                                  ),
+                                ),
+                              );
+                            }
+                          } else {
+                            coverWidget = Container(
+                              color: Colors.grey.shade800,
+                              child: folder.isFromDownloads
+                                  ? CustomIcons.svgIcon(
+                                      CustomIcons.downloadingRounded,
+                                      color: Colors.white70,
+                                      size: 24,
+                                    )
+                                  : CustomIcons.svgIcon(
+                                      CustomIcons.musicNoteRounded,
+                                      color: Colors.white70,
+                                      size: 24,
+                                    ),
+                            );
+                          }
+
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                  color: Colors.white.withOpacity(0.1)),
+                            ),
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.all(8),
+                              leading: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: SizedBox(
+                                  width: 71,
+                                  height: 40,
+                                  child: coverWidget,
+                                ),
+                              ),
+                              title: Text(
+                                folder.name,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              subtitle: Text(
+                                '${folder.songs.length} ${langProvider.t('song')}',
+                                style: TextStyle(
+                                    color: Colors.grey.shade400, fontSize: 13),
+                              ),
+                              trailing: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: CustomIcons.svgIcon(
+                                  CustomIcons.arrowForwardIosRounded,
+                                  size: 14,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              onTap: () {
+                                if (folder.songs.any((s) => s.id == song.id)) {
+                                  Navigator.pop(pageContext);
+                                  CustomSnackBar.showInfo(
+                                    context: context,
+                                    message:
+                                        'Bu şarkı zaten ${folder.name} listesinde var.',
+                                  );
+                                } else {
+                                  songProvider.addSongsToFolder(folder, [song]);
+                                  Navigator.pop(pageContext);
+                                  CustomSnackBar.showSuccess(
+                                    context: context,
+                                    message:
+                                        'Şarkı ${folder.name} listesine eklendi.',
+                                  );
+                                }
+                              },
+                            ),
+                          );
+                        },
                       ),
-                      onTap: () {
-                        songProvider.addSongsToFolder(folder, [song]);
-                        Navigator.pop(context);
-                        CustomSnackBar.showSuccess(
-                          context: context,
-                          message: 'Şarkı ${folder.name} listesine eklendi.',
-                        );
-                      },
                     ),
-                  );
-                },
+                ],
               ),
             ),
-          const SizedBox(height: 32),
-        ],
+          );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 1.0);
+          const end = Offset.zero;
+          const curve = Curves.easeOutCubic;
+          var tween =
+              Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          return SlideTransition(
+              position: animation.drive(tween), child: child);
+        },
       ),
     );
   }
@@ -1006,6 +1337,108 @@ Widget _buildAudioPlayPauseButton(SongProvider songProvider) {
   );
 }
 
+/// Şarkı sözlerini (Lyrics) ekranda kaydırılabilir modern bir blok içerisinde gösteren widget.
+class _LyricsBlock extends StatefulWidget {
+  final Song song;
+
+  const _LyricsBlock({Key? key, required this.song}) : super(key: key);
+
+  @override
+  State<_LyricsBlock> createState() => _LyricsBlockState();
+}
+
+class _LyricsBlockState extends State<_LyricsBlock> {
+  @override
+  void initState() {
+    super.initState();
+    _fetchLyricsIfNeeded();
+  }
+
+  @override
+  void didUpdateWidget(_LyricsBlock oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.song.id != widget.song.id) {
+      _fetchLyricsIfNeeded();
+    }
+  }
+
+  void _fetchLyricsIfNeeded() {
+    if (widget.song.lyrics == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          context.read<SongProvider>().fetchLyrics(widget.song);
+        }
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final langProvider = context.watch<LanguageProvider>();
+    final provider = context.watch<SongProvider>();
+    final currentSong = provider.currentSong?.id == widget.song.id
+        ? provider.currentSong!
+        : widget.song;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.4),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.1), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Text(
+                langProvider.t('lyrics'),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (currentSong.lyrics == null)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24.0),
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
+            )
+          else if (currentSong.lyrics!.isEmpty)
+            Text(
+              langProvider.t('lyrics_not_found'),
+              style: TextStyle(color: Colors.grey.shade400, fontSize: 15),
+            )
+          else
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 350),
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Text(
+                  currentSong.lyrics!,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    height: 2.0,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Şarkı çalarken kapak resminin etrafında dönen ışık efekti oluşturan widget.
 class _GlowingAlbumCover extends StatelessWidget {
   final Song song;
@@ -1021,12 +1454,31 @@ class _GlowingAlbumCover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    bool isYoutube = song.coverUrl.contains('ytimg.com') ||
+        song.coverUrl.contains('youtube.com');
+    // YouTube görsellerini orijinal dikdörtgen formatında (16:9) göstermek için yüksekliği hesaplıyoruz.
+    double height = isYoutube ? (size * 9 / 16) : size;
+
+    // Oynatıcı sayfasında en yüksek çözünürlüğü (1080p/MaxRes) çekmek için URL'i değiştiriyoruz
+    String highResUrl = song.coverUrl;
+    if (isYoutube) {
+      highResUrl = highResUrl
+          .replaceAll('mqdefault.jpg', 'maxresdefault.jpg')
+          .replaceAll('hqdefault.jpg', 'maxresdefault.jpg')
+          .replaceAll('sddefault.jpg', 'maxresdefault.jpg')
+          .replaceAll('default.jpg', 'maxresdefault.jpg');
+    } else if (highResUrl.contains('audius.co')) {
+      highResUrl = highResUrl
+          .replaceAll('150x150', '1000x1000')
+          .replaceAll('480x480', '1000x1000');
+    }
+
     return Container(
       width: size,
-      height: size,
+      height: height,
       decoration: BoxDecoration(
         color: const Color(0xFF121212),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(6),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.5),
@@ -1037,216 +1489,52 @@ class _GlowingAlbumCover extends StatelessWidget {
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Transform.scale(
-          scale:
-              (song.coverUrl.contains('ytimg.com') ||
-                  song.coverUrl.contains('youtube.com'))
-              ? 1.35
-              : 1.0,
-          child:
-              (song.localImagePath != null &&
-                  File(song.localImagePath!).existsSync())
-              ? Image.file(
-                  File(song.localImagePath!),
-                  width: size,
-                  height: size,
-                  cacheHeight: 600,
-                  fit: BoxFit.cover,
-                )
-              : CachedNetworkImage(
-                  imageUrl: song.coverUrl,
-                  width: size,
-                  height: size,
-                  memCacheHeight: 600,
-                  fit: BoxFit.cover,
-                  errorWidget: (context, url, error) =>
-                      Container(color: Colors.grey.shade800),
-                ),
-        ),
-      ),
-    );
-  }
-}
-
-/// YouTube müziklerinin 30 saniyelik klip önizlemesini arka planda (Canvas gibi) oynatır
-class _VideoBackgroundLayer extends StatefulWidget {
-  final Song song;
-  const _VideoBackgroundLayer({Key? key, required this.song}) : super(key: key);
-
-  @override
-  State<_VideoBackgroundLayer> createState() => _VideoBackgroundLayerState();
-}
-
-class _VideoBackgroundLayerState extends State<_VideoBackgroundLayer> {
-  VideoPlayerController? _controller;
-  bool _hasVideo = false;
-  final _yt = YoutubeExplode();
-
-  @override
-  void initState() {
-    super.initState();
-    _initVideo();
-  }
-
-  @override
-  void didUpdateWidget(covariant _VideoBackgroundLayer oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.song.id != widget.song.id) {
-      _disposeController();
-      _initVideo();
-    }
-  }
-
-  Future<void> _initVideo() async {
-    final currentId = widget.song.id;
-    setState(() {
-      _hasVideo = false;
-    });
-
-    // Eğer başka bir platformdan geliyorsa (Audius vs) işlem yapma
-    if (widget.song.audioUrl.contains('audius.co')) return;
-
-    try {
-      final manifest = await _yt.videos.streamsClient.getManifest(
-        widget.song.id,
-      );
-
-      if (!mounted || widget.song.id != currentId) return;
-
-      VideoStreamInfo? streamInfo;
-      final videoOnlyStreams = manifest.videoOnly
-          .where((s) => s.container.name.toString().toLowerCase() == 'mp4')
-          .toList();
-
-      if (videoOnlyStreams.isNotEmpty) {
-        videoOnlyStreams.sort(
-          (a, b) => a.size.totalBytes.compareTo(b.size.totalBytes),
-        );
-        streamInfo = videoOnlyStreams.first;
-      } else {
-        final muxedStreams = manifest.muxed
-            .where((s) => s.container.name.toString().toLowerCase() == 'mp4')
-            .toList();
-        if (muxedStreams.isNotEmpty) {
-          muxedStreams.sort(
-            (a, b) => a.size.totalBytes.compareTo(b.size.totalBytes),
-          );
-          streamInfo = muxedStreams.first;
-        }
-      }
-
-      if (streamInfo != null) {
-        _controller = VideoPlayerController.networkUrl(
-          streamInfo.url,
-          httpHeaders: {
-            'User-Agent':
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Referer': 'https://www.youtube.com/',
-          },
-        );
-        await _controller!.initialize();
-        if (!mounted || widget.song.id != currentId) {
-          _disposeController();
-          return;
-        }
-        await _controller!.setVolume(
-          0.0,
-        ); // Şarkı already just_audio üzerinden çalındığı için bu 0 olmalı
-        await _controller!.play(); // Beklemeden hemen başlat
-
-        _controller!.addListener(() {
-          if (!mounted ||
-              _controller == null ||
-              !_controller!.value.isInitialized)
-            return;
-
-          // 30 saniyelik klip limiti kontrolü ve otomatik başa sarması
-          if (_controller!.value.position.inSeconds >= 30) {
-            _controller!.seekTo(Duration.zero);
-          } else if (_controller!.value.position >=
-              _controller!.value.duration) {
-            _controller!.seekTo(Duration.zero);
-            _controller!.play();
-          }
-        });
-
-        if (mounted) {
-          setState(() {
-            _hasVideo = true;
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint("Arka plan video hatası: $e");
-    }
-  }
-
-  void _disposeController() {
-    if (_controller != null) {
-      _controller!.pause();
-      _controller!.dispose();
-      _controller = null;
-    }
-  }
-
-  @override
-  void dispose() {
-    _disposeController();
-    _yt.close();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Klipli Video Arka Planı
-    if (_hasVideo && _controller != null && _controller!.value.isInitialized) {
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          SizedBox.expand(
-            child: FittedBox(
-              fit: BoxFit.cover,
-              child: SizedBox(
-                width: _controller!.value.size.width,
-                height: _controller!.value.size.height,
-                child: VideoPlayer(_controller!),
-              ),
-            ),
-          ),
-          // UI okunabilir kalsın diye sadece siyah bir karartma filtresi (Blur değil)
-          Container(color: Colors.black.withOpacity(0.6)),
-        ],
-      );
-    }
-
-    // Video yüklenene kadar veya video yoksa Klasik Fallback (Resim + Blur)
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        (widget.song.localImagePath != null &&
-                File(widget.song.localImagePath!).existsSync())
+        borderRadius: BorderRadius.circular(6),
+        // Orijinal formatta göstermek için kırpan Transform.scale'i kaldırıyoruz
+        child: (song.localImagePath != null &&
+                File(song.localImagePath!).existsSync())
             ? Image.file(
-                File(widget.song.localImagePath!),
+                File(song.localImagePath!),
+                width: size,
+                height: height,
                 fit: BoxFit.cover,
-                cacheHeight: 800,
-                errorBuilder: (ctx, err, stack) =>
-                    Container(color: const Color(0xFF121212)),
               )
-            : CachedNetworkImage(
-                imageUrl: widget.song.coverUrl,
-                fit: BoxFit.cover,
-                memCacheHeight: 800,
-                errorWidget: (context, url, error) =>
-                    Container(color: const Color(0xFF121212)),
-              ),
-        RepaintBoundary(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 40.0, sigmaY: 40.0),
-            child: Container(color: Colors.black.withOpacity(0.75)),
-          ),
-        ),
-      ],
+            : (highResUrl.isEmpty
+                ? Container(
+                    color: Colors.black,
+                    child: Center(
+                      child: Image.asset(
+                        'assets/icon/OYN_ana_logo_seffaf.png',
+                        color: Theme.of(context).primaryColor,
+                        width: size * 0.4,
+                      ),
+                    ),
+                  )
+                : CachedNetworkImage(
+                    imageUrl: highResUrl,
+                    width: size,
+                    height: height,
+                    fit: BoxFit.cover,
+                    errorWidget: (context, url, error) {
+                      return CachedNetworkImage(
+                        imageUrl: song.coverUrl,
+                        width: size,
+                        height: height,
+                        fit: BoxFit.cover,
+                        errorWidget: (context, url, error) => Container(
+                          color: Colors.black,
+                          child: Center(
+                            child: Image.asset(
+                              'assets/icon/OYN_ana_logo_seffaf.png',
+                              color: Theme.of(context).primaryColor,
+                              width: size * 0.4,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  )),
+      ),
     );
   }
 }
@@ -1273,99 +1561,138 @@ Widget _buildPlayPauseIcon({
   );
 }
 
-void _showSleepTimerDialog(BuildContext context) {
+void _showSleepTimerFullScreen(BuildContext context) {
   final langProvider = context.read<LanguageProvider>();
 
-  CustomBottomSheet.showContent(
-    context: context,
-    child: Consumer<SongProvider>(
-      builder: (consumerContext, provider, child) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CustomIcons.svgIcon(
-                  CustomIcons.timerRounded,
-                  color: Theme.of(context).primaryColor,
-                  size: 28,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  langProvider.t('sleep_timer'),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            if (provider.isSleepTimerActive &&
-                provider.sleepTimerEndTime != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                "Kapanış: ${provider.sleepTimerEndTime!.hour.toString().padLeft(2, '0')}:${provider.sleepTimerEndTime!.minute.toString().padLeft(2, '0')}",
-                style: TextStyle(
-                  color: Theme.of(context).primaryColor,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
-                ),
-              ),
-            ],
-            const SizedBox(height: 32),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                alignment: WrapAlignment.center,
-                children: [
-                  _buildModernTimerOption(context, 15),
-                  _buildModernTimerOption(context, 30),
-                  _buildModernTimerOption(context, 45),
-                  _buildModernTimerOption(context, 60),
-                  _buildModernTimerOption(context, 90),
-                  _buildModernTimerOption(context, 120),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            if (provider.isSleepTimerActive)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () {
-                      provider.cancelSleepTimer();
-                      Navigator.pop(context);
-                      CustomSnackBar.showInfo(
-                        context: context,
-                        message: 'Zamanlayıcı kapatıldı.',
-                      );
-                    },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.redAccent,
-                      side: const BorderSide(color: Colors.redAccent),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+  Navigator.push(
+    context,
+    PageRouteBuilder(
+      pageBuilder: (pageContext, animation, secondaryAnimation) {
+        return Scaffold(
+          backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
+          body: SafeArea(
+            child: Consumer<SongProvider>(
+              builder: (context, provider, child) {
+                final primaryColor = Theme.of(context).primaryColor;
+                return Column(
+                  children: [
+                    Align(
+                      alignment: Alignment.topRight,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: IconButton(
+                          icon: const Icon(Icons.close_rounded,
+                              color: Colors.white, size: 32),
+                          onPressed: () => Navigator.pop(pageContext),
+                        ),
                       ),
                     ),
-                    child: Text(
-                      langProvider.t('cancel'),
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    const SizedBox(height: 8),
+                    Icon(Icons.timer_rounded, size: 64, color: primaryColor),
+                    const SizedBox(height: 16),
+                    Text(
+                      langProvider.t('sleep_timer'),
+                      style: TextStyle(
+                        color: primaryColor,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                ),
-              )
-            else
-              const SizedBox(height: 24),
-          ],
+                    if (provider.isSleepTimerActive &&
+                        provider.sleepTimerEndTime != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        "Kapanış: ${provider.sleepTimerEndTime!.hour.toString().padLeft(2, '0')}:${provider.sleepTimerEndTime!.minute.toString().padLeft(2, '0')}",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 32),
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        physics: const BouncingScrollPhysics(),
+                        children: [
+                          Wrap(
+                            spacing: 16,
+                            runSpacing: 16,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              _buildModernTimerOption(context, 15),
+                              _buildModernTimerOption(context, 30),
+                              _buildModernTimerOption(context, 45),
+                              _buildModernTimerOption(context, 60),
+                              _buildModernTimerOption(context, 90),
+                              _buildModernTimerOption(context, 120),
+                            ],
+                          ),
+                          const SizedBox(height: 40),
+                          if (provider.isSleepTimerActive)
+                            SizedBox(
+                              width: double.infinity,
+                              height: 55,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: BackdropFilter(
+                                  filter:
+                                      ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                                  child: InkWell(
+                                    onTap: () {
+                                      provider.cancelSleepTimer();
+                                      Navigator.pop(pageContext);
+                                      CustomSnackBar.showInfo(
+                                        context: context,
+                                        message: 'Zamanlayıcı kapatıldı.',
+                                      );
+                                    },
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color:
+                                            Colors.redAccent.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color:
+                                              Colors.redAccent.withOpacity(0.5),
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          langProvider.t('cancel'),
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          const SizedBox(height: 24),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
         );
+      },
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        const begin = Offset(0.0, 1.0);
+        const end = Offset.zero;
+        const curve = Curves.easeOutCubic;
+        var tween =
+            Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+        return SlideTransition(position: animation.drive(tween), child: child);
       },
     ),
   );
@@ -1494,10 +1821,10 @@ Widget _buildModernTimerOption(BuildContext context, int minutes) {
       },
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        width: (MediaQuery.of(context).size.width - 64) / 3,
+        width: (MediaQuery.of(context).size.width - 80) / 3,
         padding: const EdgeInsets.symmetric(vertical: 20),
         decoration: BoxDecoration(
-          color: Colors.grey.shade900,
+          color: Colors.white.withOpacity(0.05),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Colors.white.withOpacity(0.1)),
         ),
@@ -1563,10 +1890,157 @@ void _showLoginBottomSheet(BuildContext context) {
 Widget _buildDownloadButton(
   BuildContext context,
   SongProvider provider,
-  Song song,
-) {
+  Song song, {
+  bool isMp4 = false,
+}) {
   final primaryColor = Theme.of(context).primaryColor;
-  final langProvider = context.read<LanguageProvider>();
+
+  if (isMp4) {
+    return ValueListenableBuilder<double?>(
+      valueListenable: provider.getVideoDownloadProgressNotifier(song.id),
+      builder: (context, progress, child) {
+        final isDownloading = progress != null && progress < 1.0;
+        final isDownloaded = progress != null && progress >= 1.0;
+
+        Widget content;
+        VoidCallback? onTap;
+        Color borderColor;
+        Color bgColor;
+
+        if (isDownloading) {
+          borderColor = primaryColor.withOpacity(0.8);
+          bgColor = primaryColor.withOpacity(0.2);
+          content = Row(
+            key: const ValueKey('downloading_mp4'),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  value: progress == 0.0 ? null : progress,
+                  strokeWidth: 2.5,
+                  color: primaryColor,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                "Video",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          );
+          onTap = () {};
+        } else if (isDownloaded) {
+          borderColor = Colors.greenAccent.withOpacity(0.5);
+          bgColor = Colors.greenAccent.withOpacity(0.1);
+          content = Row(
+            key: const ValueKey('downloaded_mp4'),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CustomIcons.svgIcon(
+                CustomIcons.check,
+                color: Colors.greenAccent,
+                size: 20,
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                "Video",
+                style: TextStyle(
+                  color: Colors.greenAccent,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          );
+          onTap = () {
+            CustomSnackBar.showInfo(
+              context: context,
+              message: "Video İndirilenler klasörüne kaydedildi.",
+            );
+          };
+        } else {
+          borderColor = Colors.white.withOpacity(0.2);
+          bgColor = Colors.black.withOpacity(0.4);
+          content = Row(
+            key: const ValueKey('download_mp4'),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CustomIcons.svgIcon(
+                CustomIcons.downloadingRounded,
+                color: Colors.white,
+                size: 20,
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                "Video 3 ",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+              const Icon(Icons.monetization_on_rounded,
+                  color: Colors.amber, size: 16),
+            ],
+          );
+          onTap = () {
+            if (!provider.isFirebaseLoggedIn) {
+              _showLoginBottomSheet(context);
+              return;
+            }
+            if (!provider.canAfford(3)) {
+              CustomSnackBar.showError(
+                  context: context,
+                  message:
+                      "Yetersiz jeton! Lütfen reklam izleyerek jeton kazanın.");
+              CustomWinningAd.showCoinScreen(context);
+              return;
+            }
+            if (provider.askVideoQuality) {
+              SongCard.showVideoQualityFullScreen(context, song, provider);
+            } else {
+              provider.downloadVideoToDevice(song);
+            }
+          };
+        }
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: borderColor, width: 1.5),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(30),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 14,
+                ),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  child: content,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // MP3 Butonu Mantığı
   final isDownloaded = provider.isSongDownloaded(song.id);
   final isPaused = provider.isPaused(song.id);
 
@@ -1580,7 +2054,6 @@ Widget _buildDownloadButton(
       Color bgColor;
 
       if (isDownloading) {
-        // İndiriliyor & Duraklatıldı Durumu
         borderColor = primaryColor.withOpacity(0.8);
         bgColor = primaryColor.withOpacity(0.2);
         content = Row(
@@ -1602,15 +2075,13 @@ Widget _buildDownloadButton(
                       color: primaryColor,
                     ),
             ),
-            const SizedBox(width: 12),
-            Text(
-              isPaused
-                  ? langProvider.t('paused')
-                  : langProvider.t('downloading'),
-              style: const TextStyle(
+            const SizedBox(width: 8),
+            const Text(
+              "Müzik",
+              style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
-                fontSize: 14,
+                fontSize: 15,
               ),
             ),
           ],
@@ -1623,7 +2094,6 @@ Widget _buildDownloadButton(
           }
         };
       } else if (isDownloaded) {
-        // İndirildi Durumu
         borderColor = Colors.greenAccent.withOpacity(0.5);
         bgColor = Colors.greenAccent.withOpacity(0.1);
         content = Row(
@@ -1635,13 +2105,13 @@ Widget _buildDownloadButton(
               color: Colors.greenAccent,
               size: 20,
             ),
-            const SizedBox(width: 8),
-            Text(
-              langProvider.t('downloaded'),
-              style: const TextStyle(
+            const SizedBox(width: 6),
+            const Text(
+              "Müzik",
+              style: TextStyle(
                 color: Colors.greenAccent,
                 fontWeight: FontWeight.bold,
-                fontSize: 14,
+                fontSize: 15,
               ),
             ),
           ],
@@ -1653,7 +2123,6 @@ Widget _buildDownloadButton(
           );
         };
       } else {
-        // Varsayılan İndir Durumu
         borderColor = Colors.white.withOpacity(0.2);
         bgColor = Colors.black.withOpacity(0.4);
         content = Row(
@@ -1665,20 +2134,30 @@ Widget _buildDownloadButton(
               color: Colors.white,
               size: 20,
             ),
-            const SizedBox(width: 8),
-            Text(
-              langProvider.t('download'), // "İndir" anlamında kullanıyoruz
-              style: const TextStyle(
+            const SizedBox(width: 6),
+            const Text(
+              "Müzik 2 ",
+              style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
-                fontSize: 14,
+                fontSize: 15,
               ),
             ),
+            const Icon(Icons.monetization_on_rounded,
+                color: Colors.amber, size: 16),
           ],
         );
         onTap = () {
           if (!provider.isFirebaseLoggedIn) {
             _showLoginBottomSheet(context);
+            return;
+          }
+          if (!provider.canAfford(2)) {
+            CustomSnackBar.showError(
+                context: context,
+                message:
+                    "Yetersiz jeton! Lütfen reklam izleyerek jeton kazanın.");
+            CustomWinningAd.showCoinScreen(context);
             return;
           }
 
@@ -1693,40 +2172,27 @@ Widget _buildDownloadButton(
         };
       }
 
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(30),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-            decoration: BoxDecoration(
-              color: bgColor,
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: borderColor, width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                  color: borderColor.withOpacity(0.2),
-                  blurRadius: 15,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onTap,
-                borderRadius: BorderRadius.circular(30),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 14,
-                  ),
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    child: content,
-                  ),
-                ),
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: borderColor, width: 1.5),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(30),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 14,
+              ),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: content,
               ),
             ),
           ),

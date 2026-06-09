@@ -23,6 +23,7 @@ import 'package:muzik_app/providers/language_provider.dart';
 import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:muzik_app/pages/login_page.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:muzik_app/services/custom_winning_add.dart';
 
 /// Trend şarkıları gösteren ana sayfa widget'ı
 class TrendPage extends StatefulWidget {
@@ -36,6 +37,9 @@ class _TrendPageState extends State<TrendPage> {
   String _selectedFilter = 'all';
   final List<String> _filterKeys = ['all', 'songs', 'collections'];
   ScrollController? _primaryScrollController;
+  int _visibleArtistCount = 4;
+  int _latestArtistCount = 0;
+  bool _isIncrementingLocal = false;
 
   @override
   void didChangeDependencies() {
@@ -48,25 +52,7 @@ class _TrendPageState extends State<TrendPage> {
     }
   }
 
-  void _onScroll() {
-    // Listenin sonuna 200 piksel kala yeni şarkıları yükle
-    if (_primaryScrollController != null &&
-        _primaryScrollController!.hasClients) {
-      if (_primaryScrollController!.position.pixels >=
-          _primaryScrollController!.position.maxScrollExtent - 200) {
-        final provider = context.read<SongProvider>();
-        provider.loadMoreSongs().catchError((e) {
-          if (mounted) {
-            // Varsa önceki uyarıyı gizle
-            CustomSnackBar.showError(
-              context: context,
-              message: context.read<LanguageProvider>().t('cannot_load_more'),
-            );
-          }
-        });
-      }
-    }
-  }
+  void _onScroll() {}
 
   @override
   void dispose() {
@@ -95,6 +81,80 @@ class _TrendPageState extends State<TrendPage> {
     final authProvider = context.watch<AuthProvider>();
     final langProvider = context.watch<LanguageProvider>();
 
+    // Kullanıcı ilk giriş yaptıysa ona 10 Jetonluk hoşgeldin paketini göster
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          authProvider.user != null &&
+          !songProvider.receivedInitialCoins) {
+        songProvider.markInitialCoinsReceived();
+        showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) {
+              return AlertDialog(
+                backgroundColor: Colors.grey.shade900,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20)),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.card_giftcard_rounded,
+                        color: Colors.amber, size: 64),
+                    const SizedBox(height: 16),
+                    Text(langProvider.t('welcome_bonus_title'),
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Text(langProvider.t('welcome_bonus_desc'),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white70, fontSize: 14)),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: InkWell(
+                            onTap: () => Navigator.pop(ctx),
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.amber.withOpacity(0.5),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  langProvider.t('thanks'),
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.amber,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            });
+      } else if (mounted && authProvider.user != null) {
+        // İlk 10 jetonunu almış kullanıcılara günlük giriş +1 Jeton ödülünü kontrol et
+        songProvider.checkAndGrantDailyReward();
+      }
+    });
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF121212),
@@ -114,12 +174,12 @@ class _TrendPageState extends State<TrendPage> {
               backgroundColor: Colors.grey.shade800,
               backgroundImage: authProvider.user?.photoURL != null
                   ? (authProvider.user!.photoURL!.startsWith('http')
-                            ? CachedNetworkImageProvider(
-                                authProvider.user!.photoURL!,
-                                maxHeight: 150,
-                              )
-                            : FileImage(File(authProvider.user!.photoURL!)))
-                        as ImageProvider
+                          ? CachedNetworkImageProvider(
+                              authProvider.user!.photoURL!,
+                              maxHeight: 150,
+                            )
+                          : FileImage(File(authProvider.user!.photoURL!)))
+                      as ImageProvider
                   : null,
               child: authProvider.user?.photoURL == null
                   ? CustomIcons.svgIcon(
@@ -132,82 +192,130 @@ class _TrendPageState extends State<TrendPage> {
           ),
         ),
         title: SizedBox(
-          height:
-              28, // Yüksekliği azaltıp daha zarif hale getirdik (Orijinalinden de küçük)
+          height: 24, // Yüksekliği azaltıp daha minimal hale getirdik
           child: ListView.separated(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.only(right: 16),
             scrollDirection: Axis.horizontal,
             itemCount: _filterKeys.length,
-            separatorBuilder: (context, index) => const SizedBox(width: 8),
+            separatorBuilder: (context, index) =>
+                const SizedBox(width: 4), // Aralarındaki boşluğu daralttık
             itemBuilder: (context, index) {
               final filterKey = _filterKeys[index];
               final isSelected = _selectedFilter == filterKey;
               return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _selectedFilter = filterKey;
-                  });
-                },
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(
-                    14,
-                  ), // Yüksekliğe uygun daha dar kavis
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                  onTap: () {
+                    setState(() {
+                      _selectedFilter = filterKey;
+                    });
+                  },
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(
+                      12,
+                    ),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                      ), // Yan boşlukları biraz kıstık
+                        horizontal: 6, // İç yan boşlukları daralttık
+                      ),
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? Theme.of(context).primaryColor.withOpacity(0.2)
-                            : Colors.white.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(14),
+                            ? Theme.of(context).primaryColor.withOpacity(0.25)
+                            : Colors.grey.shade800.withOpacity(0.6),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: isSelected
                               ? Theme.of(context).primaryColor.withOpacity(0.5)
-                              : Colors.white.withOpacity(0.15),
+                              : Colors.transparent,
                           width: 1.0, // Çerçeveyi incelttik
                         ),
                       ),
                       child: Text(
                         langProvider.t(filterKey).toUpperCase(),
                         style: TextStyle(
-                          color: isSelected
-                              ? Colors.white
-                              : Colors.grey.shade400,
+                          color:
+                              isSelected ? Colors.white : Colors.grey.shade400,
                           fontWeight: FontWeight.w600,
-                          fontSize:
-                              11, // Metin boyutunu daha minimal hale getirdik
-                          letterSpacing: 0.3,
+                          fontSize: 9, // Yazı boyutunu daha da küçülttük
+                          letterSpacing: 0.0, // Harf aralığı kaldırıldı
                         ),
                       ),
                     ),
-                  ),
-                ),
-              );
+                  ));
             },
           ),
         ),
         titleSpacing: 0,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: Center(
+              child: GestureDetector(
+                onTap: () => CustomWinningAd.showCoinScreen(context),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: Colors.amber.withOpacity(0.5), width: 1.5),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.monetization_on_rounded,
+                          color: Colors.amber, size: 16),
+                      const SizedBox(width: 4),
+                      TweenAnimationBuilder<double>(
+                        tween: Tween<double>(
+                            begin: songProvider.coins.toDouble(),
+                            end: songProvider.coins.toDouble()),
+                        duration: const Duration(milliseconds: 1200),
+                        curve: Curves.easeOutExpo,
+                        builder: (context, value, child) {
+                          return Text(
+                            '${value.toInt()}',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       // İçerik Alanı (Yükleniyor, Hata veya Liste)
-      body: _buildBody(context, songProvider),
+      body: _buildBody(context),
     );
   }
 
-  Widget _buildBody(BuildContext context, SongProvider provider) {
+  Widget _buildBody(BuildContext context) {
     final langProvider = context.watch<LanguageProvider>();
-    if (provider.isLoading) {
+    final isLoading = context.select<SongProvider, bool>((p) => p.isLoading);
+    final errorMessage =
+        context.select<SongProvider, String?>((p) => p.errorMessage);
+    final provider = context.read<SongProvider>();
+
+    if (isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (provider.errorMessage != null) {
+    if (errorMessage != null) {
       return RefreshIndicator(
         color: Theme.of(context).primaryColor,
         backgroundColor: Colors.grey.shade900,
-        onRefresh: () => provider.fetchSongsFromApi(forceRefresh: true),
+        onRefresh: () async {
+          setState(() => _visibleArtistCount = 4);
+          await provider.fetchSongsFromApi(forceRefresh: true);
+        },
         child: LayoutBuilder(
           builder: (context, constraints) => SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -223,7 +331,7 @@ class _TrendPageState extends State<TrendPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        '${langProvider.t('error')}: ${provider.errorMessage}',
+                        '${langProvider.t('error')}: $errorMessage',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.red.shade300),
                       ),
@@ -241,13 +349,18 @@ class _TrendPageState extends State<TrendPage> {
 
     // Normal Trend Listesi
     // Sadece kapak resmi olan şarkıları filtreleyerek UI'a gönderiyoruz
-    final songs = provider.allSongs.where(_hasValidCover).toList();
+    final allSongs =
+        context.select<SongProvider, List<Song>>((p) => p.allSongs);
+    final songs = allSongs.where(_hasValidCover).toList();
 
     if (songs.isEmpty) {
       return RefreshIndicator(
         color: Theme.of(context).primaryColor,
         backgroundColor: Colors.grey.shade900,
-        onRefresh: () => provider.fetchSongsFromApi(forceRefresh: true),
+        onRefresh: () async {
+          setState(() => _visibleArtistCount = 4);
+          await provider.fetchSongsFromApi(forceRefresh: true);
+        },
         child: LayoutBuilder(
           builder: (context, constraints) => SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -263,8 +376,11 @@ class _TrendPageState extends State<TrendPage> {
     return RefreshIndicator(
       color: Theme.of(context).primaryColor,
       backgroundColor: Colors.grey.shade900,
-      onRefresh: () => provider.fetchSongsFromApi(forceRefresh: true),
-      child: _buildArtistList(context, songs, provider.isLoadingMore),
+      onRefresh: () async {
+        setState(() => _visibleArtistCount = 4);
+        await provider.fetchSongsFromApi(forceRefresh: true);
+      },
+      child: _buildArtistList(context, songs),
     );
   }
 
@@ -278,29 +394,32 @@ class _TrendPageState extends State<TrendPage> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.grey.shade900,
+              color: Theme.of(context).primaryColor.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: CustomIcons.svgIcon(
               CustomIcons.searchOff,
               size: 64,
-              color: Theme.of(context).primaryColor.withOpacity(0.5),
+              color: Theme.of(context).primaryColor,
             ),
           ),
           const SizedBox(height: 24),
           Text(
             langProvider.t('no_results'),
             style: const TextStyle(
-              fontSize: 20,
+              fontSize: 22,
               fontWeight: FontWeight.bold,
               color: Colors.white,
             ),
           ),
           const SizedBox(height: 12),
-          Text(
-            langProvider.t('try_different_search'),
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              langProvider.t('try_different_search'),
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade400, fontSize: 15),
+            ),
           ),
           const SizedBox(height: 32),
           _buildRefreshButton(context, context.read<SongProvider>()),
@@ -312,7 +431,10 @@ class _TrendPageState extends State<TrendPage> {
   Widget _buildRefreshButton(BuildContext context, SongProvider provider) {
     final langProvider = context.read<LanguageProvider>();
     return OutlinedButton.icon(
-      onPressed: () => provider.fetchSongsFromApi(forceRefresh: true),
+      onPressed: () {
+        setState(() => _visibleArtistCount = 4);
+        provider.fetchSongsFromApi(forceRefresh: true);
+      },
       icon: const Icon(Icons.refresh_rounded, color: Colors.white),
       label: Text(
         langProvider.t('retry'),
@@ -334,13 +456,20 @@ class _TrendPageState extends State<TrendPage> {
 
   Widget _buildArtistList(
     BuildContext context,
-    List<Song> songs,
-    bool isLoadingMore, {
+    List<Song> songs, {
     bool isSearch = false,
   }) {
-    final songProvider = context.watch<SongProvider>();
+    final songProvider = context.read<SongProvider>();
+    final currentSong =
+        context.select<SongProvider, Song?>((p) => p.currentSong);
+    final dailySongs =
+        context.select<SongProvider, List<Song>>((p) => p.dailySongs);
+    final mostPlayed =
+        context.select<SongProvider, List<Song>>((p) => p.mostPlayed);
+    final isLoadingMore =
+        context.select<SongProvider, bool>((p) => p.isLoadingMore);
     final langProvider = context.watch<LanguageProvider>();
-    final double bottomPadding = songProvider.currentSong != null ? 160 : 100;
+    final double bottomPadding = currentSong != null ? 160 : 100;
     // Şarkıları Sanatçı adına göre grupluyoruz
     final Map<String, List<Song>> groupedByArtist = {};
     for (var song in songs) {
@@ -350,29 +479,70 @@ class _TrendPageState extends State<TrendPage> {
       groupedByArtist[song.artist]!.add(song);
     }
 
-    final artists = groupedByArtist.keys.toList();
+    // Sağ tarafta her zaman en az 2 şarkı gösterilebilmesi için (Sol 1 + Sağ 2)
+    // toplam şarkı sayısı 3'ten az olan sanatçıları listeden çıkarıyoruz.
+    groupedByArtist.removeWhere((key, value) => value.length < 3);
 
     final sortedEntries = groupedByArtist.entries.toList()
       ..sort((a, b) => b.value.length.compareTo(a.value.length));
+
+    final sortedArtists = sortedEntries.map((e) => e.key).toList();
+    _latestArtistCount = sortedArtists.length;
+
+    // Eğer filtreleme sonrasında ekranda 4'ten az sanatçı kaldıysa otomatik daha fazla yükle
+    if (sortedArtists.length < 4 &&
+        !isLoadingMore &&
+        songs.isNotEmpty &&
+        songs.length < 150) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        context.read<SongProvider>().loadMoreSongs();
+      });
+    }
+
+    // Performans için gösterilecek sanatçı sayısını 4 ile sınırlıyoruz, kaydırdıkça artacak
+    final displayedArtists = sortedArtists.take(_visibleArtistCount).toList();
 
     final bool showAll = isSearch || _selectedFilter == 'all';
     final bool showSongs = !isSearch && _selectedFilter == 'songs';
     final bool showAlbumsOnly = !isSearch && _selectedFilter == 'collections';
 
-    final List<MapEntry<String, List<Song>>> displayedAlbums;
+    final suggestedAlbums =
+        context.select<SongProvider, List<Song>>((p) => p.suggestedAlbums);
+
+    // Trend şarkıları arasından koleksiyonları (mix/albüm) filtrele
+    List<Song> collectionSongs = songs.where((song) {
+      final title = song.title.toLowerCase();
+      return title.contains('mix') ||
+          title.contains('albüm') ||
+          title.contains('album') ||
+          title.contains('playlist') ||
+          title.contains('set');
+    }).toList();
+
+    // Eğer trendlerde yeterince koleksiyon yoksa, önerilen mix'lerle doldur
+    if (collectionSongs.length < 4 && suggestedAlbums.isNotEmpty) {
+      final existingIds = collectionSongs.map((s) => s.id).toSet();
+      for (var mix in suggestedAlbums) {
+        if (!existingIds.contains(mix.id)) {
+          collectionSongs.add(mix);
+        }
+      }
+    }
+
+    final List<Song> displayedCollections;
     if (showAlbumsOnly) {
-      displayedAlbums = sortedEntries;
+      displayedCollections = collectionSongs;
     } else if (showAll) {
-      displayedAlbums = sortedEntries.take(10).toList();
+      displayedCollections = collectionSongs.take(10).toList();
     } else {
-      displayedAlbums = [];
+      displayedCollections = [];
     }
 
     final bool useGrid = showAlbumsOnly;
     final primaryColor = Theme.of(context).primaryColor;
 
     // Günün şarkıları ve son dinlenenler için de sadece resmi olanları filtrele
-    final validDailySongs = songProvider.dailySongs
+    final validDailySongs = dailySongs
         .where(
           (s) =>
               s.coverUrl.isNotEmpty &&
@@ -392,15 +562,13 @@ class _TrendPageState extends State<TrendPage> {
           ),
 
         // --- SENİN HAFTALIK MİX'İN (YOUR MIX) ---
-        if (!isSearch &&
-            (showAll || showSongs) &&
-            songProvider.mostPlayed.isNotEmpty)
+        if (!isSearch && (showAll || showSongs) && mostPlayed.length > 5)
           SliverToBoxAdapter(
-            child: _buildYourMixList(context, songProvider.mostPlayed),
+            child: _buildYourMixList(context, mostPlayed),
           ),
 
         // --- KOLEKSİYONLAR BÖLÜMÜ ---
-        if (displayedAlbums.isNotEmpty)
+        if (displayedCollections.isNotEmpty)
           SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.fromLTRB(
@@ -427,7 +595,7 @@ class _TrendPageState extends State<TrendPage> {
             ),
           ),
 
-        if (displayedAlbums.isNotEmpty)
+        if (displayedCollections.isNotEmpty)
           useGrid
               ? SliverPadding(
                   padding: EdgeInsets.symmetric(
@@ -436,40 +604,38 @@ class _TrendPageState extends State<TrendPage> {
                   sliver: SliverGrid(
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          childAspectRatio: 0.75,
-                          crossAxisSpacing: 16,
-                          mainAxisSpacing: 16,
-                        ),
+                      crossAxisCount: 2,
+                      childAspectRatio: 1.15,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                    ),
                     delegate: SliverChildBuilderDelegate((context, index) {
-                      final entry = displayedAlbums[index];
-                      return _buildAlbumCard(
+                      final collection = displayedCollections[index];
+                      return _buildCollectionCard(
                         context,
-                        entry.key,
-                        entry.value,
+                        collection,
                         isGrid: true,
                       );
-                    }, childCount: displayedAlbums.length),
+                    }, childCount: displayedCollections.length),
                   ),
                 )
               : SliverToBoxAdapter(
                   child: SizedBox(
-                    height: 190,
+                    height: 140,
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
                       padding: EdgeInsets.symmetric(
                         horizontal: MediaQuery.of(context).size.width * 0.025,
                       ),
-                      itemCount: displayedAlbums.length,
+                      itemCount: displayedCollections.length,
                       itemBuilder: (context, index) {
-                        final entry = displayedAlbums[index];
+                        final collection = displayedCollections[index];
                         return Container(
                           width: 150,
                           margin: const EdgeInsets.only(right: 16),
-                          child: _buildAlbumCard(
+                          child: _buildCollectionCard(
                             context,
-                            entry.key,
-                            entry.value,
+                            collection,
                             isGrid: false,
                           ),
                         );
@@ -482,13 +648,56 @@ class _TrendPageState extends State<TrendPage> {
         if (showAll || showSongs)
           SliverList(
             delegate: SliverChildBuilderDelegate((context, index) {
-              final artistName = artists[index];
+              final artistName = displayedArtists[index];
               final initialSongs = groupedByArtist[artistName]!;
               return ArtistSectionWidget(
                 artistName: artistName,
                 initialSongs: initialSongs,
               );
-            }, childCount: artists.length),
+            }, childCount: displayedArtists.length),
+          ),
+
+        // + Daha fazla sanatçı Butonu
+        if ((showAll || showSongs) && !isLoadingMore)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24.0),
+              child: Center(
+                child: TextButton(
+                  onPressed: () {
+                    final provider = context.read<SongProvider>();
+                    if (_visibleArtistCount < _latestArtistCount) {
+                      setState(() {
+                        _visibleArtistCount += 4;
+                      });
+                    } else if (!provider.isLoadingMore) {
+                      provider.loadMoreSongs().then((_) {
+                        if (mounted) {
+                          setState(() {
+                            _visibleArtistCount += 4;
+                          });
+                        }
+                      }).catchError((e) {
+                        if (mounted) {
+                          CustomSnackBar.showError(
+                            context: context,
+                            message: langProvider.t('cannot_load_more'),
+                          );
+                        }
+                      });
+                    }
+                  },
+                  child: Text(
+                    langProvider.t('more_artists'),
+                    style: TextStyle(
+                      color: Theme.of(context).primaryColor,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
 
         if (isLoadingMore)
@@ -507,30 +716,36 @@ class _TrendPageState extends State<TrendPage> {
     );
   }
 
-  Widget _buildAlbumCard(
+  Widget _buildCollectionCard(
     BuildContext context,
-    String artistName,
-    List<Song> artistSongs, {
+    Song collectionSong, {
     required bool isGrid,
   }) {
-    final coverUrl = artistSongs.first.coverUrl;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: SongGridCard(
-        imageUrl: coverUrl,
-        title: artistName,
-        showFavorite: false, // Albüm kartında favori butonu göstermiyoruz
-        placeholderIcon: CustomIcons.album,
-        titleMaxLines: 2,
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) =>
-                  ArtistDetailPage(artistName: artistName, songs: artistSongs),
-            ),
-          );
-        },
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: SongGridCard(
+          imageUrl: collectionSong.coverUrl,
+          title: collectionSong.title,
+          showFavorite: false, // Albüm kartında favori butonu göstermiyoruz
+          placeholderIcon: CustomIcons.album,
+          titleMaxLines: 2,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ArtistDetailPage(
+                  artistName: collectionSong.title,
+                  songs: [collectionSong],
+                  isCollection: true,
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -560,20 +775,28 @@ class _TrendPageState extends State<TrendPage> {
     Song song,
     List<Song> artistSongs,
   ) {
-    return SongGridCard(
-      song: song,
-      imageUrl: song.coverUrl,
-      title: song.title,
-      subtitle: song.artist,
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-                ArtistDetailPage(artistName: song.artist, songs: artistSongs),
-          ),
-        );
-      },
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: SongGridCard(
+          song: song,
+          imageUrl: song.coverUrl,
+          title: song.title,
+          subtitle: song.artist,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ArtistDetailPage(
+                    artistName: song.artist, songs: artistSongs),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -586,6 +809,7 @@ class _TrendPageState extends State<TrendPage> {
   }
 
   Widget _buildYourMixList(BuildContext context, List<Song> mostPlayed) {
+    final langProvider = context.read<LanguageProvider>();
     final screenWidth = MediaQuery.of(context).size.width;
     final artistSongWidth = (screenWidth - 60) / 2.8;
 
@@ -607,8 +831,8 @@ class _TrendPageState extends State<TrendPage> {
                 size: 20,
               ),
               const SizedBox(width: 8),
-              const Text(
-                "Senin Haftalık Mix'in",
+              Text(
+                langProvider.t('your_weekly_mix'),
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 16,
@@ -619,7 +843,7 @@ class _TrendPageState extends State<TrendPage> {
           ),
         ),
         SizedBox(
-          height: artistSongWidth + 48,
+          height: (artistSongWidth * 9 / 16) + 48,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: EdgeInsets.symmetric(
@@ -632,8 +856,11 @@ class _TrendPageState extends State<TrendPage> {
               return Container(
                 width: artistSongWidth,
                 margin: const EdgeInsets.only(right: 16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(4),
                   child: SongGridCard(
                     song: song,
                     imageUrl: song.coverUrl,
@@ -682,329 +909,361 @@ class ArtistSectionWidget extends StatefulWidget {
   State<ArtistSectionWidget> createState() => _ArtistSectionWidgetState();
 }
 
-class _ArtistSectionWidgetState extends State<ArtistSectionWidget>
-    with SingleTickerProviderStateMixin {
-  late List<Song> _songs;
-  late AnimationController _arrowController;
-  late Animation<Offset> _arrowAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _songs = List.from(widget.initialSongs);
-    _fetchMoreSongs();
-    // Ok ikonunun ileri-geri hareket etmesi için animasyon denetleyicisi
-    _arrowController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    )..repeat(reverse: true);
-
-    _arrowAnimation =
-        Tween<Offset>(
-          begin: Offset.zero,
-          end: const Offset(0.3, 0.0), // X ekseninde sağa doğru %30 kayma
-        ).animate(
-          CurvedAnimation(parent: _arrowController, curve: Curves.easeInOut),
-        );
-  }
-
-  @override
-  void dispose() {
-    _arrowController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _fetchMoreSongs() async {
-    try {
-      final results = await YoutubeService.searchSongs(
-        widget.artistName,
-        limit: 10,
-      );
-      if (mounted && results.isNotEmpty) {
-        setState(() {
-          // Kapak resmi olmayanları (placeholder vb.) burada da filtrele
-          final validResults = results
-              .where(
-                (s) =>
-                    s.coverUrl.isNotEmpty &&
-                    !s.coverUrl.contains('via.placeholder.com'),
-              )
-              .toList();
-
-          // Mevcut şarkıların üzerine API'den gelenleri ekle (ID kontrolü ile)
-          final existingIds = _songs.map((s) => s.id).toSet();
-          for (var song in validResults) {
-            if (!existingIds.contains(song.id)) {
-              _songs.add(song);
-            }
-          }
-        });
-      }
-    } catch (e) {
-      debugPrint("Sanatçı şarkıları yüklenirken hata: $e");
-    }
-  }
-
+class _ArtistSectionWidgetState extends State<ArtistSectionWidget> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final artistSongWidth = (screenWidth - 60) / 2.8;
-    final songProvider = context.watch<SongProvider>();
+    final isFollowed = context.select<SongProvider, bool>(
+        (p) => p.isArtistFollowed(widget.artistName));
+    final isFirebaseLoggedIn =
+        context.select<SongProvider, bool>((p) => p.isFirebaseLoggedIn);
     final langProvider = context.watch<LanguageProvider>();
-    final isFollowed = songProvider.isArtistFollowed(widget.artistName);
     final primaryColor = Theme.of(context).primaryColor;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(
-            MediaQuery.of(context).size.width * 0.025,
-            24,
-            MediaQuery.of(context).size.width * 0.025,
-            12,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Padding(
+        padding: EdgeInsets.fromLTRB(
+          screenWidth * 0.025,
+          16,
+          screenWidth * 0.025,
+          12, // Sanatçı blokları arası mesafe daraltıldı
+        ),
+        child: IntrinsicHeight(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Flexible(
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ArtistDetailPage(
-                          artistName: widget.artistName,
-                          songs: _songs,
-                        ),
-                      ),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Theme.of(context).primaryColor.withOpacity(0.2),
-                          Colors.transparent,
-                        ],
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                      ),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Theme.of(context).primaryColor.withOpacity(0.4),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CustomIcons.svgIcon(
-                          CustomIcons.person,
-                          color: Theme.of(context).primaryColor,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            widget.artistName,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
+              // 1. Sanatçı Adı ve Takip Butonu
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ArtistDetailPage(
+                              artistName: widget.artistName,
+                              songs: widget.initialSongs,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
+                        );
+                      },
+                      child: Row(
+                        children: [
+                          _SmallArtistAvatar(
+                            artistName: widget.artistName,
+                            songProvider: context.read<SongProvider>(),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              widget.artistName,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 19,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.3,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () {
+                      if (!isFirebaseLoggedIn) {
+                        _showLoginBottomSheet(context);
+                        return;
+                      }
+                      context
+                          .read<SongProvider>()
+                          .toggleFollowArtist(widget.artistName);
+                      CustomSnackBar.showInfo(
+                        context: context,
+                        message: isFollowed
+                            ? "${widget.artistName} takipten çıkarıldı."
+                            : "${widget.artistName} takip ediliyor.",
+                      );
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isFollowed
+                            ? primaryColor.withOpacity(0.15)
+                            : Colors.white.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isFollowed
+                              ? primaryColor.withOpacity(0.5)
+                              : Colors.white.withOpacity(0.1),
+                          width: 1,
                         ),
-                        const SizedBox(width: 8),
-                        SlideTransition(
-                          position: _arrowAnimation,
-                          child: Icon(
-                            Icons.arrow_forward_rounded,
-                            color: Theme.of(context).primaryColor,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isFollowed
+                                ? Icons.check_rounded
+                                : Icons.person_add_alt_1_rounded,
+                            color: isFollowed ? primaryColor : Colors.white70,
                             size: 16,
                           ),
-                        ),
+                          const SizedBox(width: 4),
+                          Text(
+                            isFollowed
+                                ? langProvider.t('followed')
+                                : langProvider.t('follow'),
+                            style: TextStyle(
+                              color: isFollowed ? primaryColor : Colors.white70,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // 2. Şarkılar Alanı (Kapak ve Liste)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Sol: İlk Şarkı (16:9 Kapak ve Başlık)
+                  if (widget.initialSongs.isNotEmpty)
+                    SizedBox(
+                      width: screenWidth * 0.38,
+                      child: _buildSongCard(widget.initialSongs.first),
+                    ),
+                  const SizedBox(width: 12),
+                  // Sağ: Şarkı Listesi ve +Sayı
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (widget.initialSongs.length > 1)
+                          _buildCompactListSong(widget.initialSongs[1]),
+                        if (widget.initialSongs.length > 2)
+                          _buildCompactListSong(widget.initialSongs[2]),
+                        if (widget.initialSongs.length > 3)
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ArtistDetailPage(
+                                    artistName: widget.artistName,
+                                    songs: widget.initialSongs,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 4.0),
+                              child: Text(
+                                langProvider.currentLanguage == 'tr'
+                                    ? '+ Daha fazlası'
+                                    : '+ See more',
+                                style: TextStyle(
+                                  color: primaryColor,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              GestureDetector(
-                onTap: () {
-                  if (!songProvider.isFirebaseLoggedIn) {
-                    _showLoginBottomSheet(context);
-                    return;
-                  }
-                  songProvider.toggleFollowArtist(widget.artistName);
-                  CustomSnackBar.showInfo(
-                    context: context,
-                    message: isFollowed
-                        ? "${widget.artistName} takipten çıkarıldı."
-                        : "${widget.artistName} takip ediliyor.",
-                  );
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: isFollowed
-                        ? primaryColor.withOpacity(0.15)
-                        : Colors.white.withOpacity(0.05),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: isFollowed
-                          ? primaryColor.withOpacity(0.5)
-                          : Colors.white.withOpacity(0.1),
-                      width: 1,
-                    ),
-                  ),
-                  child: Icon(
-                    isFollowed
-                        ? Icons.check_rounded
-                        : Icons.person_add_alt_1_rounded,
-                    color: isFollowed ? primaryColor : Colors.white70,
-                    size: 18,
-                  ),
-                ),
+                ],
               ),
             ],
           ),
-        ),
-        SizedBox(
-          height: artistSongWidth + 48,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(
-              horizontal: MediaQuery.of(context).size.width * 0.025,
-            ),
-            itemCount: _songs.length > 10 ? 11 : _songs.length,
-            itemBuilder: (context, index) {
-              if (_songs.length > 10 && index == 10) {
-                return Container(
-                  width: artistSongWidth,
-                  margin: const EdgeInsets.only(right: 16),
-                  child: _buildSeeMoreCard(context),
-                );
-              }
-
-              final song = _songs[index];
-
-              return Container(
-                width: artistSongWidth,
-                margin: const EdgeInsets.only(right: 16),
-                child: _buildSongCard(song),
-              );
-            },
-          ),
-        ),
-      ],
-    );
+        ));
   }
 
   Widget _buildSongCard(Song song) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: SongGridCard(
-        song: song,
-        imageUrl: song.coverUrl,
-        title: song.title,
-        subtitle: song.artist,
-        onTap: () {
-          SongCard.showModernMenu(
-            context,
-            song,
-            onTap: () {
-              final provider = context.read<SongProvider>();
-              if (provider.currentSong?.id == song.id) {
-                if (provider.audioPlayer.playing) {
-                  provider.audioPlayer.pause();
-                } else {
-                  provider.audioPlayer.play();
-                }
-              } else {
-                provider.playSong(song, _songs);
-              }
-            },
-          );
-        },
-      ),
+    final isFav = context.select<SongProvider, bool>(
+      (p) => p.favoriteSongs.any((s) => s.id == song.id),
     );
-  }
-
-  Widget _buildSeeMoreCard(BuildContext context) {
-    final langProvider = context.watch<LanguageProvider>();
 
     return GestureDetector(
       onTap: () {
-        Navigator.push(
+        SongCard.showModernMenu(
           context,
-          MaterialPageRoute(
-            builder: (context) =>
-                ArtistDetailPage(artistName: widget.artistName, songs: _songs),
-          ),
+          song,
+          onTap: () {
+            final provider = context.read<SongProvider>();
+            if (provider.currentSong?.id == song.id) {
+              if (provider.audioPlayer.playing) {
+                provider.audioPlayer.pause();
+              } else {
+                provider.audioPlayer.play();
+              }
+            } else {
+              provider.playSong(song, widget.initialSongs);
+            }
+          },
         );
       },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Theme.of(context).primaryColor.withOpacity(0.3),
-                  width: 1,
+          AspectRatio(
+            aspectRatio: 16 / 9,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: (song.localImagePath != null &&
+                          File(song.localImagePath!).existsSync())
+                      ? Image.file(
+                          File(song.localImagePath!),
+                          fit: BoxFit.cover,
+                          cacheHeight: 300,
+                        )
+                      : CachedNetworkImage(
+                          imageUrl: song.coverUrl,
+                          fit: BoxFit.cover,
+                          memCacheHeight: 300,
+                          errorWidget: (context, url, error) => Container(
+                            color: Colors.grey.shade800,
+                          ),
+                        ),
                 ),
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.arrow_forward_rounded,
-                      color: Theme.of(context).primaryColor,
-                      size: 32,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      langProvider.t('see_more').replaceAll(' ', '\n'),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Theme.of(context).primaryColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 10,
+                if (isFav)
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.6),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check_circle_rounded,
+                        color: Colors.greenAccent,
+                        size: 16,
                       ),
                     ),
-                  ],
-                ),
-              ),
+                  ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
-            langProvider.t('all'),
+            song.title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
-              fontSize: 10,
+              fontSize: 13,
             ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            "Sanatçı",
-            style: TextStyle(color: Colors.grey.shade500, fontSize: 9),
-          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCompactListSong(Song song) {
+    final provider = context.read<SongProvider>();
+    final isCurrentSong = provider.currentSong?.id == song.id;
+    final primaryColor = Theme.of(context).primaryColor;
+
+    return GestureDetector(
+      onTap: () {
+        SongCard.showModernMenu(
+          context,
+          song,
+          onTap: () {
+            if (provider.currentSong?.id == song.id) {
+              if (provider.audioPlayer.playing) {
+                provider.audioPlayer.pause();
+              } else {
+                provider.audioPlayer.play();
+              }
+            } else {
+              provider.playSong(song, widget.initialSongs);
+            }
+          },
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        color: Colors.transparent,
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: SizedBox(
+                width: 71,
+                height: 40,
+                child: (song.localImagePath != null &&
+                        File(song.localImagePath!).existsSync())
+                    ? Image.file(
+                        File(song.localImagePath!),
+                        fit: BoxFit.cover,
+                        cacheHeight: 150,
+                      )
+                    : CachedNetworkImage(
+                        imageUrl: song.coverUrl,
+                        fit: BoxFit.cover,
+                        memCacheHeight: 150,
+                        errorWidget: (context, url, error) => Container(
+                          color: Colors.grey.shade800,
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: isCurrentSong ? primaryColor : Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    song.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: isCurrentSong
+                          ? primaryColor.withOpacity(0.7)
+                          : Colors.grey.shade400,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1032,6 +1291,88 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget>
           MaterialPageRoute(builder: (context) => const LoginPage()),
         );
       },
+    );
+  }
+}
+
+/// Sanatçıların isminin yanında duran, etrafı ışıltılı küçük profil avatarı
+class _SmallArtistAvatar extends StatefulWidget {
+  final String artistName;
+  final SongProvider songProvider;
+
+  const _SmallArtistAvatar({
+    required this.artistName,
+    required this.songProvider,
+  });
+
+  @override
+  State<_SmallArtistAvatar> createState() => _SmallArtistAvatarState();
+}
+
+class _SmallArtistAvatarState extends State<_SmallArtistAvatar> {
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAvatar();
+  }
+
+  Future<void> _loadAvatar() async {
+    if (widget.songProvider.getArtistAvatar(widget.artistName) != null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+    await widget.songProvider.fetchArtistAvatar(widget.artistName);
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).primaryColor;
+    final avatarUrl =
+        widget.songProvider.getArtistAvatar(widget.artistName) ?? '';
+
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: primaryColor, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withOpacity(0.5),
+            blurRadius: 8,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: ClipOval(
+        child: _isLoading && avatarUrl.isEmpty
+            ? Container(
+                color: Colors.grey.shade800,
+                child: const Center(
+                  child: SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white54),
+                  ),
+                ),
+              )
+            : CachedNetworkImage(
+                imageUrl: avatarUrl.isNotEmpty
+                    ? avatarUrl
+                    : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(widget.artistName)}&background=random&color=fff&size=100',
+                fit: BoxFit.cover,
+                placeholder: (context, url) =>
+                    Container(color: Colors.grey.shade800),
+                errorWidget: (context, url, error) => Container(
+                    color: Colors.grey.shade800,
+                    child: const Icon(Icons.person,
+                        color: Colors.white54, size: 20)),
+              ),
+      ),
     );
   }
 }
@@ -1074,10 +1415,9 @@ class _DailySongCardState extends State<DailySongCard> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<SongProvider>();
-    final isPlaying =
-        provider.currentSong?.id == widget.song.id &&
-        provider.audioPlayer.playing;
+    final isCurrentSong = context
+        .select<SongProvider, bool>((p) => p.currentSong?.id == widget.song.id);
+    final provider = context.read<SongProvider>();
     final primaryColor = Theme.of(context).primaryColor;
     final langProvider = context.watch<LanguageProvider>();
     final authProvider = context.watch<AuthProvider>();
@@ -1104,7 +1444,7 @@ class _DailySongCardState extends State<DailySongCard> {
               onTap: () {
                 // Menüden "Oynat" seçilirse çalma işlemini yap
                 if (provider.currentSong?.id == widget.song.id) {
-                  if (isPlaying) {
+                  if (provider.audioPlayer.playing) {
                     provider.audioPlayer.pause();
                   } else {
                     provider.audioPlayer.play();
@@ -1119,142 +1459,139 @@ class _DailySongCardState extends State<DailySongCard> {
             decoration: BoxDecoration(borderRadius: BorderRadius.circular(24)),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(24),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.15),
-                      width: 1.5,
-                    ),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade900.withOpacity(0.8),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.1),
+                    width: 1.5,
                   ),
-                  child: Row(
-                    children: [
-                      // Kapak Resmi
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: Transform.scale(
-                          scale:
-                              (widget.song.coverUrl.contains('ytimg.com') ||
-                                  widget.song.coverUrl.contains('youtube.com'))
-                              ? 1.35
-                              : 1.0,
-                          child: CachedNetworkImage(
-                            imageUrl: widget.song.coverUrl,
-                            width: 76,
-                            height: 76,
-                            fit: BoxFit.cover,
-                            memCacheHeight: 250,
-                            errorWidget: (context, url, error) => Container(
-                              width: 76,
-                              height: 76,
-                              color: Colors.grey.shade800,
-                              child: const Icon(
-                                Icons.music_note,
-                                color: Colors.white54,
-                              ),
-                            ),
+                ),
+                child: Row(
+                  children: [
+                    // Kapak Resmi
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: CachedNetworkImage(
+                        imageUrl: widget.song.coverUrl,
+                        width: 112,
+                        height: 63,
+                        fit: BoxFit.cover,
+                        memCacheHeight: 250,
+                        errorWidget: (context, url, error) => Container(
+                          width: 112,
+                          height: 63,
+                          color: Colors.grey.shade800,
+                          child: const Icon(
+                            Icons.music_note,
+                            color: Colors.white54,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      // Şarkı Bilgileri
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Icon(
-                                  Icons.local_fire_department_rounded,
-                                  color: primaryColor,
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Text(
-                                    personalizedTitle,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: primaryColor,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5,
-                                      height: 1.2,
-                                    ),
+                    ),
+                    const SizedBox(width: 16),
+                    // Şarkı Bilgileri
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.local_fire_department_rounded,
+                                color: primaryColor,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  personalizedTitle,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: primaryColor,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                    height: 1.2,
                                   ),
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              widget.song.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              widget.song.artist,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: Colors.grey.shade400,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Oynat/Duraklat Butonu
-                      GestureDetector(
-                        onTap: () {
-                          // Sadece butona tıklandığında direkt çal/durdur
-                          if (provider.currentSong?.id == widget.song.id) {
-                            if (isPlaying) {
-                              provider.audioPlayer.pause();
-                            } else {
-                              provider.audioPlayer.play();
-                            }
-                          } else {
-                            provider.playSong(widget.song, widget.playlist);
-                          }
-                        },
-                        child: Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: primaryColor.withOpacity(0.2),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: primaryColor.withOpacity(0.5),
-                              width: 1,
-                            ),
+                            ],
                           ),
-                          child: Center(
-                            child: CustomIcons.svgIcon(
-                              isPlaying
-                                  ? CustomIcons.pauseRounded
-                                  : CustomIcons.playArrowRounded,
+                          const SizedBox(height: 6),
+                          Text(
+                            widget.song.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
                               color: Colors.white,
-                              size: 24,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
                             ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            widget.song.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.grey.shade400,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Oynat/Duraklat Butonu
+                    GestureDetector(
+                      onTap: () {
+                        // Sadece butona tıklandığında direkt çal/durdur
+                        if (provider.currentSong?.id == widget.song.id) {
+                          if (provider.audioPlayer.playing) {
+                            provider.audioPlayer.pause();
+                          } else {
+                            provider.audioPlayer.play();
+                          }
+                        } else {
+                          provider.playSong(widget.song, widget.playlist);
+                        }
+                      },
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: primaryColor.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: primaryColor.withOpacity(0.5),
+                            width: 1,
+                          ),
+                        ),
+                        child: Center(
+                          child: StreamBuilder<bool>(
+                            stream: provider.audioPlayer.playingStream,
+                            builder: (context, snapshot) {
+                              final playing = snapshot.data ?? false;
+                              final isPlayingNow = isCurrentSong && playing;
+                              return CustomIcons.svgIcon(
+                                isPlayingNow
+                                    ? CustomIcons.pauseRounded
+                                    : CustomIcons.playArrowRounded,
+                                color: Colors.white,
+                                size: 20,
+                              );
+                            },
                           ),
                         ),
                       ),
-                      const SizedBox(width: 4),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
                 ),
               ),
             ),

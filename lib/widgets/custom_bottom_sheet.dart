@@ -70,68 +70,58 @@ class CustomBottomSheet extends StatelessWidget {
                       right: 16,
                     ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(24),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                        child: Container(
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.3),
-                              width: 1.2,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.25),
-                                blurRadius: 20,
-                                spreadRadius: 2,
-                              ),
-                            ],
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade900,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.1),
+                            width: 1.2,
                           ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: CustomBottomSheet(
-                              title: title,
-                              message: message,
-                              icon: icon,
-                              primaryButtonText: primaryButtonText,
-                              onPrimaryButtonTap: onPrimaryButtonTap,
-                              secondaryButtonText: secondaryButtonText,
-                              onSecondaryButtonTap: onSecondaryButtonTap,
-                              primaryButtonColor: primaryButtonColor,
-                              primaryButtonTextColor: primaryButtonTextColor,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.5),
+                              blurRadius: 20,
+                              spreadRadius: 2,
                             ),
+                          ],
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: CustomBottomSheet(
+                            title: title,
+                            message: message,
+                            icon: icon,
+                            primaryButtonText: primaryButtonText,
+                            onPrimaryButtonTap: onPrimaryButtonTap,
+                            secondaryButtonText: secondaryButtonText,
+                            onSecondaryButtonTap: onSecondaryButtonTap,
+                            primaryButtonColor: primaryButtonColor,
+                            primaryButtonTextColor: primaryButtonTextColor,
                           ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
+              )
             ],
           ),
         );
       },
       transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final blurredBackground = BackdropFilter(
-          filter: ImageFilter.blur(
-            sigmaX: 20 * animation.value,
-            sigmaY: 20 * animation.value,
-          ),
-          child: Container(
-            color: Colors.black.withOpacity(0.5 * animation.value),
-          ),
+        final blurredBackground = Container(
+          color: Colors.black.withOpacity(0.75 * animation.value),
         );
 
-        final slideAnimation =
-            Tween<Offset>(
-              begin: const Offset(0.0, 1.0),
-              end: Offset.zero,
-            ).animate(
-              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-            );
+        final slideAnimation = Tween<Offset>(
+          begin: const Offset(0.0, 1.0),
+          end: Offset.zero,
+        ).animate(
+          CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+        );
 
         return Stack(
           children: [
@@ -178,37 +168,35 @@ class CustomBottomSheet extends StatelessWidget {
                       right: 16,
                     ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(24),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                        child: Container(
-                          width: double.infinity,
-                          constraints: BoxConstraints(
-                            maxHeight:
-                                MediaQuery.of(context).size.height * 0.85,
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          decoration: BoxDecoration(
-                            color:
-                                backgroundColor ??
-                                Colors.white.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.3),
-                              width: 1.2,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.25),
-                                blurRadius: 20,
-                                spreadRadius: 2,
-                              ),
-                            ],
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: child,
-                          ),
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        width: double.infinity,
+                        constraints: BoxConstraints(
+                          maxHeight: MediaQuery.of(context).size.height * 0.85,
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          color: backgroundColor ?? Colors.grey.shade900,
+                          borderRadius: BorderRadius.circular(16),
+                          border: backgroundColor == Colors.transparent
+                              ? null
+                              : Border.all(
+                                  color: Colors.white.withOpacity(0.1),
+                                  width: 1.2,
+                                ),
+                          boxShadow: backgroundColor == Colors.transparent
+                              ? null
+                              : [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.5),
+                                    blurRadius: 20,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: child,
                         ),
                       ),
                     ),
@@ -220,23 +208,16 @@ class CustomBottomSheet extends StatelessWidget {
         );
       },
       transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final blurredBackground = BackdropFilter(
-          filter: ImageFilter.blur(
-            sigmaX: 20 * animation.value,
-            sigmaY: 20 * animation.value,
-          ),
-          child: Container(
-            color: Colors.black.withOpacity(0.5 * animation.value),
-          ),
+        final blurredBackground = Container(
+          color: Colors.black.withOpacity(0.75 * animation.value),
         );
 
-        final slideAnimation =
-            Tween<Offset>(
-              begin: const Offset(0.0, 1.0),
-              end: Offset.zero,
-            ).animate(
-              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-            );
+        final slideAnimation = Tween<Offset>(
+          begin: const Offset(0.0, 1.0),
+          end: Offset.zero,
+        ).animate(
+          CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+        );
 
         return Stack(
           children: [
@@ -281,49 +262,43 @@ class CustomBottomSheet extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(
-                    decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color:
+                        (primaryButtonColor ?? Theme.of(context).primaryColor)
+                            .withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
                       color:
                           (primaryButtonColor ?? Theme.of(context).primaryColor)
-                              .withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color:
-                            (primaryButtonColor ??
-                                    Theme.of(context).primaryColor)
-                                .withOpacity(0.5),
-                        width: 1.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color:
-                              (primaryButtonColor ??
-                                      Theme.of(context).primaryColor)
-                                  .withOpacity(0.2),
-                          blurRadius: 15,
-                          spreadRadius: 1,
-                        ),
-                      ],
+                              .withOpacity(0.5),
+                      width: 1.5,
                     ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap:
-                            onPrimaryButtonTap ?? () => Navigator.pop(context),
-                        borderRadius: BorderRadius.circular(16),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          child: Center(
-                            child: Text(
-                              primaryButtonText!,
-                              style: TextStyle(
-                                color: primaryButtonTextColor ?? Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (primaryButtonColor ??
+                                Theme.of(context).primaryColor)
+                            .withOpacity(0.2),
+                        blurRadius: 15,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: onPrimaryButtonTap ?? () => Navigator.pop(context),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: Center(
+                          child: Text(
+                            primaryButtonText!,
+                            style: TextStyle(
+                              color: primaryButtonTextColor ?? Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),

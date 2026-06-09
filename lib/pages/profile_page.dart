@@ -2,10 +2,12 @@ import 'dart:io';
 import 'package:dio/dio.dart'; // Dio paketini ekleyin
 import 'dart:ui';
 import 'dart:math' as math;
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:muzik_app/providers/auth_provider.dart';
 import 'package:provider/provider.dart';
@@ -18,7 +20,6 @@ import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/widgets/mini_player.dart';
 import 'package:muzik_app/widgets/custom_app_bar.dart';
-import 'package:muzik_app/widgets/custom_banner_ad.dart';
 import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/pages/player_page.dart';
 import 'package:palette_generator/palette_generator.dart';
@@ -26,6 +27,8 @@ import 'package:muzik_app/pages/artist_detail_page.dart';
 import 'package:muzik_app/services/audius_service.dart';
 import 'package:muzik_app/providers/language_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:muzik_app/services/custom_winning_add.dart';
+import 'package:muzik_app/pages/login_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -35,7 +38,7 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   bool _isLoading = false;
   late AnimationController _controller;
   Color? _dominantColor;
@@ -47,6 +50,7 @@ class _ProfilePageState extends State<ProfilePage>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller = AnimationController(
       duration: const Duration(seconds: 3),
       vsync: this,
@@ -54,9 +58,28 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final currentSong = context.watch<SongProvider>().currentSong;
+    if (currentSong != null && currentSong.id != _currentSongId) {
+      _currentSongId = currentSong.id;
+      _dominantColor = null; // Yeni şarkı yüklenirken varsayılana dön
+      _extractColor(currentSong);
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      context.read<AuthProvider>().reloadUser();
+    }
   }
 
   // Şarkının kapak resminden baskın rengi çıkaran fonksiyon
@@ -84,8 +107,7 @@ class _ProfilePageState extends State<ProfilePage>
         maximumColorCount: 20,
       );
       if (mounted) {
-        final color =
-            generator.dominantColor?.color ??
+        final color = generator.dominantColor?.color ??
             generator.darkVibrantColor?.color ??
             generator.vibrantColor?.color;
 
@@ -107,17 +129,56 @@ class _ProfilePageState extends State<ProfilePage>
     final user = FirebaseAuth.instance.currentUser ?? authProvider.user;
     final songProvider = context.watch<SongProvider>();
     final langProvider = context.watch<LanguageProvider>();
-    final currentSong = songProvider.currentSong;
-
-    if (currentSong != null && currentSong.id != _currentSongId) {
-      _currentSongId = currentSong.id;
-      _dominantColor = null; // Yeni şarkı yüklenirken varsayılana dön
-      _extractColor(currentSong);
-    }
 
     return Scaffold(
       extendBody: true,
-      appBar: CustomAppBar(title: langProvider.t('profile')),
+      appBar: CustomAppBar(
+        title: langProvider.t('profile'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: Center(
+              child: GestureDetector(
+                onTap: () => CustomWinningAd.showCoinScreen(context),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: Colors.amber.withOpacity(0.5), width: 1.5),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.monetization_on_rounded,
+                          color: Colors.amber, size: 16),
+                      const SizedBox(width: 4),
+                      TweenAnimationBuilder<double>(
+                        tween: Tween<double>(
+                            begin: songProvider.coins.toDouble(),
+                            end: songProvider.coins.toDouble()),
+                        duration: const Duration(milliseconds: 1200),
+                        curve: Curves.easeOutExpo,
+                        builder: (context, value, child) {
+                          return Text(
+                            '${value.toInt()}',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
       body: Column(
         children: [
           Expanded(
@@ -125,8 +186,6 @@ class _ProfilePageState extends State<ProfilePage>
                 ? Center(child: _buildLoginButton(context, authProvider))
                 : _buildUserProfile(context, authProvider, user),
           ),
-          // Reklamlar geçici olarak kapatıldığı için gizlendi.
-          // const CustomBannerAd(),
         ],
       ),
       bottomNavigationBar: songProvider.currentSong != null
@@ -192,58 +251,33 @@ class _ProfilePageState extends State<ProfilePage>
           padding: const EdgeInsets.symmetric(horizontal: 32.0),
           child: ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.black,
+              backgroundColor: Theme.of(context).primaryColor.withOpacity(0.8),
+              foregroundColor:
+                  Theme.of(context).primaryColor.computeLuminance() > 0.5
+                      ? Colors.white
+                      : Colors.white,
               minimumSize: const Size(double.infinity, 50),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(16),
               ),
               elevation: 1,
             ),
-            onPressed: () async {
-              setState(() {
-                _isLoading = true;
-              });
-              try {
-                final user = await provider.signInWithGoogle();
-                if (mounted) {
-                  setState(() => _isLoading = false);
-                  if (user != null) {
-                    Navigator.pop(context);
-                    CustomSnackBar.showSuccess(
-                      context: context,
-                      message: langProvider
-                          .t('welcome_user')
-                          .replaceAll(
-                            '%s',
-                            user.displayName ?? langProvider.t('user'),
-                          ),
-                    );
-                  }
-                }
-              } catch (e) {
-                if (mounted) {
-                  setState(() => _isLoading = false);
-                  CustomSnackBar.showError(
-                    context: context,
-                    message: "${langProvider.t('login_failed')}: $e",
-                  );
-                }
-              }
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginPage()),
+              );
             },
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CustomPaint(
-                  size: const Size(20, 20),
-                  painter: GoogleLogoPainter(),
-                ),
+                const Icon(Icons.login_rounded),
                 const SizedBox(width: 12),
                 Text(
-                  langProvider.t('login_with_google'),
+                  langProvider.t('login'),
                   style: const TextStyle(
                     fontSize: 16,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
@@ -258,40 +292,30 @@ class _ProfilePageState extends State<ProfilePage>
     if (song.localImagePath != null &&
         File(song.localImagePath!).existsSync()) {
       return ClipRect(
-        child: Transform.scale(
-          scale:
-              (song.coverUrl.contains('ytimg.com') ||
-                  song.coverUrl.contains('youtube.com'))
-              ? 1.35
-              : 1.0,
           child: Image.file(
-            File(song.localImagePath!),
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-            errorBuilder: (c, e, s) => Container(color: Colors.grey.shade800),
-          ),
-        ),
-      );
+        File(song.localImagePath!),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        cacheHeight: 200,
+        cacheWidth: 200,
+        errorBuilder: (c, e, s) => Container(color: Colors.grey.shade800),
+      ));
     }
     return ClipRect(
-      child: Transform.scale(
-        scale:
-            (song.coverUrl.contains('ytimg.com') ||
-                song.coverUrl.contains('youtube.com'))
-            ? 1.35
-            : 1.0,
-        child: CachedNetworkImage(
-          imageUrl: song.coverUrl,
-          width: double.infinity,
-          height: double.infinity,
-          errorWidget: (context, url, error) => Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.grey.shade800, Colors.grey.shade900],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+      child: CachedNetworkImage(
+        imageUrl: song.coverUrl,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        memCacheHeight: 200,
+        memCacheWidth: 200,
+        errorWidget: (context, url, error) => Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.grey.shade800, Colors.grey.shade900],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
           ),
         ),
@@ -369,12 +393,10 @@ class _ProfilePageState extends State<ProfilePage>
     VoidCallback onTap,
   ) {
     final isGrey = color == Colors.grey;
-    final bgColor = isGrey
-        ? Colors.grey.shade800.withOpacity(0.3)
-        : color.withOpacity(0.2);
-    final borderColor = isGrey
-        ? Colors.grey.shade400.withOpacity(0.3)
-        : color.withOpacity(0.5);
+    final bgColor =
+        isGrey ? Colors.grey.shade800.withOpacity(0.3) : color.withOpacity(0.2);
+    final borderColor =
+        isGrey ? Colors.grey.shade400.withOpacity(0.3) : color.withOpacity(0.5);
     final iconBgColor = Colors.grey.shade500.withOpacity(0.2);
 
     return RepaintBoundary(
@@ -393,85 +415,92 @@ class _ProfilePageState extends State<ProfilePage>
           ),
           child: ClipRRect(
             borderRadius: borderRadius,
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: bgColor,
-                  borderRadius: borderRadius,
-                  border: Border.all(color: borderColor, width: 1.5),
-                ),
-                child: Stack(
-                  children: [
-                    Positioned(
-                      top: 0,
-                      left: isLeftAlignment ? 0 : null,
-                      right: isLeftAlignment ? null : 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: iconBgColor,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.1),
-                            width: 1,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: borderRadius,
+                border: Border.all(color: borderColor, width: 1.5),
+              ),
+              child: Stack(
+                children: [
+                  Positioned(
+                    top: 0,
+                    left: isLeftAlignment ? 0 : null,
+                    right: isLeftAlignment ? null : 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: iconBgColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.1),
+                          width: 1,
+                        ),
+                      ),
+                      child: CustomIcons.svgIcon(
+                        iconStr,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                  Center(
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    left: isLeftAlignment ? 0 : null,
+                    right: isLeftAlignment ? null : 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.black.withOpacity(0.3),
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.white.withOpacity(0.08),
+                            offset: const Offset(0, 1),
+                            blurRadius: 0,
                           ),
-                        ),
-                        child: CustomIcons.svgIcon(
-                          iconStr,
-                          color: Colors.white,
-                          size: 16,
-                        ),
+                        ],
+                      ),
+                      child: TweenAnimationBuilder<num>(
+                        tween: Tween<num>(begin: 0, end: targetValue),
+                        duration: const Duration(seconds: 2),
+                        curve: Curves.easeOutCubic,
+                        builder: (context, value, child) {
+                          return Text(
+                            formatter(value),
+                            style: TextStyle(
+                              color: isGrey ? Colors.white : color,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
+                            ),
+                          );
+                        },
                       ),
                     ),
-                    Center(
-                      child: Text(
-                        label,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      left: isLeftAlignment ? 0 : null,
-                      right: isLeftAlignment ? null : 0,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isGrey
-                              ? Colors.grey.shade700.withOpacity(0.8)
-                              : color.withOpacity(0.8),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: TweenAnimationBuilder<num>(
-                          tween: Tween<num>(begin: 0, end: targetValue),
-                          duration: const Duration(seconds: 2),
-                          curve: Curves.easeOutCubic,
-                          builder: (context, value, child) {
-                            return Text(
-                              formatter(value),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -496,8 +525,8 @@ class _ProfilePageState extends State<ProfilePage>
             ClipRRect(
               borderRadius: BorderRadius.circular(6),
               child: SizedBox(
-                width: 56,
-                height: 56,
+                width: 71,
+                height: 40,
                 child: _buildSingleImage(song),
               ),
             ),
@@ -578,7 +607,7 @@ class _ProfilePageState extends State<ProfilePage>
 
     final itemWidth =
         (screenWidth - 32 - (gridSpacing * (crossAxisCount - 1))) /
-        crossAxisCount;
+            crossAxisCount;
     final itemHeight = itemWidth; // Kare
     final totalWidth = screenWidth - 32;
     final totalHeight = (itemHeight * 2) + gridSpacing;
@@ -616,7 +645,47 @@ class _ProfilePageState extends State<ProfilePage>
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 32),
+
+          if (user.email != null && (user.emailVerified as bool)) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.blueAccent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.blueAccent.withOpacity(0.5),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.verified_rounded,
+                    color: Colors.blueAccent,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    langProvider.t('verified_account'),
+                    style: const TextStyle(
+                      color: Colors.blueAccent,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+          ] else if (user.email != null && !(user.emailVerified as bool)) ...[
+            const SizedBox(height: 16),
+            _buildVerificationBanner(context, provider),
+            const SizedBox(height: 16),
+          ] else ...[
+            const SizedBox(height: 32),
+          ],
 
           // --- Dairesel İstatistikler ve Merkez Avatar ---
           Center(
@@ -771,11 +840,11 @@ class _ProfilePageState extends State<ProfilePage>
                                 radius: 64,
                                 backgroundImage: user.photoURL != null
                                     ? (user.photoURL!.startsWith('http')
-                                              ? CachedNetworkImageProvider(
-                                                  user.photoURL!,
-                                                )
-                                              : FileImage(File(user.photoURL!)))
-                                          as ImageProvider
+                                            ? CachedNetworkImageProvider(
+                                                user.photoURL!,
+                                              )
+                                            : FileImage(File(user.photoURL!)))
+                                        as ImageProvider
                                     : null,
                                 child: user.photoURL == null
                                     ? Icon(
@@ -845,8 +914,8 @@ class _ProfilePageState extends State<ProfilePage>
                         ClipRRect(
                           borderRadius: BorderRadius.circular(6),
                           child: SizedBox(
-                            width: 56,
-                            height: 56,
+                            width: 71,
+                            height: 40,
                             child: _buildFolderGridCover(folder),
                           ),
                         ),
@@ -903,53 +972,50 @@ class _ProfilePageState extends State<ProfilePage>
             padding: const EdgeInsets.only(top: 16.0),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(24),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.redAccent.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: Colors.redAccent.withOpacity(0.5),
-                      width: 1.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.redAccent.withOpacity(0.2),
-                        blurRadius: 15,
-                        spreadRadius: 1,
-                      ),
-                    ],
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Colors.redAccent.withOpacity(0.5),
+                    width: 1.5,
                   ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () => _showSignOutBottomSheet(context, provider),
-                      borderRadius: BorderRadius.circular(24),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 16,
-                          horizontal: 20,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            CustomIcons.svgIcon(
-                              CustomIcons.logout,
-                              color: Colors.redAccent,
-                              size: 22,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.redAccent.withOpacity(0.2),
+                      blurRadius: 15,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _showSignOutBottomSheet(context, provider),
+                    borderRadius: BorderRadius.circular(24),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 16,
+                        horizontal: 20,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CustomIcons.svgIcon(
+                            CustomIcons.logout,
+                            color: Colors.redAccent,
+                            size: 22,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            langProvider.t('sign_out'),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
                             ),
-                            const SizedBox(width: 12),
-                            Text(
-                              langProvider.t('sign_out'),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -964,26 +1030,26 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   void _showProfilePictureDialog(
-    BuildContext context,
+    BuildContext outerContext,
     AuthProvider provider,
     dynamic user,
   ) {
     final photoUrl = user.photoURL;
-    final langProvider = context.read<LanguageProvider>();
+    final langProvider = outerContext.read<LanguageProvider>();
     Offset offset = Offset.zero;
     bool isDragging = false;
 
     showDialog(
-      context: context,
+      context: outerContext,
       useSafeArea:
           false, // Arka plan bulanıklığının tüm ekranı (Durum çubuğu dahil) kaplamasını sağlar
       barrierColor: Colors.black.withOpacity(0.4),
-      builder: (context) {
+      builder: (dialogContext) {
         return StatefulBuilder(
-          builder: (context, setState) {
+          builder: (statefulContext, setState) {
             return GestureDetector(
-              onTap: () =>
-                  Navigator.pop(context), // Bulanık alana dokunulduğunda çıkış
+              onTap: () => Navigator.pop(
+                  statefulContext), // Bulanık alana dokunulduğunda çıkış
               behavior: HitTestBehavior.opaque,
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
@@ -1003,7 +1069,7 @@ class _ProfilePageState extends State<ProfilePage>
                       // Eğer 100 pikselden fazla kaydırıldıysa veya hızlıca fırlatıldıysa pencereyi kapat
                       if (offset.distance > 100 ||
                           details.velocity.pixelsPerSecond.distance > 800) {
-                        Navigator.pop(context);
+                        Navigator.pop(statefulContext);
                       } else {
                         // Yeterince kaydırılmadıysa yaylanarak (bounce) geri dönsün
                         setState(() {
@@ -1028,8 +1094,10 @@ class _ProfilePageState extends State<ProfilePage>
                           Hero(
                             tag: 'profilePic',
                             child: Container(
-                              width: MediaQuery.of(context).size.width * 0.85,
-                              height: MediaQuery.of(context).size.width * 0.85,
+                              width:
+                                  MediaQuery.of(outerContext).size.width * 0.85,
+                              height:
+                                  MediaQuery.of(outerContext).size.width * 0.85,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: Colors.grey.shade800,
@@ -1044,18 +1112,19 @@ class _ProfilePageState extends State<ProfilePage>
                               child: ClipOval(
                                 child: photoUrl != null
                                     ? (photoUrl.startsWith('http')
-                                          ? CachedNetworkImage(
-                                              imageUrl: photoUrl,
-                                              fit: BoxFit.cover,
-                                            )
-                                          : Image.file(
-                                              File(photoUrl),
-                                              fit: BoxFit.cover,
-                                            ))
+                                        ? CachedNetworkImage(
+                                            imageUrl: photoUrl,
+                                            fit: BoxFit.cover,
+                                          )
+                                        : Image.file(
+                                            File(photoUrl),
+                                            fit: BoxFit.cover,
+                                          ))
                                     : Icon(
                                         Icons.person,
-                                        size:
-                                            MediaQuery.of(context).size.width *
+                                        size: MediaQuery.of(outerContext)
+                                                .size
+                                                .width *
                                             0.4,
                                         color: Colors.white.withOpacity(0.9),
                                       ),
@@ -1085,12 +1154,12 @@ class _ProfilePageState extends State<ProfilePage>
                           Container(
                             decoration: BoxDecoration(
                               color: Theme.of(
-                                context,
+                                outerContext,
                               ).primaryColor.withOpacity(0.2),
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: Theme.of(
-                                  context,
+                                  outerContext,
                                 ).primaryColor.withOpacity(0.5),
                                 width: 1.5,
                               ),
@@ -1102,9 +1171,9 @@ class _ProfilePageState extends State<ProfilePage>
                                 size: 24,
                               ),
                               onPressed: () {
-                                Navigator.pop(context);
+                                Navigator.pop(statefulContext);
                                 _showEditProfileBottomSheet(
-                                  context,
+                                  outerContext, // Orijinal ve bozulmayan context'i aktarıyoruz
                                   provider,
                                   user.displayName,
                                   user.photoURL,
@@ -1150,7 +1219,9 @@ class _ProfilePageState extends State<ProfilePage>
   // Cloudinary Resim Yükleme Fonksiyonu
   Future<String?> _uploadToCloudinary(String imagePath) async {
     const String cloudName = "doe2nzhgx"; // Cloudinary Cloud Name
-    const String uploadPreset = "OYN Müzik"; // Unsigned Upload Preset
+
+    // Cloudinary preset adında genellikle boşluk veya Türkçe karakter olmaz.
+    const String uploadPreset = "oyn_music";
 
     try {
       String fileName = imagePath.split('/').last;
@@ -1175,10 +1246,17 @@ class _ProfilePageState extends State<ProfilePage>
             "/upload/w_400,h_400,c_fill,q_auto/",
           );
         }
+        // Cache (Önbellek) sorununu önlemek için URL sonuna benzersiz bir zaman damgası ekliyoruz
+        url = "$url?t=${DateTime.now().millisecondsSinceEpoch}";
         return url;
       }
     } catch (e) {
-      debugPrint("Cloudinary Upload Hatası: $e");
+      if (e is DioException) {
+        debugPrint(
+            "Cloudinary Upload Hatası: ${e.response?.data ?? e.message}");
+      } else {
+        debugPrint("Cloudinary Upload Hatası: $e");
+      }
     }
     return null;
   }
@@ -1195,275 +1273,359 @@ class _ProfilePageState extends State<ProfilePage>
     );
     String? selectedImagePath;
 
-    CustomBottomSheet.showContent(
-      context: context,
-      isScrollControlled: true,
-      child: StatefulBuilder(
-        builder: (modalContext, setModalState) => Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-            left: 24,
-            right: 24,
-            top: 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 8),
-              Text(
-                langProvider.t('edit_profile'),
-                style: TextStyle(
-                  color: Theme.of(context).primaryColor,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Center(
-                child: GestureDetector(
-                  onTap: () async {
-                    final ImagePicker picker = ImagePicker();
-                    final XFile? image = await picker.pickImage(
-                      source: ImageSource.gallery,
-                    );
-                    if (image != null) {
-                      final croppedFile = await ImageCropper().cropImage(
-                        sourcePath: image.path,
-                        aspectRatio: const CropAspectRatio(
-                          ratioX: 1,
-                          ratioY: 1,
-                        ),
-                        uiSettings: [
-                          AndroidUiSettings(
-                            toolbarTitle: langProvider.t('crop_photo'),
-                            toolbarColor: Colors.grey.shade900,
-                            toolbarWidgetColor: Colors.white,
-                            initAspectRatio: CropAspectRatioPreset.square,
-                            lockAspectRatio: true,
-                            backgroundColor: Colors.black,
-                            activeControlsWidgetColor: Theme.of(
-                              context,
-                            ).primaryColor,
-                          ),
-                          IOSUiSettings(
-                            title: langProvider.t('crop_photo'),
-                            aspectRatioLockEnabled: true,
-                            resetAspectRatioEnabled: false,
-                          ),
-                        ],
-                      );
-
-                      if (croppedFile != null && context.mounted) {
-                        setModalState(() {
-                          selectedImagePath = croppedFile.path;
-                        });
-                      }
-                    }
-                  },
-                  child: Stack(
-                    children: [
-                      Container(
-                        width: 100,
-                        height: 100,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.grey.shade800,
-                        ),
-                        child: ClipOval(
-                          child: selectedImagePath != null
-                              ? Image.file(
-                                  File(selectedImagePath!),
-                                  fit: BoxFit.cover,
-                                  width: 100,
-                                  height: 100,
-                                )
-                              : (currentPhotoUrl != null &&
-                                    !currentPhotoUrl.contains(
-                                      'googleusercontent.com',
-                                    ))
-                              ? (currentPhotoUrl.startsWith('http')
-                                    ? CachedNetworkImage(
-                                        imageUrl: currentPhotoUrl,
-                                        fit: BoxFit.cover,
-                                        width: 100,
-                                        height: 100,
-                                        placeholder: (context, url) =>
-                                            const Icon(
-                                              Icons.person,
-                                              size: 60,
-                                              color: Colors.white,
-                                            ),
-                                        errorWidget: (context, url, error) =>
-                                            const Icon(
-                                              Icons.person,
-                                              size: 60,
-                                              color: Colors.white,
-                                            ),
-                                      )
-                                    : Image.file(
-                                        File(currentPhotoUrl),
-                                        fit: BoxFit.cover,
-                                        width: 100,
-                                        height: 100,
-                                      ))
-                              : Icon(
-                                  Icons.person,
-                                  size: 60,
-                                  color: Colors.white.withOpacity(0.9),
-                                ),
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).primaryColor,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.grey.shade900,
-                              width: 2,
-                            ),
-                          ),
-                          child: CustomIcons.svgIcon(
-                            CustomIcons.cameraAlt,
-                            size: 16,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              TextField(
-                controller: controller,
-                autofocus: true,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: langProvider.t('new_name'),
-                  hintStyle: TextStyle(color: Colors.grey.shade500),
-                  filled: true,
-                  fillColor: Colors.grey.shade800,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).primaryColor.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Theme.of(
-                            context,
-                          ).primaryColor.withOpacity(0.5),
-                          width: 1.5,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Theme.of(
-                              context,
-                            ).primaryColor.withOpacity(0.2),
-                            blurRadius: 15,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () async {
-                            if (controller.text.trim().isEmpty) return;
-                            try {
-                              bool isSuccess = true;
-                              await provider.updateDisplayName(
-                                controller.text.trim(),
-                              );
-                              if (selectedImagePath != null) {
-                                if (context.mounted) {
-                                  CustomSnackBar.showInfo(
-                                    context: context,
-                                    message: langProvider.t(
-                                      'uploading_profile_picture',
-                                    ),
-                                  );
-                                }
-                                String? cloudUrl = await _uploadToCloudinary(
-                                  selectedImagePath!,
-                                );
-                                if (cloudUrl != null) {
-                                  await FirebaseAuth.instance.currentUser
-                                      ?.updatePhotoURL(cloudUrl);
-                                  await provider
-                                      .reloadUser(); // AuthProvider'ı ve dinleyen her sayfayı (Trendler vb.) yenile
-                                  if (context.mounted) setState(() {});
-                                } else {
-                                  isSuccess = false;
-                                  if (context.mounted) {
-                                    CustomSnackBar.showError(
-                                      context: context,
-                                      message: langProvider.t(
-                                        'error_uploading_picture',
-                                      ),
-                                    );
-                                  }
-                                }
-                              }
-                              if (isSuccess && context.mounted) {
-                                Navigator.pop(context);
-                                setState(
-                                  () {},
-                                ); // Tüm UI'ın yenilenmesini garantile
-                                CustomSnackBar.showSuccess(
-                                  context: context,
-                                  message: langProvider.t('profile_updated'),
-                                );
-                              }
-                            } catch (e) {
-                              if (context.mounted) {
-                                CustomSnackBar.showError(
-                                  context: context,
-                                  message: "${langProvider.t('error')}: $e",
-                                );
-                              }
-                            }
-                          },
-                          borderRadius: BorderRadius.circular(16),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            child: Center(
-                              child: Text(
-                                langProvider.t('save'),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (pageContext, animation, secondaryAnimation) {
+          return Scaffold(
+            backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
+            body: SafeArea(
+              child: StatefulBuilder(
+                builder: (modalContext, setModalState) => Column(
+                  children: [
+                    Align(
+                      alignment: Alignment.topRight,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: IconButton(
+                          icon: const Icon(Icons.close_rounded,
+                              color: Colors.white, size: 32),
+                          onPressed: () => Navigator.pop(pageContext),
                         ),
                       ),
                     ),
-                  ),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: EdgeInsets.only(
+                          bottom: MediaQuery.of(pageContext).viewInsets.bottom,
+                          left: 24,
+                          right: 24,
+                          top: 8,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              langProvider.t('edit_profile'),
+                              style: TextStyle(
+                                color: Theme.of(context).primaryColor,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            Center(
+                              child: GestureDetector(
+                                onTap: () async {
+                                  final ImagePicker picker = ImagePicker();
+                                  final XFile? image = await picker.pickImage(
+                                    source: ImageSource.gallery,
+                                  );
+                                  if (image != null) {
+                                    // Çentik ve saat engellemesini kaldırmak için telefonu geçici olarak tam ekran yapıyoruz
+                                    SystemChrome.setEnabledSystemUIMode(
+                                        SystemUiMode.immersiveSticky);
+
+                                    CroppedFile? croppedFile;
+                                    try {
+                                      croppedFile =
+                                          await ImageCropper().cropImage(
+                                        sourcePath: image.path,
+                                        aspectRatio: const CropAspectRatio(
+                                          ratioX: 1,
+                                          ratioY: 1,
+                                        ),
+                                        uiSettings: [
+                                          AndroidUiSettings(
+                                            toolbarTitle:
+                                                langProvider.t('crop_photo'),
+                                            toolbarColor: Colors.grey.shade900,
+                                            statusBarColor:
+                                                Colors.grey.shade900,
+                                            toolbarWidgetColor: Colors.white,
+                                            initAspectRatio:
+                                                CropAspectRatioPreset.square,
+                                            lockAspectRatio: true,
+                                            hideBottomControls: false,
+                                            backgroundColor: Colors.black,
+                                            activeControlsWidgetColor: Theme.of(
+                                              context,
+                                            ).primaryColor,
+                                          ),
+                                          IOSUiSettings(
+                                            title: langProvider.t('crop_photo'),
+                                            aspectRatioLockEnabled: true,
+                                            resetAspectRatioEnabled: false,
+                                            doneButtonTitle: langProvider.t(
+                                                'save'), // iOS cihazlar için buton yazısı
+                                            cancelButtonTitle:
+                                                langProvider.t('cancel'),
+                                          ),
+                                        ],
+                                      );
+                                    } finally {
+                                      // Kırpma ekranı kapandıktan sonra (başarılı veya iptal) orijinal çubuğu geri getir
+                                      SystemChrome.setEnabledSystemUIMode(
+                                          SystemUiMode.edgeToEdge);
+                                    }
+
+                                    if (croppedFile != null &&
+                                        context.mounted) {
+                                      setModalState(() {
+                                        selectedImagePath = croppedFile!.path;
+                                      });
+                                    }
+                                  }
+                                },
+                                child: Stack(
+                                  children: [
+                                    Container(
+                                      width: 100,
+                                      height: 100,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: Colors.grey.shade800,
+                                      ),
+                                      child: ClipOval(
+                                        child: selectedImagePath != null
+                                            ? Image.file(
+                                                File(selectedImagePath!),
+                                                fit: BoxFit.cover,
+                                                width: 100,
+                                                height: 100,
+                                              )
+                                            : (currentPhotoUrl != null &&
+                                                    !currentPhotoUrl.contains(
+                                                      'googleusercontent.com',
+                                                    ))
+                                                ? (currentPhotoUrl
+                                                        .startsWith('http')
+                                                    ? CachedNetworkImage(
+                                                        imageUrl:
+                                                            currentPhotoUrl,
+                                                        fit: BoxFit.cover,
+                                                        width: 100,
+                                                        height: 100,
+                                                        placeholder:
+                                                            (context, url) =>
+                                                                const Icon(
+                                                          Icons.person,
+                                                          size: 60,
+                                                          color: Colors.white,
+                                                        ),
+                                                        errorWidget: (context,
+                                                                url, error) =>
+                                                            const Icon(
+                                                          Icons.person,
+                                                          size: 60,
+                                                          color: Colors.white,
+                                                        ),
+                                                      )
+                                                    : Image.file(
+                                                        File(currentPhotoUrl),
+                                                        fit: BoxFit.cover,
+                                                        width: 100,
+                                                        height: 100,
+                                                      ))
+                                                : Icon(
+                                                    Icons.person,
+                                                    size: 60,
+                                                    color: Colors.white
+                                                        .withOpacity(0.9),
+                                                  ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      bottom: 0,
+                                      right: 0,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(context).primaryColor,
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: Colors.grey.shade900,
+                                            width: 2,
+                                          ),
+                                        ),
+                                        child: CustomIcons.svgIcon(
+                                          CustomIcons.cameraAlt,
+                                          size: 16,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            TextField(
+                              controller: controller,
+                              autofocus: true,
+                              style: const TextStyle(color: Colors.white),
+                              decoration: InputDecoration(
+                                hintText: langProvider.t('new_name'),
+                                hintStyle:
+                                    TextStyle(color: Colors.grey.shade500),
+                                filled: true,
+                                fillColor: Colors.grey.shade800,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: BackdropFilter(
+                                  filter:
+                                      ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context)
+                                          .primaryColor
+                                          .withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: Theme.of(
+                                          context,
+                                        ).primaryColor.withOpacity(0.5),
+                                        width: 1.5,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Theme.of(
+                                            context,
+                                          ).primaryColor.withOpacity(0.2),
+                                          blurRadius: 15,
+                                          spreadRadius: 1,
+                                        ),
+                                      ],
+                                    ),
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        onTap: () async {
+                                          if (controller.text.trim().isEmpty)
+                                            return;
+                                          try {
+                                            bool isSuccess = true;
+                                            await provider.updateDisplayName(
+                                              controller.text.trim(),
+                                            );
+                                            if (selectedImagePath != null) {
+                                              if (context.mounted) {
+                                                CustomSnackBar.showInfo(
+                                                  context: context,
+                                                  message: langProvider.t(
+                                                    'uploading_profile_picture',
+                                                  ),
+                                                );
+                                              }
+                                              String? cloudUrl =
+                                                  await _uploadToCloudinary(
+                                                selectedImagePath!,
+                                              );
+                                              if (cloudUrl != null) {
+                                                await FirebaseAuth
+                                                    .instance.currentUser
+                                                    ?.updatePhotoURL(cloudUrl);
+
+                                                // AuthProvider'ın Firestore'dan eski veriyi çekmesini önlemek için veritabanını da güncelliyoruz
+                                                try {
+                                                  await FirebaseFirestore
+                                                      .instance
+                                                      .collection('users')
+                                                      .doc(FirebaseAuth.instance
+                                                          .currentUser!.uid)
+                                                      .set({
+                                                    'photoURL': cloudUrl
+                                                  }, SetOptions(merge: true));
+                                                } catch (e) {}
+
+                                                await provider
+                                                    .reloadUser(); // AuthProvider'ı ve dinleyen her sayfayı (Trendler vb.) yenile
+                                                if (context.mounted)
+                                                  setState(() {});
+                                              } else {
+                                                isSuccess = false;
+                                                if (context.mounted) {
+                                                  CustomSnackBar.showError(
+                                                    context: context,
+                                                    message: langProvider.t(
+                                                      'error_uploading_picture',
+                                                    ),
+                                                  );
+                                                }
+                                              }
+                                            }
+                                            if (isSuccess && context.mounted) {
+                                              Navigator.pop(pageContext);
+                                              setState(
+                                                () {},
+                                              ); // Tüm UI'ın yenilenmesini garantile
+                                              CustomSnackBar.showSuccess(
+                                                context: context,
+                                                message: langProvider
+                                                    .t('profile_updated'),
+                                              );
+                                            }
+                                          } catch (e) {
+                                            if (context.mounted) {
+                                              CustomSnackBar.showError(
+                                                context: context,
+                                                message:
+                                                    "${langProvider.t('error')}: $e",
+                                              );
+                                            }
+                                          }
+                                        },
+                                        borderRadius: BorderRadius.circular(16),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 16),
+                                          child: Center(
+                                            child: Text(
+                                              langProvider.t('save'),
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 24),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 1.0);
+          const end = Offset.zero;
+          const curve = Curves.easeOutCubic;
+          var tween =
+              Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          return SlideTransition(
+              position: animation.drive(tween), child: child);
+        },
       ),
     );
   }
@@ -1477,13 +1639,16 @@ class _ProfilePageState extends State<ProfilePage>
       primaryButtonText: langProvider.t('sign_out'),
       primaryButtonColor: Colors.redAccent,
       secondaryButtonText: langProvider.t('cancel'),
-      onPrimaryButtonTap: () {
+      onPrimaryButtonTap: () async {
         Navigator.pop(context);
-        provider.signOut();
-        CustomSnackBar.showInfo(
-          context: context,
-          message: langProvider.t('signed_out'),
-        );
+        await provider.signOut();
+        if (context.mounted) {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+          CustomSnackBar.showInfo(
+            context: context,
+            message: langProvider.t('signed_out'),
+          );
+        }
       },
     );
   }
@@ -1494,98 +1659,129 @@ class _ProfilePageState extends State<ProfilePage>
   ) {
     final langProvider = context.read<LanguageProvider>();
 
-    CustomBottomSheet.showContent(
-      context: context,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 24),
-          Text(
-            langProvider.t('recently_played'),
-            style: TextStyle(
-              color: Theme.of(context).primaryColor,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (provider.recentlyPlayed.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(32.0),
-              child: Text(
-                langProvider.t('no_recently_played'),
-                style: TextStyle(color: Colors.grey),
-              ),
-            )
-          else
-            Flexible(
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: provider.recentlyPlayed.length,
-                itemBuilder: (context, index) {
-                  final song = provider.recentlyPlayed[index];
-                  final listenedSeconds = provider.getSongListeningSeconds(
-                    song.id,
-                  );
-
-                  String durationString = "$listenedSeconds sn";
-                  if (listenedSeconds >= 60) {
-                    durationString =
-                        "${listenedSeconds ~/ 60} dk ${(listenedSeconds % 60).toString().padLeft(2, '0')} sn";
-                  }
-
-                  return ListTile(
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: Transform.scale(
-                        scale:
-                            (song.coverUrl.contains('ytimg.com') ||
-                                song.coverUrl.contains('youtube.com'))
-                            ? 1.35
-                            : 1.0,
-                        child: CachedNetworkImage(
-                          imageUrl: song.coverUrl,
-                          width: 40,
-                          height: 40,
-                          fit: BoxFit.cover,
-                          errorWidget: (context, url, error) => Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Colors.grey.shade800,
-                                  Colors.grey.shade900,
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                            ),
-                          ),
-                        ),
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (pageContext, animation, secondaryAnimation) {
+          return Scaffold(
+            backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
+            body: SafeArea(
+              child: Column(
+                children: [
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: IconButton(
+                        icon: const Icon(Icons.close_rounded,
+                            color: Colors.white, size: 32),
+                        onPressed: () => Navigator.pop(pageContext),
                       ),
                     ),
-                    title: Text(
-                      song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white),
+                  ),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 8),
+                        Text(
+                          langProvider.t('recently_played'),
+                          style: TextStyle(
+                            color: Theme.of(context).primaryColor,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        if (provider.recentlyPlayed.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.all(32.0),
+                            child: Text(
+                              langProvider.t('no_recently_played'),
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          )
+                        else
+                          Expanded(
+                            child: ListView.builder(
+                              shrinkWrap: true,
+                              itemCount: provider.recentlyPlayed.length,
+                              itemBuilder: (context, index) {
+                                final song = provider.recentlyPlayed[index];
+                                final listenedSeconds =
+                                    provider.getSongListeningSeconds(
+                                  song.id,
+                                );
+
+                                String durationString = "$listenedSeconds sn";
+                                if (listenedSeconds >= 60) {
+                                  durationString =
+                                      "${listenedSeconds ~/ 60} dk ${(listenedSeconds % 60).toString().padLeft(2, '0')} sn";
+                                }
+
+                                return ListTile(
+                                  leading: ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: CachedNetworkImage(
+                                      imageUrl: song.coverUrl,
+                                      width: 71,
+                                      height: 40,
+                                      fit: BoxFit.cover,
+                                      errorWidget: (context, url, error) =>
+                                          Container(
+                                        width: 71,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              Colors.grey.shade800,
+                                              Colors.grey.shade900,
+                                            ],
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  title: Text(
+                                    song.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                  subtitle: Text(
+                                    song.artist,
+                                    maxLines: 1,
+                                    style:
+                                        TextStyle(color: Colors.grey.shade400),
+                                  ),
+                                  trailing: Text(
+                                    durationString,
+                                    style: TextStyle(
+                                        color: Theme.of(context).primaryColor),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        const SizedBox(height: 24),
+                      ],
                     ),
-                    subtitle: Text(
-                      song.artist,
-                      maxLines: 1,
-                      style: TextStyle(color: Colors.grey.shade400),
-                    ),
-                    trailing: Text(
-                      durationString,
-                      style: TextStyle(color: Theme.of(context).primaryColor),
-                    ),
-                  );
-                },
+                  ),
+                ],
               ),
             ),
-          const SizedBox(height: 24),
-        ],
+          );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 1.0);
+          const end = Offset.zero;
+          const curve = Curves.easeOutCubic;
+          var tween =
+              Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          return SlideTransition(
+              position: animation.drive(tween), child: child);
+        },
       ),
     );
   }
@@ -1593,121 +1789,374 @@ class _ProfilePageState extends State<ProfilePage>
   void _showMostPlayedBottomSheet(BuildContext context, SongProvider provider) {
     final langProvider = context.read<LanguageProvider>();
 
-    CustomBottomSheet.showContent(
-      context: context,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 24),
-          Text(
-            langProvider.t('most_played'),
-            style: TextStyle(
-              color: Theme.of(context).primaryColor,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (provider.mostPlayed.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(32.0),
-              child: Text(
-                langProvider.t('not_enough_data'),
-                style: TextStyle(color: Colors.grey),
-              ),
-            )
-          else
-            Flexible(
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: provider.mostPlayed.length,
-                itemBuilder: (context, index) {
-                  final song = provider.mostPlayed[index];
-                  final playCount =
-                      provider.mostPlayedData[index]['count'] as int;
-
-                  if (index == 0) {
-                    return Stack(
-                      clipBehavior: Clip.none,
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (pageContext, animation, secondaryAnimation) {
+          return Scaffold(
+            backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
+            body: SafeArea(
+              child: Column(
+                children: [
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: IconButton(
+                        icon: const Icon(Icons.close_rounded,
+                            color: Colors.white, size: 32),
+                        onPressed: () => Navigator.pop(pageContext),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
                       children: [
-                        GestureDetector(
-                          onTap: () {
-                            provider.playSong(song, provider.mostPlayed);
-                            Navigator.pop(context);
-                          },
-                          child: Container(
-                            margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Theme.of(
-                                context,
-                              ).primaryColor.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: Theme.of(
-                                  context,
-                                ).primaryColor.withOpacity(0.5),
-                                width: 1.5,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Theme.of(
-                                    context,
-                                  ).primaryColor.withOpacity(0.1),
-                                  blurRadius: 15,
-                                  offset: const Offset(0, 5),
-                                ),
-                              ],
+                        const SizedBox(height: 8),
+                        Text(
+                          langProvider.t('most_played'),
+                          style: TextStyle(
+                            color: Theme.of(context).primaryColor,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        if (provider.mostPlayed.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.all(32.0),
+                            child: Text(
+                              langProvider.t('not_enough_data'),
+                              style: TextStyle(color: Colors.grey),
                             ),
-                            child: Row(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child:
-                                      song.localImagePath != null &&
-                                          File(
-                                            song.localImagePath!,
-                                          ).existsSync()
-                                      ? Transform.scale(
-                                          scale:
-                                              (song.coverUrl.contains(
-                                                    'ytimg.com',
-                                                  ) ||
-                                                  song.coverUrl.contains(
-                                                    'youtube.com',
-                                                  ))
-                                              ? 1.35
-                                              : 1.0,
-                                          child: Image.file(
-                                            File(song.localImagePath!),
-                                            width: 70,
-                                            height: 70,
-                                            fit: BoxFit.cover,
+                          )
+                        else
+                          Expanded(
+                            child: ListView.builder(
+                              shrinkWrap: true,
+                              itemCount: provider.mostPlayed.length,
+                              itemBuilder: (context, index) {
+                                final song = provider.mostPlayed[index];
+                                final playCount = provider.mostPlayedData[index]
+                                    ['count'] as int;
+
+                                if (index == 0) {
+                                  return Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      GestureDetector(
+                                        onTap: () {
+                                          provider.playSong(
+                                              song, provider.mostPlayed);
+                                          Navigator.pop(pageContext);
+                                        },
+                                        child: Container(
+                                          margin: const EdgeInsets.fromLTRB(
+                                              16, 8, 16, 16),
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            color: Theme.of(
+                                              context,
+                                            ).primaryColor.withOpacity(0.15),
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                            border: Border.all(
+                                              color: Theme.of(
+                                                context,
+                                              ).primaryColor.withOpacity(0.5),
+                                              width: 1.5,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Theme.of(
+                                                  context,
+                                                ).primaryColor.withOpacity(0.1),
+                                                blurRadius: 15,
+                                                offset: const Offset(0, 5),
+                                              ),
+                                            ],
                                           ),
-                                        )
-                                      : Transform.scale(
-                                          scale:
-                                              (song.coverUrl.contains(
-                                                    'ytimg.com',
-                                                  ) ||
-                                                  song.coverUrl.contains(
-                                                    'youtube.com',
-                                                  ))
-                                              ? 1.35
-                                              : 1.0,
-                                          child: CachedNetworkImage(
+                                          child: Row(
+                                            children: [
+                                              ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                child: song.localImagePath !=
+                                                            null &&
+                                                        File(
+                                                          song.localImagePath!,
+                                                        ).existsSync()
+                                                    ? Image.file(
+                                                        File(song
+                                                            .localImagePath!),
+                                                        width: 128,
+                                                        height: 72,
+                                                        fit: BoxFit.cover,
+                                                      )
+                                                    : CachedNetworkImage(
+                                                        imageUrl: song.coverUrl,
+                                                        width: 128,
+                                                        height: 72,
+                                                        fit: BoxFit.cover,
+                                                        errorWidget: (
+                                                          context,
+                                                          url,
+                                                          error,
+                                                        ) =>
+                                                            Container(
+                                                          width: 128,
+                                                          height: 72,
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            gradient:
+                                                                LinearGradient(
+                                                              colors: [
+                                                                Colors.grey
+                                                                    .shade800,
+                                                                Colors.grey
+                                                                    .shade900,
+                                                              ],
+                                                              begin: Alignment
+                                                                  .topLeft,
+                                                              end: Alignment
+                                                                  .bottomRight,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                              ),
+                                              const SizedBox(width: 16),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      langProvider
+                                                          .t('most_played')
+                                                          .toUpperCase(),
+                                                      style: TextStyle(
+                                                        color: Theme.of(context)
+                                                            .primaryColor,
+                                                        fontSize: 10,
+                                                        fontWeight:
+                                                            FontWeight.w900,
+                                                        letterSpacing: 1.2,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      song.title,
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 18,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 2),
+                                                    Text(
+                                                      song.artist,
+                                                      maxLines: 1,
+                                                      style: TextStyle(
+                                                        color: Colors
+                                                            .grey.shade300,
+                                                        fontSize: 14,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              Text(
+                                                "$playCount ${langProvider.t('times')}",
+                                                style: TextStyle(
+                                                  color: Theme.of(context)
+                                                      .primaryColor,
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      const Positioned(
+                                        top: -2,
+                                        left: 4,
+                                        child: _PulsingStar(),
+                                      ),
+                                    ],
+                                  );
+                                }
+
+                                return ListTile(
+                                  leading: ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: song.localImagePath != null &&
+                                            File(song.localImagePath!)
+                                                .existsSync()
+                                        ? Image.file(
+                                            File(song.localImagePath!),
+                                            width: 71,
+                                            height: 40,
+                                            fit: BoxFit.cover,
+                                          )
+                                        : CachedNetworkImage(
                                             imageUrl: song.coverUrl,
-                                            width: 70,
-                                            height: 70,
+                                            width: 71,
+                                            height: 40,
                                             fit: BoxFit.cover,
                                             errorWidget:
-                                                (
-                                                  context,
-                                                  url,
-                                                  error,
-                                                ) => Container(
-                                                  width: 70,
-                                                  height: 70,
+                                                (context, url, error) =>
+                                                    Container(
+                                              width: 71,
+                                              height: 40,
+                                              decoration: BoxDecoration(
+                                                gradient: LinearGradient(
+                                                  colors: [
+                                                    Colors.grey.shade800,
+                                                    Colors.grey.shade900,
+                                                  ],
+                                                  begin: Alignment.topLeft,
+                                                  end: Alignment.bottomRight,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                  ),
+                                  title: Text(
+                                    song.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                  subtitle: Text(
+                                    song.artist,
+                                    maxLines: 1,
+                                    style:
+                                        TextStyle(color: Colors.grey.shade400),
+                                  ),
+                                  trailing: Text(
+                                    "$playCount ${langProvider.t('times')}",
+                                    style: TextStyle(
+                                      color: Theme.of(context).primaryColor,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  onTap: () {
+                                    provider.playSong(
+                                        song, provider.mostPlayed);
+                                    Navigator.pop(pageContext);
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                        const SizedBox(height: 24),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 1.0);
+          const end = Offset.zero;
+          const curve = Curves.easeOutCubic;
+          var tween =
+              Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          return SlideTransition(
+              position: animation.drive(tween), child: child);
+        },
+      ),
+    );
+  }
+
+  void _showFavoritesBottomSheet(BuildContext context, SongProvider provider) {
+    final langProvider = context.read<LanguageProvider>();
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (pageContext, animation, secondaryAnimation) {
+          return Scaffold(
+            backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
+            body: SafeArea(
+              child: Consumer<SongProvider>(
+                builder: (context, songProvider, child) {
+                  return Column(
+                    children: [
+                      Align(
+                        alignment: Alignment.topRight,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: IconButton(
+                            icon: const Icon(Icons.close_rounded,
+                                color: Colors.white, size: 32),
+                            onPressed: () => Navigator.pop(pageContext),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            const SizedBox(height: 8),
+                            Text(
+                              langProvider.t('favorites'),
+                              style: TextStyle(
+                                color: Theme.of(context).primaryColor,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            if (songProvider.favoriteSongs.isEmpty)
+                              Padding(
+                                padding: const EdgeInsets.all(32.0),
+                                child: Text(
+                                  langProvider.t('no_favorites_yet'),
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              )
+                            else
+                              Expanded(
+                                child: ListView.builder(
+                                  shrinkWrap: true,
+                                  itemCount: songProvider.favoriteSongs.length,
+                                  itemBuilder: (context, index) {
+                                    final song =
+                                        songProvider.favoriteSongs[index];
+                                    final duration =
+                                        Duration(seconds: song.duration ?? 0);
+                                    final durationString =
+                                        "${duration.inMinutes}:${(duration.inSeconds % 60).toString().padLeft(2, '0')}";
+
+                                    return ListTile(
+                                      leading: ClipRRect(
+                                        borderRadius: BorderRadius.circular(4),
+                                        child: song.localImagePath != null &&
+                                                File(song.localImagePath!)
+                                                    .existsSync()
+                                            ? Image.file(
+                                                File(song.localImagePath!),
+                                                width: 71,
+                                                height: 40,
+                                                fit: BoxFit.cover,
+                                              )
+                                            : CachedNetworkImage(
+                                                imageUrl: song.coverUrl,
+                                                width: 71,
+                                                height: 40,
+                                                fit: BoxFit.cover,
+                                                errorWidget:
+                                                    (context, url, error) =>
+                                                        Container(
+                                                  width: 71,
+                                                  height: 40,
                                                   decoration: BoxDecoration(
                                                     gradient: LinearGradient(
                                                       colors: [
@@ -1720,283 +2169,75 @@ class _ProfilePageState extends State<ProfilePage>
                                                     ),
                                                   ),
                                                 ),
-                                          ),
-                                        ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        langProvider
-                                            .t('most_played')
-                                            .toUpperCase(),
-                                        style: TextStyle(
-                                          color: Theme.of(context).primaryColor,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w900,
-                                          letterSpacing: 1.2,
-                                        ),
+                                              ),
                                       ),
-                                      const SizedBox(height: 4),
-                                      Text(
+                                      title: Text(
                                         song.title,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
+                                            color: Colors.white),
                                       ),
-                                      const SizedBox(height: 2),
-                                      Text(
+                                      subtitle: Text(
                                         song.artist,
                                         maxLines: 1,
                                         style: TextStyle(
-                                          color: Colors.grey.shade300,
-                                          fontSize: 14,
-                                        ),
+                                            color: Colors.grey.shade400),
                                       ),
-                                    ],
-                                  ),
-                                ),
-                                Text(
-                                  "$playCount ${langProvider.t('times')}",
-                                  style: TextStyle(
-                                    color: Theme.of(context).primaryColor,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const Positioned(
-                          top: -2,
-                          left: 4,
-                          child: _PulsingStar(),
-                        ),
-                      ],
-                    );
-                  }
-
-                  return ListTile(
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child:
-                          song.localImagePath != null &&
-                              File(song.localImagePath!).existsSync()
-                          ? Transform.scale(
-                              scale:
-                                  (song.coverUrl.contains('ytimg.com') ||
-                                      song.coverUrl.contains('youtube.com'))
-                                  ? 1.35
-                                  : 1.0,
-                              child: Image.file(
-                                File(song.localImagePath!),
-                                width: 40,
-                                height: 40,
-                                fit: BoxFit.cover,
-                              ),
-                            )
-                          : Transform.scale(
-                              scale:
-                                  (song.coverUrl.contains('ytimg.com') ||
-                                      song.coverUrl.contains('youtube.com'))
-                                  ? 1.35
-                                  : 1.0,
-                              child: CachedNetworkImage(
-                                imageUrl: song.coverUrl,
-                                width: 40,
-                                height: 40,
-                                fit: BoxFit.cover,
-                                errorWidget: (context, url, error) => Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        Colors.grey.shade800,
-                                        Colors.grey.shade900,
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                  ),
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            durationString,
+                                            style: TextStyle(
+                                              color: Theme.of(context)
+                                                  .primaryColor,
+                                            ),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.check_circle_rounded,
+                                              color: Colors.greenAccent,
+                                              size: 20,
+                                            ),
+                                            onPressed: () {
+                                              songProvider.toggleFavorite(song);
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                      onTap: () {
+                                        songProvider.playSong(
+                                          song,
+                                          songProvider.favoriteSongs,
+                                        );
+                                        Navigator.pop(
+                                          pageContext,
+                                        ); // Şarkıyı açtığında bottomsheet'i kapatır
+                                      },
+                                    );
+                                  },
                                 ),
                               ),
-                            ),
-                    ),
-                    title: Text(
-                      song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    subtitle: Text(
-                      song.artist,
-                      maxLines: 1,
-                      style: TextStyle(color: Colors.grey.shade400),
-                    ),
-                    trailing: Text(
-                      "$playCount ${langProvider.t('times')}",
-                      style: TextStyle(
-                        color: Theme.of(context).primaryColor,
-                        fontWeight: FontWeight.bold,
+                            const SizedBox(height: 24),
+                          ],
+                        ),
                       ),
-                    ),
-                    onTap: () {
-                      provider.playSong(song, provider.mostPlayed);
-                      Navigator.pop(context);
-                    },
+                    ],
                   );
                 },
               ),
             ),
-          const SizedBox(height: 24),
-        ],
-      ),
-    );
-  }
-
-  void _showFavoritesBottomSheet(BuildContext context, SongProvider provider) {
-    final langProvider = context.read<LanguageProvider>();
-    CustomBottomSheet.showContent(
-      context: context,
-      child: Consumer<SongProvider>(
-        builder: (context, songProvider, child) {
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 24),
-              Text(
-                langProvider.t('favorites'),
-                style: TextStyle(
-                  color: Theme.of(context).primaryColor,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (songProvider.favoriteSongs.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(32.0),
-                  child: Text(
-                    langProvider.t('no_favorites_yet'),
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                )
-              else
-                Flexible(
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: songProvider.favoriteSongs.length,
-                    itemBuilder: (context, index) {
-                      final song = songProvider.favoriteSongs[index];
-                      final duration = Duration(seconds: song.duration ?? 0);
-                      final durationString =
-                          "${duration.inMinutes}:${(duration.inSeconds % 60).toString().padLeft(2, '0')}";
-
-                      return ListTile(
-                        leading: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child:
-                              song.localImagePath != null &&
-                                  File(song.localImagePath!).existsSync()
-                              ? Transform.scale(
-                                  scale:
-                                      (song.coverUrl.contains('ytimg.com') ||
-                                          song.coverUrl.contains('youtube.com'))
-                                      ? 1.35
-                                      : 1.0,
-                                  child: Image.file(
-                                    File(song.localImagePath!),
-                                    width: 40,
-                                    height: 40,
-                                    fit: BoxFit.cover,
-                                  ),
-                                )
-                              : Transform.scale(
-                                  scale:
-                                      (song.coverUrl.contains('ytimg.com') ||
-                                          song.coverUrl.contains('youtube.com'))
-                                      ? 1.35
-                                      : 1.0,
-                                  child: CachedNetworkImage(
-                                    imageUrl: song.coverUrl,
-                                    width: 40,
-                                    height: 40,
-                                    fit: BoxFit.cover,
-                                    errorWidget: (context, url, error) =>
-                                        Container(
-                                          width: 40,
-                                          height: 40,
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                              colors: [
-                                                Colors.grey.shade800,
-                                                Colors.grey.shade900,
-                                              ],
-                                              begin: Alignment.topLeft,
-                                              end: Alignment.bottomRight,
-                                            ),
-                                          ),
-                                        ),
-                                  ),
-                                ),
-                        ),
-                        title: Text(
-                          song.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        subtitle: Text(
-                          song.artist,
-                          maxLines: 1,
-                          style: TextStyle(color: Colors.grey.shade400),
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              durationString,
-                              style: TextStyle(
-                                color: Theme.of(context).primaryColor,
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.check_circle_rounded,
-                                color: Colors.greenAccent,
-                                size: 20,
-                              ),
-                              onPressed: () {
-                                songProvider.toggleFavorite(song);
-                              },
-                            ),
-                          ],
-                        ),
-                        onTap: () {
-                          songProvider.playSong(
-                            song,
-                            songProvider.favoriteSongs,
-                          );
-                          Navigator.pop(
-                            context,
-                          ); // Şarkıyı açtığında bottomsheet'i kapatır
-                        },
-                      );
-                    },
-                  ),
-                ),
-              const SizedBox(height: 24),
-            ],
           );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 1.0);
+          const end = Offset.zero;
+          const curve = Curves.easeOutCubic;
+          var tween =
+              Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          return SlideTransition(
+              position: animation.drive(tween), child: child);
         },
       ),
     );
@@ -2007,63 +2248,174 @@ class _ProfilePageState extends State<ProfilePage>
     SongProvider provider,
   ) {
     final langProvider = context.read<LanguageProvider>();
-    CustomBottomSheet.showContent(
-      context: context,
-      isScrollControlled:
-          true, // Listenin rahatça sığması için paneli büyütüyoruz
-      child: Consumer<SongProvider>(
-        builder: (context, songProvider, child) {
-          return SizedBox(
-            height: MediaQuery.of(context).size.height * 0.7,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 24),
-                Text(
-                  langProvider.t('following'),
-                  style: TextStyle(
-                    color: Theme.of(context).primaryColor,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (songProvider.followedArtists.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(32.0),
-                    child: Text(
-                      langProvider.t('no_followed_artists'),
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  )
-                else
-                  Flexible(
-                    child: GridView.builder(
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            childAspectRatio: 0.8,
-                            crossAxisSpacing: 16,
-                            mainAxisSpacing: 16,
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (pageContext, animation, secondaryAnimation) {
+          return Scaffold(
+            backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
+            body: SafeArea(
+              child: Consumer<SongProvider>(
+                builder: (context, songProvider, child) {
+                  return Column(
+                    children: [
+                      Align(
+                        alignment: Alignment.topRight,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: IconButton(
+                            icon: const Icon(Icons.close_rounded,
+                                color: Colors.white, size: 32),
+                            onPressed: () => Navigator.pop(pageContext),
                           ),
-                      itemCount: songProvider.followedArtists.length,
-                      itemBuilder: (context, index) {
-                        final artistName = songProvider.followedArtists[index];
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            const SizedBox(height: 8),
+                            Text(
+                              langProvider.t('following'),
+                              style: TextStyle(
+                                color: Theme.of(context).primaryColor,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            if (songProvider.followedArtists.isEmpty)
+                              Padding(
+                                padding: const EdgeInsets.all(32.0),
+                                child: Text(
+                                  langProvider.t('no_followed_artists'),
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              )
+                            else
+                              Expanded(
+                                child: GridView.builder(
+                                  shrinkWrap: true,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16),
+                                  gridDelegate:
+                                      const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 3,
+                                    childAspectRatio: 0.8,
+                                    crossAxisSpacing: 16,
+                                    mainAxisSpacing: 16,
+                                  ),
+                                  itemCount:
+                                      songProvider.followedArtists.length,
+                                  itemBuilder: (context, index) {
+                                    final artistName =
+                                        songProvider.followedArtists[index];
 
-                        return _FollowedArtistTile(
-                          artistName: artistName,
-                          songProvider: songProvider,
-                        );
-                      },
-                    ),
-                  ),
-                const SizedBox(height: 24),
-              ],
+                                    return _FollowedArtistTile(
+                                      artistName: artistName,
+                                      songProvider: songProvider,
+                                    );
+                                  },
+                                ),
+                              ),
+                            const SizedBox(height: 24),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
             ),
           );
         },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 1.0);
+          const end = Offset.zero;
+          const curve = Curves.easeOutCubic;
+          var tween =
+              Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          return SlideTransition(
+              position: animation.drive(tween), child: child);
+        },
+      ),
+    );
+  }
+
+  Widget _buildVerificationBanner(BuildContext context, AuthProvider provider) {
+    final langProvider = context.read<LanguageProvider>();
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.orangeAccent.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border:
+            Border.all(color: Colors.orangeAccent.withOpacity(0.5), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.orangeAccent.withOpacity(0.05),
+            blurRadius: 10,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.orangeAccent.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.mark_email_unread_rounded,
+                color: Colors.orangeAccent, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              langProvider.t('email_not_verified'),
+              style: const TextStyle(
+                color: Colors.orangeAccent,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await provider.sendEmailVerification();
+                if (context.mounted) {
+                  CustomSnackBar.showSuccess(
+                    context: context,
+                    message: langProvider.t('verification_sent'),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  CustomSnackBar.showError(
+                    context: context,
+                    message: e.toString().replaceAll('Exception: ', ''),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.grey.withOpacity(0.3),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+              minimumSize: const Size(0, 36),
+              side: BorderSide(color: Colors.white.withOpacity(0.3), width: 1),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              elevation: 0,
+            ),
+            child: Text(langProvider.t('verify_email'),
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          ),
+        ],
       ),
     );
   }
@@ -2143,11 +2495,7 @@ class _FollowedArtistTileState extends State<_FollowedArtistTile> {
                     : Container(
                         color: Colors.grey.shade800,
                         child: Transform.scale(
-                          scale:
-                              (imageUrl.contains('ytimg.com') ||
-                                  imageUrl.contains('youtube.com'))
-                              ? 1.35
-                              : 1.0,
+                          scale: 1.0,
                           child: CachedNetworkImage(
                             imageUrl: imageUrl,
                             fit: BoxFit.cover,
@@ -2275,23 +2623,22 @@ class _PulsingStarState extends State<_PulsingStar>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _controller,
-      builder: (context, child) {
-        return Transform.scale(
-          scale: _scaleAnimation.value,
-          child: Icon(
-            Icons.star_rounded,
-            color: Theme.of(context).primaryColor,
-            size: 36,
-            shadows: [
-              Shadow(
-                color: Theme.of(context).primaryColor.withOpacity(0.5),
-                blurRadius: 15,
-                offset: Offset(0, 0),
-              ),
-            ],
+      builder: (context, child) => Transform.scale(
+        scale: _scaleAnimation.value,
+        child: child,
+      ),
+      child: Icon(
+        Icons.star_rounded,
+        color: Theme.of(context).primaryColor,
+        size: 36,
+        shadows: [
+          Shadow(
+            color: Theme.of(context).primaryColor.withOpacity(0.5),
+            blurRadius: 15,
+            offset: const Offset(0, 0),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }

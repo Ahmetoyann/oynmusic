@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'dart:ui';
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
@@ -13,6 +15,7 @@ import 'package:muzik_app/pages/offline_downloads_page.dart';
 import 'package:muzik_app/providers/song_provider.dart';
 import 'package:muzik_app/widgets/mini_player.dart';
 import 'package:provider/provider.dart';
+import 'package:muzik_app/models/song_model.dart';
 import 'package:muzik_app/pages/favorites_page.dart'; // TrendPage'deki import yapısına göre
 import 'package:muzik_app/providers/theme_provider.dart';
 import 'package:muzik_app/providers/language_provider.dart';
@@ -38,7 +41,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
-import 'package:muzik_app/services/app_open_ad_manager.dart';
+import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 
 // Global Navigator Key
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -124,12 +127,9 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
-  late AppOpenAdManager appOpenAdManager;
-
   @override
   void initState() {
     super.initState();
-    appOpenAdManager = AppOpenAdManager()..loadAd();
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -137,15 +137,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    // YALNIZCA kullanıcı Ana Ekrana (ve ilerisine) ulaştıysa arka plandan dönüşlerde reklam göster
-    if (state == AppLifecycleState.resumed &&
-        AppOpenAdManager.isMainScreenVisible) {
-      appOpenAdManager.showAdIfAvailable();
-    }
   }
 
   @override
@@ -220,9 +211,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           child: child!,
         );
         return Directionality(
-          textDirection: languageProvider.isRTL
-              ? TextDirection.rtl
-              : TextDirection.ltr,
+          textDirection:
+              languageProvider.isRTL ? TextDirection.rtl : TextDirection.ltr,
           child: ConnectionManager(child: wrappedChild),
         );
       },
@@ -333,8 +323,8 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
                   backgroundColor: Theme.of(context).primaryColor,
                   foregroundColor:
                       Theme.of(context).primaryColor.computeLuminance() > 0.5
-                      ? Colors.black
-                      : Colors.white,
+                          ? Colors.black
+                          : Colors.white,
                 ),
                 onPressed: () {
                   openAppSettings(); // Uygulama ayarlarına yönlendirir
@@ -463,28 +453,16 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => MainScreenState();
 }
 
-class MainScreenState extends State<MainScreen>
-    with SingleTickerProviderStateMixin {
+class MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
-  bool _isRetrying = false;
-  bool _isBottomNavVisible = true;
-  late AnimationController _navAnimController;
   late List<ScrollController> _scrollControllers;
   late List<Widget> _pages;
-  late PageController _pageController;
+  Timer? _reviewTimer;
 
   @override
   void initState() {
     super.initState();
-    // Ana ekrana geçiş yapıldı, artık arka plandan dönüşlerde reklam gösterilebilir
-    AppOpenAdManager.isMainScreenVisible = true;
     _selectedIndex = widget.initialIndex;
-    _pageController = PageController(initialPage: widget.initialIndex);
-    _navAnimController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-      value: 1.0,
-    );
 
     _scrollControllers = [
       ScrollController(),
@@ -494,29 +472,21 @@ class MainScreenState extends State<MainScreen>
     ];
 
     _pages = [
-      _KeepAlivePage(
-        child: PrimaryScrollController(
-          controller: _scrollControllers[0],
-          child: TrendPage(),
-        ),
+      PrimaryScrollController(
+        controller: _scrollControllers[0],
+        child: const TrendPage(),
       ),
-      _KeepAlivePage(
-        child: PrimaryScrollController(
-          controller: _scrollControllers[1],
-          child: SearchPage(),
-        ),
+      PrimaryScrollController(
+        controller: _scrollControllers[1],
+        child: const SearchPage(),
       ),
-      _KeepAlivePage(
-        child: PrimaryScrollController(
-          controller: _scrollControllers[2],
-          child: const DownloadsPage(),
-        ),
+      PrimaryScrollController(
+        controller: _scrollControllers[2],
+        child: const DownloadsPage(),
       ),
-      _KeepAlivePage(
-        child: PrimaryScrollController(
-          controller: _scrollControllers[3],
-          child: ListelerPage(),
-        ),
+      PrimaryScrollController(
+        controller: _scrollControllers[3],
+        child: const ListelerPage(),
       ),
     ];
 
@@ -524,14 +494,27 @@ class MainScreenState extends State<MainScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkForUpdate();
     });
+
+    _initReviewTimer();
+  }
+
+  Future<void> _initReviewTimer() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasSeenReview = prefs.getBool('has_seen_review') ?? false;
+
+    if (!hasSeenReview) {
+      _reviewTimer = Timer(const Duration(minutes: 3), () {
+        if (mounted) {
+          _showReviewBottomSheet();
+          prefs.setBool('has_seen_review', true);
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
-    // Ana ekrandan çıkılırsa (örn: Çıkış yapıp Login'e dönülürse) reklamları tekrar pasif et
-    AppOpenAdManager.isMainScreenVisible = false;
-    _pageController.dispose();
-    _navAnimController.dispose();
+    _reviewTimer?.cancel();
     for (var c in _scrollControllers) {
       c.dispose();
     }
@@ -539,9 +522,9 @@ class MainScreenState extends State<MainScreen>
   }
 
   void switchToTab(int index) {
-    if (_pageController.hasClients) {
-      _pageController.jumpToPage(index);
-    }
+    setState(() {
+      _selectedIndex = index;
+    });
   }
 
   void _onItemTapped(int index) {
@@ -556,18 +539,15 @@ class MainScreenState extends State<MainScreen>
         );
       }
     } else {
-      if (_pageController.hasClients) {
-        _pageController.animateToPage(
-          index,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      }
+      setState(() {
+        _selectedIndex = index;
+      });
     }
   }
 
   /// Firebase üzerinden güncelleme kontrolü yapar
   Future<void> _checkForUpdate() async {
+    final langProvider = context.read<LanguageProvider>();
     try {
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version;
@@ -590,14 +570,10 @@ class MainScreenState extends State<MainScreen>
       final storeUrl = remoteConfig.getString('store_url');
 
       if (latestVersion.isNotEmpty) {
-        final currentParts = currentVersion
-            .split('.')
-            .map((e) => int.tryParse(e) ?? 0)
-            .toList();
-        final latestParts = latestVersion
-            .split('.')
-            .map((e) => int.tryParse(e) ?? 0)
-            .toList();
+        final currentParts =
+            currentVersion.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+        final latestParts =
+            latestVersion.split('.').map((e) => int.tryParse(e) ?? 0).toList();
 
         bool hasUpdate = false;
         for (int i = 0; i < latestParts.length; i++) {
@@ -661,8 +637,8 @@ class MainScreenState extends State<MainScreen>
                       ),
                       const SizedBox(height: 24),
                       // Başlık
-                      const Text(
-                        'Yeni Sürüm Hazır! 🚀',
+                      Text(
+                        langProvider.t('new_version_ready'),
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white,
@@ -675,7 +651,7 @@ class MainScreenState extends State<MainScreen>
                       Text(
                         updateMessage.isNotEmpty
                             ? updateMessage
-                            : 'Uygulamamıza harika yeni özellikler ekledik. Kesintisiz müzik keyfi için hemen güncelleyin!',
+                            : langProvider.t('update_message_default'),
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.7),
@@ -690,8 +666,7 @@ class MainScreenState extends State<MainScreen>
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Theme.of(context).primaryColor,
-                            foregroundColor:
-                                Theme.of(
+                            foregroundColor: Theme.of(
                                       context,
                                     ).primaryColor.computeLuminance() >
                                     0.5
@@ -718,8 +693,8 @@ class MainScreenState extends State<MainScreen>
                               );
                             }
                           },
-                          child: const Text(
-                            'Şimdi Güncelle',
+                          child: Text(
+                            langProvider.t('update_now'),
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -740,8 +715,8 @@ class MainScreenState extends State<MainScreen>
                                 borderRadius: BorderRadius.circular(16),
                               ),
                             ),
-                            child: const Text(
-                              'Daha Sonra',
+                            child: Text(
+                              langProvider.t('later'),
                               style: TextStyle(
                                 color: Colors.grey,
                                 fontSize: 15,
@@ -764,6 +739,221 @@ class MainScreenState extends State<MainScreen>
     }
   }
 
+  void _showReviewBottomSheet() {
+    final langProvider = context.read<LanguageProvider>();
+    int selectedStar = 0;
+    bool showFeedbackForm = false;
+    final TextEditingController feedbackController = TextEditingController();
+
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (pageContext, animation, secondaryAnimation) {
+          return Scaffold(
+            backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
+            body: SafeArea(
+              child: StatefulBuilder(
+                builder: (context, setModalState) {
+                  final primaryColor = Theme.of(context).primaryColor;
+
+                  return Column(
+                    children: [
+                      Align(
+                        alignment: Alignment.topRight,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: IconButton(
+                            icon: const Icon(Icons.close_rounded,
+                                color: Colors.white, size: 32),
+                            onPressed: () => Navigator.pop(pageContext),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: EdgeInsets.only(
+                            bottom: MediaQuery.of(context).viewInsets.bottom,
+                            left: 24,
+                            right: 24,
+                            top: 24,
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: primaryColor.withOpacity(0.15),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.star_rounded,
+                                  color: primaryColor,
+                                  size: 48,
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              Text(
+                                langProvider.t('do_you_like_app'),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                showFeedbackForm
+                                    ? langProvider.t('help_us_improve')
+                                    : langProvider.t('how_do_you_rate'),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.7),
+                                  fontSize: 15,
+                                ),
+                              ),
+                              const SizedBox(height: 32),
+
+                              // Yıldızlar
+                              if (!showFeedbackForm)
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: List.generate(5, (index) {
+                                    return GestureDetector(
+                                      onTap: () {
+                                        setModalState(() {
+                                          selectedStar = index + 1;
+                                        });
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 4.0),
+                                        child: Icon(
+                                          index < selectedStar
+                                              ? Icons.star_rounded
+                                              : Icons.star_border_rounded,
+                                          color: index < selectedStar
+                                              ? Colors.amber
+                                              : Colors.grey.shade600,
+                                          size: 40,
+                                        ),
+                                      ),
+                                    );
+                                  }),
+                                ),
+
+                              // Düşük Puanda Çıkan Geri Bildirim Formu
+                              if (showFeedbackForm)
+                                TextField(
+                                  controller: feedbackController,
+                                  maxLines: 3,
+                                  style: const TextStyle(color: Colors.white),
+                                  decoration: InputDecoration(
+                                    hintText:
+                                        langProvider.t('write_your_thoughts'),
+                                    hintStyle:
+                                        TextStyle(color: Colors.grey.shade500),
+                                    filled: true,
+                                    fillColor: Colors.grey.shade800,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                  ),
+                                ),
+
+                              const SizedBox(height: 32),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: selectedStar > 0
+                                        ? primaryColor
+                                        : Colors.grey.shade800,
+                                    foregroundColor:
+                                        primaryColor.computeLuminance() > 0.5
+                                            ? Colors.black
+                                            : Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 16),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
+                                  onPressed: selectedStar == 0
+                                      ? null
+                                      : () async {
+                                          if (selectedStar >= 4) {
+                                            Navigator.pop(pageContext);
+                                            final url =
+                                                'https://play.google.com/store/apps/details?id=com.ahmed.oyn_music';
+                                            final uri = Uri.parse(url);
+                                            if (await canLaunchUrl(uri)) {
+                                              await launchUrl(uri,
+                                                  mode: LaunchMode
+                                                      .externalApplication);
+                                            }
+                                          } else {
+                                            if (!showFeedbackForm) {
+                                              setModalState(() =>
+                                                  showFeedbackForm = true);
+                                            } else {
+                                              Navigator.pop(pageContext);
+                                              CustomSnackBar.showSuccess(
+                                                context: context,
+                                                message: langProvider
+                                                    .t('thanks_for_feedback'),
+                                              );
+                                            }
+                                          }
+                                        },
+                                  child: Text(
+                                    showFeedbackForm
+                                        ? langProvider.t('send')
+                                        : (selectedStar >= 4
+                                            ? langProvider
+                                                .t('rate_on_google_play')
+                                            : langProvider.t('next')),
+                                    style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              TextButton(
+                                onPressed: () => Navigator.pop(pageContext),
+                                child: Text(
+                                  langProvider.t('later'),
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 1.0);
+          const end = Offset.zero;
+          const curve = Curves.easeOutCubic;
+          var tween =
+              Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          return SlideTransition(
+              position: animation.drive(tween), child: child);
+        },
+      ),
+    );
+  }
+
   Widget _buildNavItem(
     int index,
     String label,
@@ -771,7 +961,7 @@ class MainScreenState extends State<MainScreen>
     Color primaryColor,
   ) {
     final isSelected = _selectedIndex == index;
-    final color = isSelected ? Colors.white : Colors.grey.withOpacity(0.6);
+    final color = isSelected ? primaryColor : Colors.grey.withOpacity(0.6);
 
     return GestureDetector(
       onTap: () => _onItemTapped(index),
@@ -788,12 +978,12 @@ class MainScreenState extends State<MainScreen>
             ),
             decoration: BoxDecoration(
               color: isSelected
-                  ? Colors.white.withOpacity(0.2)
+                  ? primaryColor.withOpacity(0.2)
                   : Colors.white.withOpacity(0.05),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: isSelected
-                    ? Colors.white.withOpacity(0.5)
+                    ? primaryColor.withOpacity(0.3)
                     : Colors.white.withOpacity(0.1),
                 width: 1,
               ),
@@ -807,7 +997,7 @@ class MainScreenState extends State<MainScreen>
                   Text(
                     label,
                     style: TextStyle(
-                      color: Colors.white,
+                      color: primaryColor,
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),
@@ -831,44 +1021,18 @@ class MainScreenState extends State<MainScreen>
 
     // Eğer bağlantı yoksa YALNIZCA bu ekranı göster
     if (!hasConnection) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF121212),
-        body: _buildNoConnectionView(),
-      );
+      return const OfflineDownloadsPage(isDirectOffline: true);
     }
 
     return Scaffold(
       extendBody: true,
-      body: NotificationListener<UserScrollNotification>(
-        onNotification: (notification) {
-          // Sadece dikey kaydırmalarda alt menüyü gizle/göster (Yatayda yani sayfa geçişlerinde etkilenmesin)
-          if (notification.metrics.axis == Axis.vertical) {
-            if (notification.direction == ScrollDirection.reverse) {
-              if (_isBottomNavVisible) {
-                setState(() => _isBottomNavVisible = false);
-                _navAnimController.reverse();
-              }
-            } else if (notification.direction == ScrollDirection.forward) {
-              if (!_isBottomNavVisible) {
-                setState(() => _isBottomNavVisible = true);
-                _navAnimController.forward();
-              }
-            }
-          }
-          return false;
-        },
-        child: Stack(
-          children: [
-            PageView(
-              controller: _pageController,
-              physics: const BouncingScrollPhysics(),
-              onPageChanged: (index) {
-                setState(() => _selectedIndex = index);
-              },
-              children: _pages,
-            ),
-          ],
-        ),
+      body: Stack(
+        children: [
+          IndexedStack(
+            index: _selectedIndex,
+            children: _pages,
+          ),
+        ],
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -897,198 +1061,49 @@ class MainScreenState extends State<MainScreen>
                 onTap: () => PlayerPage.show(context),
                 child: const MiniPlayer(),
               ),
-              SizeTransition(
-                sizeFactor: CurvedAnimation(
-                  parent: _navAnimController,
-                  curve: Curves.easeInOut,
-                ),
-                axisAlignment: -1.0,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    16,
-                    0,
-                    16,
-                    4, // Menüyü biraz daha aşağı hizalamak için alt boşluk sıfırlandı
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildNavItem(
-                        0,
-                        langProvider.t('trends'),
-                        CustomIcons.trending,
-                        primaryColor,
-                      ),
-                      _buildNavItem(
-                        1,
-                        langProvider.t('search'),
-                        CustomIcons.search,
-                        primaryColor,
-                      ),
-                      _buildNavItem(
-                        2,
-                        langProvider.t('downloads'),
-                        _selectedIndex == 2
-                            ? CustomIcons.downloadingRounded
-                            : CustomIcons.downloadingRounded,
-                        primaryColor,
-                      ),
-                      _buildNavItem(
-                        3,
-                        langProvider.t('library'),
-                        CustomIcons.library,
-                        primaryColor,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNoConnectionView() {
-    final langProvider = context.watch<LanguageProvider>();
-
-    return Container(
-      width: double.infinity,
-      color: const Color(0xFF121212),
-      child: SafeArea(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade900,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Theme.of(context).primaryColor.withOpacity(0.2),
-                    blurRadius: 30,
-                    spreadRadius: 5,
-                  ),
-                ],
-              ),
-              child: Icon(
-                Icons.wifi_off_rounded,
-                size: 80,
-                color: Theme.of(context).primaryColor,
-              ),
-            ),
-            const SizedBox(height: 32),
-            Text(
-              langProvider.t('no_connection'),
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(
-                langProvider.t('internet_required'),
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.grey.shade400,
-                  fontSize: 16,
-                  height: 1.5,
-                ),
-              ),
-            ),
-            const SizedBox(height: 48),
-            if (_isRetrying)
-              CircularProgressIndicator(color: Theme.of(context).primaryColor)
-            else
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: Column(
+                padding: const EdgeInsets.fromLTRB(
+                  16,
+                  0,
+                  16,
+                  8, // Menüyü biraz daha aşağı hizalamak için alt boşluk sıfırlandı
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          setState(() {
-                            _isRetrying = true;
-                          });
-                          await context
-                              .read<SongProvider>()
-                              .checkConnectionManually();
-                          await Future.delayed(
-                            const Duration(milliseconds: 800),
-                          );
-                          if (mounted) {
-                            setState(() {
-                              _isRetrying = false;
-                            });
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).primaryColor,
-                          foregroundColor:
-                              Theme.of(
-                                    context,
-                                  ).primaryColor.computeLuminance() >
-                                  0.5
-                              ? Colors.black
-                              : Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          elevation: 8,
-                        ),
-                        child: Text(
-                          langProvider.t('retry'),
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
+                    _buildNavItem(
+                      0,
+                      langProvider.t('trends'),
+                      CustomIcons.trending,
+                      primaryColor,
                     ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  const OfflineDownloadsPage(),
-                            ),
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          side: BorderSide(
-                            color: Colors.grey.shade700,
-                            width: 1.5,
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        child: Text(
-                          langProvider.t('listen_offline'),
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
+                    _buildNavItem(
+                      1,
+                      langProvider.t('search'),
+                      _selectedIndex == 1
+                          ? CustomIcons.searchActive
+                          : CustomIcons.search,
+                      primaryColor,
+                    ),
+                    _buildNavItem(
+                      2,
+                      langProvider.t('downloads'),
+                      _selectedIndex == 2
+                          ? CustomIcons.downloadingRounded
+                          : CustomIcons.downloadingRounded,
+                      primaryColor,
+                    ),
+                    _buildNavItem(
+                      3,
+                      langProvider.t('library'),
+                      CustomIcons.library,
+                      primaryColor,
                     ),
                   ],
                 ),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1130,27 +1145,6 @@ class _ConnectionManagerState extends State<ConnectionManager> {
       });
     }
 
-    return widget.child;
-  }
-}
-
-/// Sayfalar arası kaydırmada sayfaların durumunu (scroll vb.) koruyan yardımcı widget
-class _KeepAlivePage extends StatefulWidget {
-  final Widget child;
-  const _KeepAlivePage({required this.child});
-
-  @override
-  State<_KeepAlivePage> createState() => _KeepAlivePageState();
-}
-
-class _KeepAlivePageState extends State<_KeepAlivePage>
-    with AutomaticKeepAliveClientMixin {
-  @override
-  bool get wantKeepAlive => true;
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
     return widget.child;
   }
 }

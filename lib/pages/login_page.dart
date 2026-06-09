@@ -5,6 +5,9 @@ import 'package:muzik_app/providers/song_provider.dart';
 import 'package:muzik_app/widgets/google_logo_painter.dart';
 import 'package:provider/provider.dart';
 import 'package:muzik_app/providers/language_provider.dart';
+import 'package:muzik_app/pages/email_login_page.dart';
+import 'package:muzik_app/pages/register_page.dart';
+import 'dart:ui';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -13,35 +16,8 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage>
-    with SingleTickerProviderStateMixin {
+class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
-
-  late AnimationController _floatController;
-  late Animation<Offset> _floatAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _floatController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
-
-    _floatAnimation =
-        Tween<Offset>(
-          begin: const Offset(0, -0.05),
-          end: const Offset(0, 0.05),
-        ).animate(
-          CurvedAnimation(parent: _floatController, curve: Curves.easeInOut),
-        );
-  }
-
-  @override
-  void dispose() {
-    _floatController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,20 +37,6 @@ class _LoginPageState extends State<LoginPage>
         backgroundColor: const Color(0xFF121212),
         body: Stack(
           children: [
-            // Arka Plan Parlaması (Onboarding'e uyumlu)
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 500),
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: const Alignment(0, -0.2),
-                  radius: 0.8,
-                  colors: [
-                    primaryColor.withValues(alpha: 0.25),
-                    const Color(0xFF121212),
-                  ],
-                ),
-              ),
-            ),
             SafeArea(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 30.0),
@@ -83,33 +45,29 @@ class _LoginPageState extends State<LoginPage>
                   children: [
                     const Spacer(),
 
-                    // Animasyonlu ve Cam Efektli Logo
-                    SlideTransition(
-                      position: _floatAnimation,
-                      child: Container(
-                        padding: const EdgeInsets.all(32),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.05),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: primaryColor.withValues(alpha: 0.3),
-                            width: 2,
+                    // Cam Efektli Logo
+                    Container(
+                      padding: const EdgeInsets.all(32),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: primaryColor.withValues(alpha: 0.3),
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: primaryColor.withValues(alpha: 0.2),
+                            blurRadius: 30,
+                            spreadRadius: 5,
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: primaryColor.withValues(alpha: 0.2),
-                              blurRadius: 30,
-                              spreadRadius: 5,
-                            ),
-                          ],
-                        ),
-                        child: Image.asset(
-                          'assets/icon/oyn_uyg_ikon.png',
-                          height:
-                              90, // Padding eklendiği için boyutu biraz küçülttük
-                          width: 90,
-                          color: primaryColor,
-                        ),
+                        ],
+                      ),
+                      child: Image.asset(
+                        'assets/icon/OYN_ana_logo_seffaf.png',
+                        height: 90,
+                        width: 90,
+                        color: primaryColor,
                       ),
                     ),
                     const SizedBox(height: 28),
@@ -141,38 +99,68 @@ class _LoginPageState extends State<LoginPage>
 
                     const Spacer(),
 
+                    // E-posta ile Giriş Butonu
+                    Center(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: InkWell(
+                            onTap: _isLoading
+                                ? null
+                                : () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (context) =>
+                                              const EmailLoginPage()),
+                                    );
+                                  },
+                            borderRadius: BorderRadius.circular(16),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 300),
+                              width: MediaQuery.of(context).size.width - 60,
+                              height: 55,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.15),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Center(
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.email_outlined,
+                                        color: Colors.white),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      langProvider.t('login_with_email'),
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
                     // Google Giriş Butonu
                     Center(
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 400),
-                        curve: Curves.easeInOut,
-                        width: _isLoading
-                            ? 55
-                            : MediaQuery.of(context).size.width - 60,
-                        height: 55,
-                        decoration: BoxDecoration(
-                          color: _isLoading
-                              ? Colors.grey.shade800
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(
-                            _isLoading ? 50 : 12,
-                          ),
-                          boxShadow: _isLoading
-                              ? []
-                              : [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.15),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 5),
-                                  ),
-                                ],
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                           child: InkWell(
-                            borderRadius: BorderRadius.circular(
-                              _isLoading ? 50 : 12,
-                            ),
+                            borderRadius: BorderRadius.circular(16),
                             onTap: _isLoading
                                 ? null
                                 : () async {
@@ -197,37 +185,52 @@ class _LoginPageState extends State<LoginPage>
                                       }
                                     }
                                   },
-                            child: Center(
-                              child: AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 300),
-                                child: _isLoading
-                                    ? const SizedBox(
-                                        width: 24,
-                                        height: 24,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2.5,
-                                        ),
-                                      )
-                                    : Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          CustomPaint(
-                                            size: const Size(24, 24),
-                                            painter: GoogleLogoPainter(),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 400),
+                              curve: Curves.easeInOut,
+                              width: MediaQuery.of(context).size.width - 60,
+                              height: 55,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.5),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Center(
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 300),
+                                  child: _isLoading
+                                      ? const SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 2.5,
                                           ),
-                                          const SizedBox(width: 12),
-                                          Text(
-                                            langProvider.t('login_with_google'),
-                                            style: const TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.black,
+                                        )
+                                      : Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            CustomPaint(
+                                              size: const Size(24, 24),
+                                              painter: GoogleLogoPainter(),
                                             ),
-                                          ),
-                                        ],
-                                      ),
+                                            const SizedBox(width: 12),
+                                            Text(
+                                              langProvider
+                                                  .t('login_with_google'),
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                ),
                               ),
                             ),
                           ),
@@ -250,7 +253,56 @@ class _LoginPageState extends State<LoginPage>
                         style: const TextStyle(color: Colors.white),
                       ),
                     ),
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 24),
+
+                    // Kayıt Ol Yönlendirmesi
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => const RegisterPage()),
+                        );
+                      },
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(30),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: primaryColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(30),
+                              border: Border.all(
+                                color: primaryColor.withOpacity(0.5),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.person_add_rounded,
+                                  color: primaryColor,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  langProvider.t('register'),
+                                  style: TextStyle(
+                                      color: primaryColor,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 32),
                   ],
                 ),
               ),

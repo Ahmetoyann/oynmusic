@@ -18,6 +18,12 @@
     <!-- Sesli arama için mikrofon izni -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 
+    <!-- Cihazdaki müziklere ve dosyalara erişim için (Android 12 ve altı) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+    
+    <!-- Cihazdaki müziklere erişim için (Android 13 ve üstü - Hata veren 33. İzin) -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
+
     <application
         android:label="OYN"
         android:name="${applicationName}"

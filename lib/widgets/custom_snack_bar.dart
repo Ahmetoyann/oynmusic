@@ -167,8 +167,7 @@ class CustomSnackBar {
       context: context,
       message: message,
       backgroundColor: primaryColor,
-      icon:
-          icon ??
+      icon: icon ??
           Icon(Icons.info_outline_rounded, color: primaryColor, size: 24),
       duration: duration,
     );
@@ -178,6 +177,7 @@ class CustomSnackBar {
   static void showDownloadProgress({
     required BuildContext context,
     required Song song,
+    bool isMp4 = false,
   }) {
     hideCurrent();
 
@@ -207,29 +207,37 @@ class CustomSnackBar {
               color: Colors.transparent,
               child: Consumer<SongProvider>(
                 builder: (context, provider, child) {
-                  final isDownloaded = provider.isSongDownloaded(song.id);
-                  if (isDownloaded && !isClosing) {
-                    isClosing = true;
-                    Future.delayed(const Duration(seconds: 2), () {
-                      hideCurrent();
-                    });
-                  }
-
-                  final isCanceling = provider.isCanceling(song.id);
-                  final isPaused = provider.isPaused(song.id);
+                  final isCanceling =
+                      isMp4 ? false : provider.isCanceling(song.id);
+                  final isPaused = isMp4 ? false : provider.isPaused(song.id);
                   final primaryColor = Theme.of(context).primaryColor;
                   final langProvider = context.watch<LanguageProvider>();
 
                   return ValueListenableBuilder<double?>(
-                    valueListenable: provider.getDownloadProgressNotifier(
-                      song.id,
-                    ),
+                    valueListenable: isMp4
+                        ? provider.getVideoDownloadProgressNotifier(song.id)
+                        : provider.getDownloadProgressNotifier(
+                            song.id,
+                          ),
                     builder: (context, progressValue, child) {
                       return ValueListenableBuilder<String>(
-                        valueListenable: provider.getDownloadDetailsNotifier(
-                          song.id,
-                        ),
+                        valueListenable: isMp4
+                            ? provider.getVideoDownloadDetailsNotifier(song.id)
+                            : provider.getDownloadDetailsNotifier(
+                                song.id,
+                              ),
                         builder: (context, detailsValue, child) {
+                          final isDownloaded = isMp4
+                              ? (progressValue != null && progressValue >= 1.0)
+                              : provider.isSongDownloaded(song.id);
+
+                          if (isDownloaded && !isClosing) {
+                            isClosing = true;
+                            Future.delayed(const Duration(seconds: 2), () {
+                              hideCurrent();
+                            });
+                          }
+
                           final progress =
                               progressValue ?? (isDownloaded ? 1.0 : 0.0);
                           final percentage = (progress * 100).toInt();
@@ -285,58 +293,45 @@ class CustomSnackBar {
                                               borderRadius:
                                                   BorderRadius.circular(4),
                                               child: SizedBox(
-                                                width: 44,
+                                                width: 78,
                                                 height: 44,
                                                 child: Stack(
                                                   children: [
                                                     Positioned.fill(
-                                                      child: Transform.scale(
-                                                        scale:
-                                                            (song.coverUrl
-                                                                    .contains(
-                                                                      'ytimg.com',
-                                                                    ) ||
-                                                                song.coverUrl
-                                                                    .contains(
-                                                                      'youtube.com',
-                                                                    ))
-                                                            ? 1.35
-                                                            : 1.0,
-                                                        child:
-                                                            (song.localImagePath !=
-                                                                    null &&
-                                                                File(
-                                                                  song.localImagePath!,
-                                                                ).existsSync())
-                                                            ? Image.file(
-                                                                File(
-                                                                  song.localImagePath!,
-                                                                ),
-                                                                fit: BoxFit
-                                                                    .cover,
-                                                                cacheHeight:
-                                                                    200,
-                                                              )
-                                                            : CachedNetworkImage(
-                                                                imageUrl: song
-                                                                    .coverUrl,
-                                                                fit: BoxFit
-                                                                    .cover,
-                                                                memCacheHeight:
-                                                                    200,
-                                                                errorWidget: (c, url, error) => Container(
+                                                      child: (song.localImagePath !=
+                                                                  null &&
+                                                              File(
+                                                                song.localImagePath!,
+                                                              ).existsSync())
+                                                          ? Image.file(
+                                                              File(
+                                                                song.localImagePath!,
+                                                              ),
+                                                              fit: BoxFit.cover,
+                                                              cacheHeight: 200,
+                                                            )
+                                                          : CachedNetworkImage(
+                                                              imageUrl:
+                                                                  song.coverUrl,
+                                                              fit: BoxFit.cover,
+                                                              memCacheHeight:
+                                                                  200,
+                                                              errorWidget: (c,
+                                                                      url,
+                                                                      error) =>
+                                                                  Container(
+                                                                color: Colors
+                                                                    .grey
+                                                                    .shade800,
+                                                                child:
+                                                                    const Icon(
+                                                                  Icons
+                                                                      .music_note,
                                                                   color: Colors
-                                                                      .grey
-                                                                      .shade800,
-                                                                  child: const Icon(
-                                                                    Icons
-                                                                        .music_note,
-                                                                    color: Colors
-                                                                        .white54,
-                                                                  ),
+                                                                      .white54,
                                                                 ),
                                                               ),
-                                                      ),
+                                                            ),
                                                     ),
                                                     if (isDownloaded)
                                                       Positioned.fill(
@@ -365,12 +360,13 @@ class CustomSnackBar {
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [
                                                   Text(
-                                                    song.title,
+                                                    song.title +
+                                                        (isMp4 ? " (MP4)" : ""),
                                                     style: const TextStyle(
                                                       fontWeight:
                                                           FontWeight.bold,
                                                       color: Colors.white,
-                                                      fontSize: 13,
+                                                      fontSize: 12,
                                                     ),
                                                     maxLines: 1,
                                                     overflow:
@@ -384,7 +380,7 @@ class CustomSnackBar {
                                                         color: Colors
                                                             .greenAccent
                                                             .shade100,
-                                                        fontSize: 11,
+                                                        fontSize: 10,
                                                         fontWeight:
                                                             FontWeight.w500,
                                                       ),
@@ -403,9 +399,8 @@ class CustomSnackBar {
                                                       ),
                                                       style: TextStyle(
                                                         color: Colors
-                                                            .grey
-                                                            .shade400,
-                                                        fontSize: 11,
+                                                            .grey.shade400,
+                                                        fontSize: 10,
                                                       ),
                                                     ),
                                                 ],
@@ -414,7 +409,8 @@ class CustomSnackBar {
                                             const SizedBox(width: 8),
                                             // Butonlar
                                             if (!isCanceling &&
-                                                !isDownloaded) ...[
+                                                !isDownloaded &&
+                                                !isMp4) ...[
                                               GestureDetector(
                                                 onTap: () {
                                                   if (isPaused) {
@@ -434,7 +430,7 @@ class CustomSnackBar {
                                                   child: Icon(
                                                     isPaused
                                                         ? Icons
-                                                              .play_arrow_rounded
+                                                            .play_arrow_rounded
                                                         : Icons.pause_rounded,
                                                     color: Colors.white,
                                                     size: 32,
@@ -474,8 +470,7 @@ class CustomSnackBar {
                                             backgroundColor: Colors.transparent,
                                             valueColor:
                                                 const AlwaysStoppedAnimation<
-                                                  Color
-                                                >(Colors.white),
+                                                    Color>(Colors.white),
                                           ),
                                         ),
                                     ],
@@ -577,7 +572,7 @@ class _AnimatedDownloadDetailsState extends State<_AnimatedDownloadDetails> {
         key: ValueKey<String>(displayText),
         style: TextStyle(
           color: Colors.grey.shade400,
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: FontWeight.w500,
         ),
         maxLines: 1,

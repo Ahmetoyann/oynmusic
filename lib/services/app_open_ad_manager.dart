@@ -18,8 +18,8 @@ class AppOpenAdManager {
   final String adUnitId = kIsWeb
       ? ''
       : (Platform.isAndroid
-            ? 'ca-app-pub-7993140773979821/1724862393' // Sizin Android Kimliğiniz
-            : 'ca-app-pub-3940256099942544/5662855259'); // iOS test kimliği
+          ? 'ca-app-pub-7993140773979821/1724862393' // Sizin Android Kimliğiniz
+          : 'ca-app-pub-3940256099942544/5662855259'); // iOS test kimliği
 
   void loadAd() {
     if (!isAdsEnabled || kIsWeb) return;

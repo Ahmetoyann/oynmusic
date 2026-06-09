@@ -14,8 +14,8 @@ class InterstitialAdManager {
   final String adUnitId = kIsWeb
       ? ''
       : (Platform.isAndroid
-            ? 'ca-app-pub-7993140773979821/2439627976' // Sizin Android Geçiş Reklam Kimliğiniz
-            : 'ca-app-pub-3940256099942544/4411468910'); // iOS Test ID
+          ? 'ca-app-pub-7993140773979821/2439627976' // Sizin Android Geçiş Reklam Kimliğiniz
+          : 'ca-app-pub-3940256099942544/4411468910'); // iOS Test ID
 
   void loadAd() {
     if (!isAdsEnabled || kIsWeb) return;

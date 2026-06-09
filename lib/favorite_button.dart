@@ -52,10 +52,8 @@ class _FavoriteButtonState extends State<FavoriteButton>
         return ScaleTransition(
           scale: _scaleAnimation,
           child: IconButton(
-            icon: CustomIcons.svgIcon(
-              widget.song.isFavorite
-                  ? CustomIcons.favorite
-                  : CustomIcons.favoriteBorder,
+            icon: Icon(
+              widget.song.isFavorite ? Icons.favorite : Icons.favorite_border,
               color: widget.song.isFavorite
                   ? (widget.activeColor ?? Theme.of(context).primaryColor)
                   : (widget.inactiveColor ?? Colors.grey),

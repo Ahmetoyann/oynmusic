@@ -13,6 +13,13 @@ class CustomIcons {
   <line x1="16.5" y1="16.5" x2="21" y2="21"/>
 </svg>''';
 
+  static const String searchActive =
+      '''<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="11" cy="11" r="8"></circle>
+  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+  <circle cx="11" cy="11" r="5" fill="currentColor" stroke="none"></circle>
+</svg>''';
+
   static const String trending =
       '''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
   <polyline points="3 17 9 11 13 15 21 7"/>

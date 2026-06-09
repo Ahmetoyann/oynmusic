@@ -27,17 +27,17 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.titleStyle,
     this.showLeading = true,
     this.bottom,
-    this.wrapActionsInBox = true,
+    this.wrapActionsInBox = false,
     this.titleSpacing,
-    this.wrapLeadingInBox = true,
-  }) : assert(
-         title == null || titleWidget == null,
-         'Cannot provide both a title and a titleWidget',
-       ),
-       assert(
-         title != null || titleWidget != null,
-         'Must provide either a title or a titleWidget',
-       );
+    this.wrapLeadingInBox = false,
+  })  : assert(
+          title == null || titleWidget == null,
+          'Cannot provide both a title and a titleWidget',
+        ),
+        assert(
+          title != null || titleWidget != null,
+          'Must provide either a title or a titleWidget',
+        );
 
   @override
   Widget build(BuildContext context) {
@@ -51,12 +51,10 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       iconTheme: IconThemeData(color: Colors.white),
       actionsIconTheme: IconThemeData(color: Colors.white),
-      title:
-          titleWidget ??
+      title: titleWidget ??
           Text(
             title!,
-            style:
-                titleStyle ??
+            style: titleStyle ??
                 TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 20,
@@ -67,23 +65,24 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       titleSpacing: titleSpacing,
       leading: effectiveLeading != null
           ? (wrapLeadingInBox
-                ? _AppBarIconBox(child: effectiveLeading)
-                : effectiveLeading)
+              ? _AppBarIconBox(child: effectiveLeading)
+              : effectiveLeading)
           : null,
       automaticallyImplyLeading: false,
       actions: wrapActionsInBox
           ? actions
-                ?.map(
-                  (action) => Padding(
-                    padding: const EdgeInsets.only(right: 8.0),
-                    child: _AppBarIconBox(child: action),
-                  ),
-                )
-                .toList()
+              ?.map(
+                (action) => Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: _AppBarIconBox(child: action),
+                ),
+              )
+              .toList()
           : actions,
-      backgroundColor: backgroundColor ?? const Color(0xFF121212),
+      backgroundColor: backgroundColor ?? Colors.white.withOpacity(0.0001),
       elevation: elevation,
       scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
       bottom: bottom,
     );
   }

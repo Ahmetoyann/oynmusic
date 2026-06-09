@@ -54,11 +54,11 @@ class _SplashScreenState extends State<SplashScreen>
 
     _textSlideAnimation =
         Tween<Offset>(begin: const Offset(0, 0.5), end: Offset.zero).animate(
-          CurvedAnimation(
-            parent: _controller,
-            curve: const Interval(0.5, 0.8, curve: Curves.easeOut),
-          ),
-        );
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.5, 0.8, curve: Curves.easeOut),
+      ),
+    );
 
     // 3. Slogan Animasyonu (0.7 - 1.0)
     _sloganOpacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
@@ -246,7 +246,7 @@ class _SplashScreenState extends State<SplashScreen>
                       child: Container(
                         decoration: BoxDecoration(shape: BoxShape.circle),
                         child: Image.asset(
-                          'assets/icon/oyn_uyg_ikon.png',
+                          'assets/icon/OYN_ana_logo_seffaf.png',
                           height: 160,
                           width: 160,
                           color: primaryColor,

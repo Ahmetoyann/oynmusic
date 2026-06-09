@@ -19,6 +19,8 @@ import 'package:muzik_app/widgets/custom_drop_down.dart';
 import 'package:muzik_app/widgets/custom_banner_ad.dart';
 import 'package:muzik_app/providers/language_provider.dart';
 import 'package:muzik_app/widgets/mini_player.dart';
+import 'package:muzik_app/widgets/custom_search_bar.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 enum SortOption { dateNewest, dateOldest, nameAZ, nameZA }
 
@@ -37,6 +39,13 @@ class _FavoritesPageState extends State<FavoritesPage> {
   SortOption _sortOption = SortOption.dateNewest;
   final ScrollController _scrollController = ScrollController();
   bool _showStickyPlayButton = false;
+
+  List<Song> _cachedFilteredSongs = [];
+  int _lastListLength = -1;
+  String _lastSearchText = '';
+  SortOption _lastSortOption = SortOption.dateNewest;
+  String _cachedDurationText = '';
+  String _lastLanguage = '';
 
   @override
   void initState() {
@@ -85,196 +94,231 @@ class _FavoritesPageState extends State<FavoritesPage> {
     final TextEditingController controller = TextEditingController();
     String? selectedImagePath;
 
-    CustomBottomSheet.showContent(
-      context: context,
-      isScrollControlled: true,
-      child: StatefulBuilder(
-        builder: (modalContext, setModalState) => Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-            left: 24,
-            right: 24,
-            top: 24,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 8),
-                // Modern Image Picker
-                GestureDetector(
-                  onTap: () async {
-                    final ImagePicker picker = ImagePicker();
-                    final XFile? image = await picker.pickImage(
-                      source: ImageSource.gallery,
-                    );
-                    if (image != null) {
-                      setModalState(() {
-                        selectedImagePath = image.path;
-                      });
-                    }
-                  },
-                  child: Container(
-                    width: 160,
-                    height: 160,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade900,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
-                          blurRadius: 15,
-                          offset: const Offset(0, 8),
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (pageContext, animation, secondaryAnimation) {
+          return Scaffold(
+            backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
+            body: SafeArea(
+              child: StatefulBuilder(
+                builder: (modalContext, setModalState) => Column(
+                  children: [
+                    Align(
+                      alignment: Alignment.topRight,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: IconButton(
+                          icon: const Icon(Icons.close_rounded,
+                              color: Colors.white, size: 32),
+                          onPressed: () => Navigator.pop(pageContext),
                         ),
-                      ],
-                      image: selectedImagePath != null
-                          ? DecorationImage(
-                              image: FileImage(File(selectedImagePath!)),
-                              fit: BoxFit.cover,
-                            )
-                          : null,
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.1),
-                        width: 1,
                       ),
                     ),
-                    child: selectedImagePath == null
-                        ? Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.add_a_photo_outlined,
-                                color: Theme.of(context).primaryColor,
-                                size: 48,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                langProvider.t('choose_cover'),
-                                style: TextStyle(
-                                  color: Colors.grey.shade500,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(height: 8),
+                            GestureDetector(
+                              onTap: () async {
+                                final ImagePicker picker = ImagePicker();
+                                final XFile? image = await picker.pickImage(
+                                  source: ImageSource.gallery,
+                                );
+                                if (image != null) {
+                                  setModalState(() {
+                                    selectedImagePath = image.path;
+                                  });
+                                }
+                              },
+                              child: Container(
+                                width: 256,
+                                height: 144,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade900,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.3),
+                                      blurRadius: 15,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ],
+                                  image: selectedImagePath != null
+                                      ? DecorationImage(
+                                          image: FileImage(
+                                              File(selectedImagePath!)),
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.1),
+                                    width: 1,
+                                  ),
                                 ),
+                                child: selectedImagePath == null
+                                    ? Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.add_a_photo_outlined,
+                                            color:
+                                                Theme.of(context).primaryColor,
+                                            size: 48,
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            langProvider.t('choose_cover'),
+                                            style: TextStyle(
+                                              color: Colors.grey.shade500,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    : null,
                               ),
-                            ],
-                          )
-                        : null,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                // Modern TextField
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 24),
-                  child: TextField(
-                    controller: controller,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: langProvider.t('list_name'),
-                      hintStyle: TextStyle(
-                        color: Colors.grey.shade500,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey.shade800,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        vertical: 16,
-                        horizontal: 16,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).primaryColor.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Theme.of(
-                              context,
-                            ).primaryColor.withOpacity(0.5),
-                            width: 1.5,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Theme.of(
-                                context,
-                              ).primaryColor.withOpacity(0.2),
-                              blurRadius: 15,
-                              spreadRadius: 1,
                             ),
-                          ],
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () {
-                              if (controller.text.isNotEmpty) {
-                                final provider = context.read<SongProvider>();
-                                provider.createFolder(
-                                  name: controller.text,
-                                  songs: _selectedSongs.toList(),
-                                  customImagePath: selectedImagePath,
-                                );
-                                Navigator.pop(context);
-                                setState(() {
-                                  _isSelectionMode = false;
-                                  _selectedSongs.clear();
-                                });
-                                CustomSnackBar.showSuccess(
-                                  context: context,
-                                  message:
-                                      '${controller.text} ${langProvider.t('create')}d.',
-                                );
-                              } else {
-                                CustomSnackBar.showError(
-                                  context: context,
-                                  message: 'Lütfen bir liste adı girin.',
-                                );
-                              }
-                            },
-                            borderRadius: BorderRadius.circular(16),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              child: Center(
-                                child: Text(
-                                  langProvider.t('create'),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
+                            const SizedBox(height: 24),
+                            // Modern TextField
+                            Container(
+                              margin:
+                                  const EdgeInsets.symmetric(horizontal: 24),
+                              child: TextField(
+                                controller: controller,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: langProvider.t('list_name'),
+                                  hintStyle: TextStyle(
+                                    color: Colors.grey.shade500,
+                                    fontSize: 20,
                                     fontWeight: FontWeight.bold,
+                                  ),
+                                  filled: true,
+                                  fillColor: Colors.grey.shade800,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                    horizontal: 16,
                                   ),
                                 ),
                               ),
                             ),
-                          ),
+                            const SizedBox(height: 24),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: BackdropFilter(
+                                  filter:
+                                      ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(
+                                        context,
+                                      ).primaryColor.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: Theme.of(
+                                          context,
+                                        ).primaryColor.withOpacity(0.5),
+                                        width: 1.5,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Theme.of(
+                                            context,
+                                          ).primaryColor.withOpacity(0.2),
+                                          blurRadius: 15,
+                                          spreadRadius: 1,
+                                        ),
+                                      ],
+                                    ),
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        onTap: () {
+                                          if (controller.text.isNotEmpty) {
+                                            final provider =
+                                                context.read<SongProvider>();
+                                            provider.createFolder(
+                                              name: controller.text,
+                                              songs: _selectedSongs.toList(),
+                                              customImagePath:
+                                                  selectedImagePath,
+                                            );
+                                            Navigator.pop(pageContext);
+                                            setState(() {
+                                              _isSelectionMode = false;
+                                              _selectedSongs.clear();
+                                            });
+                                            CustomSnackBar.showSuccess(
+                                              context: context,
+                                              message:
+                                                  '${controller.text} ${langProvider.t('create')}d.',
+                                            );
+                                          } else {
+                                            CustomSnackBar.showError(
+                                              context: context,
+                                              message:
+                                                  'Lütfen bir liste adı girin.',
+                                            );
+                                          }
+                                        },
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 16),
+                                          child: Center(
+                                            child: Text(
+                                              langProvider.t('create'),
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                          ],
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-                const SizedBox(height: 24),
-              ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 1.0);
+          const end = Offset.zero;
+          const curve = Curves.easeOutCubic;
+          var tween =
+              Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          return SlideTransition(
+              position: animation.drive(tween), child: child);
+        },
       ),
     );
   }
@@ -308,13 +352,13 @@ class _FavoritesPageState extends State<FavoritesPage> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(8),
                   child: BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                     child: Container(
                       decoration: BoxDecoration(
                         color: theme.primaryColor.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(8),
                         border: Border.all(
                           color: theme.primaryColor.withOpacity(0.5),
                           width: 1.5,
@@ -334,7 +378,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                             Navigator.pop(context);
                             _showCreatePlaylistBottomSheet(context);
                           },
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(8),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
                               vertical: 16,
@@ -408,34 +452,20 @@ class _FavoritesPageState extends State<FavoritesPage> {
                         final firstSong = folder.songs.first;
                         if (firstSong.localImagePath != null &&
                             File(firstSong.localImagePath!).existsSync()) {
-                          coverWidget = Transform.scale(
-                            scale:
-                                (firstSong.coverUrl.contains('ytimg.com') ||
-                                    firstSong.coverUrl.contains('youtube.com'))
-                                ? 1.35
-                                : 1.0,
-                            child: Image.file(
-                              File(firstSong.localImagePath!),
-                              fit: BoxFit.cover,
-                            ),
+                          coverWidget = Image.file(
+                            File(firstSong.localImagePath!),
+                            fit: BoxFit.cover,
                           );
                         } else {
-                          coverWidget = Transform.scale(
-                            scale:
-                                (firstSong.coverUrl.contains('ytimg.com') ||
-                                    firstSong.coverUrl.contains('youtube.com'))
-                                ? 1.35
-                                : 1.0,
-                            child: Image.network(
-                              firstSong.coverUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (c, e, s) => Container(
-                                color: Colors.grey.shade800,
-                                child: CustomIcons.svgIcon(
-                                  CustomIcons.musicNote,
-                                  color: Colors.white54,
-                                  size: 24,
-                                ),
+                          coverWidget = CachedNetworkImage(
+                            imageUrl: firstSong.coverUrl,
+                            fit: BoxFit.cover,
+                            errorWidget: (context, url, error) => Container(
+                              color: Colors.grey.shade800,
+                              child: CustomIcons.svgIcon(
+                                CustomIcons.musicNote,
+                                color: Colors.white54,
+                                size: 24,
                               ),
                             ),
                           );
@@ -460,14 +490,14 @@ class _FavoritesPageState extends State<FavoritesPage> {
                       return Container(
                         decoration: BoxDecoration(
                           color: Colors.grey.shade900,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child: ListTile(
                           leading: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(4),
                             child: SizedBox(
-                              width: 48,
-                              height: 48,
+                              width: 71,
+                              height: 40,
                               child: coverWidget,
                             ),
                           ),
@@ -668,7 +698,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
             filled: true,
             fillColor: Colors.grey.shade800,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide.none,
             ),
           ),
@@ -685,9 +715,9 @@ class _FavoritesPageState extends State<FavoritesPage> {
             onPressed: () {
               if (controller.text.isNotEmpty) {
                 context.read<SongProvider>().renameFolder(
-                  folder,
-                  controller.text,
-                );
+                      folder,
+                      controller.text,
+                    );
                 Navigator.pop(ctx);
               }
             },
@@ -739,10 +769,11 @@ class _FavoritesPageState extends State<FavoritesPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
+          AspectRatio(
+            aspectRatio: 16 / 9,
             child: Container(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(8),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.2),
@@ -752,7 +783,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                 ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(8),
                 child: Stack(
                   fit: StackFit.expand,
                   children: [_buildFolderCover(folder)],
@@ -835,50 +866,35 @@ class _FavoritesPageState extends State<FavoritesPage> {
     if (song.localImagePath != null &&
         File(song.localImagePath!).existsSync()) {
       return ClipRect(
-        child: Transform.scale(
-          scale:
-              (song.coverUrl.contains('ytimg.com') ||
-                  song.coverUrl.contains('youtube.com'))
-              ? 1.35
-              : 1.0,
           child: Image.file(
-            File(song.localImagePath!),
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-            errorBuilder: (context, error, stackTrace) {
-              return Container(
-                color: Colors.grey.shade800,
-                child: CustomIcons.svgIcon(
-                  CustomIcons.musicNote,
-                  color: Colors.grey,
-                  size: 24,
-                ),
-              );
-            },
-          ),
-        ),
-      );
-    }
-    return ClipRect(
-      child: Transform.scale(
-        scale:
-            (song.coverUrl.contains('ytimg.com') ||
-                song.coverUrl.contains('youtube.com'))
-            ? 1.35
-            : 1.0,
-        child: Image.network(
-          song.coverUrl,
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: double.infinity,
-          errorBuilder: (c, e, s) => Container(
+        File(song.localImagePath!),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
             color: Colors.grey.shade800,
             child: CustomIcons.svgIcon(
               CustomIcons.musicNote,
               color: Colors.grey,
               size: 24,
             ),
+          );
+        },
+      ));
+    }
+    return ClipRect(
+      child: CachedNetworkImage(
+        imageUrl: song.coverUrl,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorWidget: (c, e, s) => Container(
+          color: Colors.grey.shade800,
+          child: CustomIcons.svgIcon(
+            CustomIcons.musicNote,
+            color: Colors.grey,
+            size: 24,
           ),
         ),
       ),
@@ -890,62 +906,72 @@ class _FavoritesPageState extends State<FavoritesPage> {
     final songProvider = context.watch<SongProvider>();
     final authProvider = context.watch<AuthProvider>();
     final langProvider = context.watch<LanguageProvider>();
+
     final favoriteSongs = songProvider.favoriteSongs;
-    final favoriteFolders = songProvider.folders
-        .where((f) => !f.isFromDownloads)
-        .toList();
+    final folders = songProvider.folders;
+    final favoriteFolders = folders.where((f) => !f.isFromDownloads).toList();
+    final currentSongId = songProvider.currentSong?.id;
 
-    var filteredSongs = favoriteSongs.where((song) {
-      if (_searchText.isEmpty) return true;
-      final query = _searchText.toLowerCase();
-      return song.title.toLowerCase().contains(query) ||
-          song.artist.toLowerCase().contains(query);
-    }).toList();
+    // Arama ve sıralama önbellekleme (Memoization)
+    if (_lastListLength != favoriteSongs.length ||
+        _lastSearchText != _searchText ||
+        _lastSortOption != _sortOption ||
+        _lastLanguage != langProvider.currentLanguage) {
+      _lastListLength = favoriteSongs.length;
+      _lastSearchText = _searchText;
+      _lastSortOption = _sortOption;
+      _lastLanguage = langProvider.currentLanguage;
 
-    int totalSeconds = filteredSongs.fold(
-      0,
-      (sum, item) => sum + (item.duration ?? 0),
-    );
-    String durationText = '';
-    if (totalSeconds > 0) {
-      int h = totalSeconds ~/ 3600;
-      int m = (totalSeconds % 3600) ~/ 60;
-      int s = totalSeconds % 60;
-      final isTr = langProvider.currentLanguage == 'tr';
-      String hrStr = isTr ? 's' : 'h'; // TR için Saat
-      String minStr = isTr ? 'd' : 'm'; // TR için Dakika
-      String secStr = isTr ? 'sn' : 's'; // TR için Saniye
+      var temp = favoriteSongs.where((song) {
+        if (_searchText.isEmpty) return true;
+        final query = _searchText.toLowerCase();
+        return song.title.toLowerCase().contains(query) ||
+            song.artist.toLowerCase().contains(query);
+      }).toList();
 
-      if (h > 0) {
-        durationText = '·$h$hrStr $m$minStr';
-      } else {
-        durationText = '·$m$minStr $s$secStr';
+      int totalSeconds =
+          temp.fold(0, (sum, item) => sum + (item.duration ?? 0));
+      String durText = '';
+      if (totalSeconds > 0) {
+        int h = totalSeconds ~/ 3600;
+        int m = (totalSeconds % 3600) ~/ 60;
+        int s = totalSeconds % 60;
+        final isTr = langProvider.currentLanguage == 'tr';
+        String hrStr = isTr ? 's' : 'h';
+        String minStr = isTr ? 'd' : 'm';
+        String secStr = isTr ? 'sn' : 's';
+
+        if (h > 0) {
+          durText = '·$h$hrStr $m$minStr';
+        } else {
+          durText = '·$m$minStr $s$secStr';
+        }
       }
+      _cachedDurationText = durText;
+
+      switch (_sortOption) {
+        case SortOption.nameAZ:
+          temp.sort((a, b) => a.title.compareTo(b.title));
+          break;
+        case SortOption.nameZA:
+          temp.sort((a, b) => b.title.compareTo(a.title));
+          break;
+        case SortOption.dateNewest:
+          temp = temp.reversed.toList();
+          break;
+        case SortOption.dateOldest:
+          break;
+      }
+      _cachedFilteredSongs = temp;
     }
 
-    // Sıralama işlemi
-    switch (_sortOption) {
-      case SortOption.nameAZ:
-        filteredSongs.sort((a, b) => a.title.compareTo(b.title));
-        break;
-      case SortOption.nameZA:
-        filteredSongs.sort((a, b) => b.title.compareTo(a.title));
-        break;
-      case SortOption.dateNewest:
-        filteredSongs = filteredSongs.reversed.toList();
-        break;
-      case SortOption.dateOldest:
-        // Varsayılan sıralama (eklenme sırası)
-        break;
-    }
+    final filteredSongs = _cachedFilteredSongs;
+    final durationText = _cachedDurationText;
 
     final bool canPopNavigator = Navigator.of(context).canPop();
 
-    final bool isAnyFavoriteLoaded =
-        songProvider.currentSong != null &&
-        filteredSongs.any((s) => s.id == songProvider.currentSong!.id);
-    final bool isPlaying =
-        isAnyFavoriteLoaded && songProvider.audioPlayer.playing;
+    final bool isAnyFavoriteLoaded = currentSongId != null &&
+        filteredSongs.any((s) => s.id == currentSongId);
 
     void handlePlayTap() {
       if (filteredSongs.isNotEmpty) {
@@ -956,10 +982,11 @@ class _FavoritesPageState extends State<FavoritesPage> {
             songProvider.audioPlayer.play();
           }
         } else {
+          Song songToPlay = filteredSongs.first;
           if (songProvider.isShuffleEnabled) {
-            songProvider.toggleShuffle();
+            songToPlay = filteredSongs[Random().nextInt(filteredSongs.length)];
           }
-          songProvider.playSong(filteredSongs.first, filteredSongs);
+          songProvider.playSong(songToPlay, filteredSongs);
           CustomSnackBar.showInfo(
             context: context,
             message: "Favoriler oynatılıyor.",
@@ -1003,8 +1030,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
                       },
                     )
                   : canPopNavigator
-                  ? const BackButton(color: Colors.white)
-                  : null,
+                      ? const BackButton(color: Colors.white)
+                      : null,
               actions: [
                 if (_isSelectionMode) ...[
                   IconButton(
@@ -1024,7 +1051,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
             ),
             backgroundColor: const Color(0xFF121212),
             extendBody: true,
-            bottomNavigationBar: songProvider.currentSong != null
+            bottomNavigationBar: currentSongId != null
                 ? Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -1078,53 +1105,15 @@ class _FavoritesPageState extends State<FavoritesPage> {
                             child: Row(
                               children: [
                                 Expanded(
-                                  child: TextField(
+                                  child: CustomSearchBar(
                                     controller: _searchController,
-                                    style: const TextStyle(color: Colors.white),
-                                    decoration: InputDecoration(
-                                      hintText: langProvider.t(
-                                        'search_in_favorites',
-                                      ),
-                                      hintStyle: TextStyle(
-                                        color: Colors.grey.shade400,
-                                      ),
-                                      prefixIcon: Padding(
-                                        padding: const EdgeInsets.all(12.0),
-                                        child: CustomIcons.svgIcon(
-                                          CustomIcons.search,
-                                          color: Colors.grey,
-                                          size: 24,
-                                        ),
-                                      ),
-                                      filled: true,
-                                      fillColor: Colors.grey.shade900,
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide.none,
-                                      ),
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            vertical: 0,
-                                          ),
-                                      suffixIcon: _searchText.isNotEmpty
-                                          ? IconButton(
-                                              icon: CustomIcons.svgIcon(
-                                                CustomIcons.clear,
-                                                color: Colors.grey,
-                                                size: 24,
-                                              ),
-                                              onPressed: () {
-                                                _searchController.clear();
-                                                setState(
-                                                  () => _searchText = '',
-                                                );
-                                                FocusScope.of(
-                                                  context,
-                                                ).unfocus();
-                                              },
-                                            )
-                                          : null,
-                                    ),
+                                    hintText:
+                                        langProvider.t('search_in_favorites'),
+                                    showClearButton: _searchText.isNotEmpty,
+                                    onClear: () {
+                                      setState(() => _searchText = '');
+                                      FocusScope.of(context).unfocus();
+                                    },
                                     onChanged: (value) =>
                                         setState(() => _searchText = value),
                                   ),
@@ -1134,7 +1123,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                                   height: 48,
                                   decoration: BoxDecoration(
                                     color: Colors.grey.shade900,
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: CustomDropDown<SortOption>(
                                     icon: Row(
@@ -1240,24 +1229,14 @@ class _FavoritesPageState extends State<FavoritesPage> {
                                         child: InkWell(
                                           onTap: () {
                                             if (filteredSongs.isNotEmpty) {
-                                              if (!songProvider
-                                                  .isShuffleEnabled) {
-                                                songProvider.toggleShuffle();
-                                              }
-                                              final random = Random();
-                                              final randomSong =
-                                                  filteredSongs[random.nextInt(
-                                                    filteredSongs.length,
-                                                  )];
-                                              songProvider.playSong(
-                                                randomSong,
-                                                filteredSongs,
-                                              );
+                                              songProvider.toggleShuffle();
                                               CustomSnackBar.showInfo(
                                                 context: context,
-                                                message:
-                                                    "Favoriler karışık çalınıyor.",
-                                                icon: Icon(
+                                                message: songProvider
+                                                        .isShuffleEnabled
+                                                    ? "Karışık çalma açık."
+                                                    : "Karışık çalma kapalı.",
+                                                icon: const Icon(
                                                   Icons.shuffle_rounded,
                                                   color: Colors.white,
                                                   size: 24,
@@ -1282,16 +1261,15 @@ class _FavoritesPageState extends State<FavoritesPage> {
                                                   Container(
                                                     margin:
                                                         const EdgeInsets.only(
-                                                          top: 2,
-                                                        ),
+                                                      top: 2,
+                                                    ),
                                                     width: 4,
                                                     height: 4,
                                                     decoration:
                                                         const BoxDecoration(
-                                                          color: Colors.white,
-                                                          shape:
-                                                              BoxShape.circle,
-                                                        ),
+                                                      color: Colors.white,
+                                                      shape: BoxShape.circle,
+                                                    ),
                                                   ),
                                               ],
                                             ),
@@ -1344,14 +1322,13 @@ class _FavoritesPageState extends State<FavoritesPage> {
                                           child: Center(
                                             child: StreamBuilder<bool>(
                                               stream: songProvider
-                                                  .audioPlayer
-                                                  .playingStream,
+                                                  .audioPlayer.playingStream,
                                               builder: (context, snapshot) {
                                                 final playing =
                                                     snapshot.data ?? false;
                                                 final isPlayingNow =
                                                     isAnyFavoriteLoaded &&
-                                                    playing;
+                                                        playing;
                                                 return AnimatedSwitcher(
                                                   duration: const Duration(
                                                     milliseconds: 300,
@@ -1360,7 +1337,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                                                     isPlayingNow
                                                         ? Icons.pause_rounded
                                                         : Icons
-                                                              .play_arrow_rounded,
+                                                            .play_arrow_rounded,
                                                     key: ValueKey<bool>(
                                                       isPlayingNow,
                                                     ),
@@ -1471,18 +1448,18 @@ class _FavoritesPageState extends State<FavoritesPage> {
                                 ),
                               ),
                               SizedBox(
-                                height: 160,
+                                height: 125,
                                 child: ListView.builder(
                                   scrollDirection: Axis.horizontal,
                                   padding: EdgeInsets.symmetric(
                                     horizontal:
                                         MediaQuery.of(context).size.width *
-                                        0.025,
+                                            0.025,
                                   ),
                                   itemCount: favoriteFolders.length,
                                   itemBuilder: (context, index) {
                                     return Container(
-                                      width: 130,
+                                      width: 170,
                                       margin: const EdgeInsets.symmetric(
                                         horizontal: 4,
                                       ),
@@ -1508,76 +1485,85 @@ class _FavoritesPageState extends State<FavoritesPage> {
                                 Container(
                                   padding: const EdgeInsets.all(32),
                                   decoration: BoxDecoration(
-                                    color: Colors.grey.shade900,
+                                    color: Theme.of(context)
+                                        .primaryColor
+                                        .withOpacity(0.1),
                                     shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Theme.of(
-                                          context,
-                                        ).primaryColor.withOpacity(0.2),
-                                        blurRadius: 30,
-                                        spreadRadius: 5,
-                                      ),
-                                    ],
                                   ),
-                                  child: CustomIcons.svgIcon(
-                                    CustomIcons.favoriteRounded,
+                                  child: Icon(
+                                    Icons.favorite,
                                     size: 80,
-                                    color: Colors.grey.shade800,
+                                    color: Theme.of(context).primaryColor,
                                   ),
                                 ),
-                                const SizedBox(height: 32),
+                                const SizedBox(height: 24),
                                 Text(
                                   langProvider.t('no_favorites_yet'),
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 24,
+                                    fontSize: 22,
                                     fontWeight: FontWeight.bold,
                                   ),
+                                  textAlign: TextAlign.center,
                                 ),
                                 const SizedBox(height: 12),
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 48,
-                                  ),
+                                      horizontal: 48),
                                   child: Text(
                                     langProvider.t('no_favorites_desc'),
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       color: Colors.grey.shade400,
-                                      fontSize: 16,
-                                      height: 1.5,
+                                      fontSize: 15,
+                                      height: 1.4,
                                     ),
                                   ),
                                 ),
                                 const SizedBox(height: 40),
-                                ElevatedButton(
-                                  onPressed: () {
+                                InkWell(
+                                  onTap: () {
                                     mainScreenKey.currentState?.switchToTab(0);
                                   },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white.withOpacity(
-                                      0.2,
-                                    ),
-                                    foregroundColor: Colors.white,
+                                  borderRadius: BorderRadius.circular(30),
+                                  child: Padding(
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 32,
-                                      vertical: 16,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(30),
-                                    ),
-                                    side: BorderSide(
-                                      color: Colors.white.withOpacity(0.8),
-                                      width: 0.5,
-                                    ),
-                                    elevation: 10,
-                                  ),
-                                  child: Text(
-                                    langProvider.t('discover_songs'),
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
+                                        horizontal: 16, vertical: 8),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: Theme.of(context)
+                                                .primaryColor
+                                                .withOpacity(0.15),
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: Theme.of(context)
+                                                  .primaryColor
+                                                  .withOpacity(0.5),
+                                              width: 1.5,
+                                            ),
+                                          ),
+                                          child: Icon(
+                                            Icons.add_rounded,
+                                            color:
+                                                Theme.of(context).primaryColor,
+                                            size: 20,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          langProvider.t('discover_songs'),
+                                          style: TextStyle(
+                                            color:
+                                                Theme.of(context).primaryColor,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
@@ -1604,7 +1590,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                             MediaQuery.of(context).size.width * 0.025,
                             12,
                             MediaQuery.of(context).size.width * 0.025,
-                            songProvider.currentSong != null ? 160 : 100,
+                            currentSongId != null ? 160 : 100,
                           ),
                           sliver: SliverList(
                             delegate: SliverChildBuilderDelegate((
@@ -1633,6 +1619,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                                 isSelected: isSelected,
                                 showBorder: _isSelectionMode,
                                 showOptions: !_isSelectionMode,
+                                isPlaying: currentSongId == song.id,
                                 trailing: _isSelectionMode
                                     ? CustomIcons.svgIcon(
                                         isSelected
@@ -1649,7 +1636,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                                     _toggleSelection(song);
                                   } else {
                                     final isCurrentSong =
-                                        songProvider.currentSong?.id == song.id;
+                                        currentSongId == song.id;
                                     if (isCurrentSong &&
                                         songProvider.audioPlayer.playing) {
                                       songProvider.audioPlayer.pause();

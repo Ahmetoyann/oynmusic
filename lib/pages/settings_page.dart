@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:muzik_app/providers/song_provider.dart';
+import 'package:muzik_app/providers/auth_provider.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:muzik_app/providers/theme_provider.dart';
 import 'package:muzik_app/providers/language_provider.dart';
 import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
@@ -35,6 +37,8 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
     final languageProvider = context.watch<LanguageProvider>();
+    final authProvider = context.watch<AuthProvider>();
+    final user = authProvider.user;
     const textColor = Colors.white;
     final subTextColor = Colors.grey.shade600;
 
@@ -114,7 +118,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   color: Colors.grey.shade600,
                   size: 14,
                 ),
-                onTap: () => _showLanguageBottomSheet(context),
+                onTap: () => _showLanguageFullScreen(context),
               ),
             ],
           ),
@@ -234,7 +238,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   color: Colors.grey.shade600,
                   size: 14,
                 ),
-                onTap: () => _showSleepTimerDialog(context),
+                onTap: () => _showSleepTimerFullScreen(context),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -299,7 +303,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   color: Colors.grey.shade600,
                   size: 14,
                 ),
-                onTap: () => _showEqualizerBottomSheet(context),
+                onTap: () => _showEqualizerFullScreen(context),
               ),
             ],
           ),
@@ -309,6 +313,68 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildSettingsCard(
             context,
             children: [
+              Consumer<SongProvider>(
+                builder: (context, provider, child) {
+                  return SwitchListTile(
+                    secondary: _buildLeadingIcon(
+                      Colors.teal,
+                      const Icon(
+                        Icons.wifi_rounded,
+                        color: Colors.teal,
+                        size: 24,
+                      ),
+                    ),
+                    title: Text(
+                      languageProvider.t('download_wifi_only'),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    value: provider.downloadWifiOnly,
+                    activeColor: Theme.of(context).primaryColor,
+                    onChanged: (bool value) {
+                      provider.setDownloadWifiOnly(value);
+                    },
+                  );
+                },
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Divider(
+                  height: 1,
+                  color: Colors.white.withOpacity(0.05),
+                ),
+              ),
+              ListTile(
+                leading: _buildLeadingIcon(
+                  Colors.indigoAccent,
+                  const Icon(
+                    Icons.high_quality_rounded,
+                    color: Colors.indigoAccent,
+                    size: 24,
+                  ),
+                ),
+                title: Text(
+                  languageProvider.t('download_quality'),
+                  style: TextStyle(color: textColor),
+                ),
+                subtitle: Text(
+                  _getQualityText(context.watch<SongProvider>().downloadQuality,
+                      languageProvider),
+                  style: TextStyle(color: subTextColor, fontSize: 12),
+                ),
+                trailing: Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: Colors.grey.shade600,
+                  size: 14,
+                ),
+                onTap: () => _showDownloadQualityFullScreen(context),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Divider(
+                  height: 1,
+                  color: Colors.white.withOpacity(0.05),
+                ),
+              ),
               ListTile(
                 leading: _buildLeadingIcon(
                   Colors.orange,
@@ -363,7 +429,81 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
 
-          // 4. Uygulama Hakkında
+          // 4. Hesap Ayarları (Sadece giriş yapmış e-posta kullanıcıları için)
+          if (user != null &&
+              user.email != null &&
+              user.providerData
+                  .any((info) => info.providerId == 'password')) ...[
+            _buildSectionHeader(
+              context,
+              languageProvider.currentLanguage == 'tr' ? 'Hesap' : 'Account',
+            ),
+            _buildSettingsCard(
+              context,
+              children: [
+                ListTile(
+                  leading: _buildLeadingIcon(
+                    Colors.blueAccent,
+                    const Icon(
+                      Icons.lock_reset_rounded,
+                      color: Colors.blueAccent,
+                      size: 24,
+                    ),
+                  ),
+                  title: Text(
+                    languageProvider.t('change_password'),
+                    style: const TextStyle(color: textColor),
+                  ),
+                  subtitle: Text(
+                    languageProvider.t('change_password_desc'),
+                    style: TextStyle(color: subTextColor, fontSize: 12),
+                  ),
+                  trailing: Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: Colors.grey.shade600,
+                    size: 14,
+                  ),
+                  onTap: () {
+                    CustomBottomSheet.show(
+                      context: context,
+                      title: languageProvider.t('change_password'),
+                      message: languageProvider.currentLanguage == 'tr'
+                          ? 'Şifre sıfırlama bağlantısı e-posta adresinize (${user.email}) gönderilecektir. Onaylıyor musunuz?'
+                          : 'A password reset link will be sent to your email address (${user.email}). Do you confirm?',
+                      primaryButtonText:
+                          languageProvider.currentLanguage == 'tr'
+                              ? 'Evet, Gönder'
+                              : 'Yes, Send',
+                      primaryButtonColor: Colors.blueAccent,
+                      secondaryButtonText: languageProvider.t('cancel'),
+                      onPrimaryButtonTap: () async {
+                        Navigator.pop(context); // Önce onay penceresini kapat
+                        try {
+                          await authProvider.resetPassword(user.email!);
+                          if (context.mounted) {
+                            CustomSnackBar.showSuccess(
+                              context: context,
+                              message: languageProvider.t('reset_link_sent'),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            CustomSnackBar.showError(
+                              context: context,
+                              message:
+                                  e.toString().replaceAll('Exception: ', ''),
+                            );
+                          }
+                        }
+                      },
+                    );
+                  },
+                ),
+              ],
+            ),
+          ],
+
+          // 5. Uygulama Hakkında
           _buildSectionHeader(context, languageProvider.t('app')),
           _buildSettingsCard(
             context,
@@ -372,7 +512,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 leading: _buildLeadingIcon(
                   Theme.of(context).primaryColor,
                   Image.asset(
-                    'assets/icon/oyn_uyg_ikon.png',
+                    'assets/icon/OYN_ana_logo_seffaf.png',
                     width: 24,
                     height: 24,
                     color: Theme.of(context).primaryColor,
@@ -385,9 +525,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 trailing: FutureBuilder<PackageInfo>(
                   future: _packageInfoFuture,
                   builder: (context, snapshot) {
-                    final version = snapshot.hasData
-                        ? snapshot.data!.version
-                        : '...';
+                    final version =
+                        snapshot.hasData ? snapshot.data!.version : '...';
                     return Text(
                       version,
                       style: TextStyle(
@@ -406,84 +545,406 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _showLanguageBottomSheet(BuildContext context) {
-    CustomBottomSheet.showContent(
-      context: context,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 24),
-          Text(
-            'Language / Dil Seçimi',
-            style: TextStyle(
-              color: Theme.of(context).primaryColor,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+  void _showLanguageFullScreen(BuildContext context) {
+    final provider = context.read<LanguageProvider>();
+    String selectedLanguage = provider.currentLanguage;
+
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (pageContext, animation, secondaryAnimation) {
+          return Scaffold(
+            backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
+            body: SafeArea(
+              child: StatefulBuilder(
+                builder: (context, setState) {
+                  final primaryColor = Theme.of(context).primaryColor;
+
+                  Widget buildLangOption(
+                      String code, String name, String flag) {
+                    final isSelected = selectedLanguage == code;
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() => selectedLanguage = code);
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? primaryColor.withOpacity(0.2)
+                              : Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected
+                                ? primaryColor.withOpacity(0.5)
+                                : Colors.white.withOpacity(0.1),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? primaryColor.withOpacity(0.2)
+                                    : Colors.white.withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(flag,
+                                  style: const TextStyle(fontSize: 20)),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Text(
+                                name,
+                                style: TextStyle(
+                                  color:
+                                      isSelected ? primaryColor : Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            if (isSelected)
+                              Icon(Icons.check_circle_rounded,
+                                  color: primaryColor, size: 24),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
+                  return Column(
+                    children: [
+                      Align(
+                        alignment: Alignment.topRight,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: IconButton(
+                            icon: const Icon(Icons.close_rounded,
+                                color: Colors.white, size: 32),
+                            onPressed: () => Navigator.pop(pageContext),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Icon(Icons.language_rounded,
+                          size: 64, color: primaryColor),
+                      const SizedBox(height: 16),
+                      Text(
+                        provider.t('language_selection'),
+                        style: TextStyle(
+                          color: primaryColor,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      Expanded(
+                        child: ListView(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          physics: const BouncingScrollPhysics(),
+                          children: [
+                            buildLangOption('en', 'English', '🇬🇧'),
+                            buildLangOption('tr', 'Türkçe', '🇹🇷'),
+                            buildLangOption('fr', 'Français', '🇫🇷'),
+                            buildLangOption('de', 'Deutsch', '🇩🇪'),
+                            buildLangOption('es', 'Español', '🇪🇸'),
+                            buildLangOption('ar', 'العربية', '🇸🇦'),
+                            const SizedBox(height: 40),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 55,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: BackdropFilter(
+                                  filter:
+                                      ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                                  child: InkWell(
+                                    onTap: () async {
+                                      provider.setLanguage(selectedLanguage);
+                                      pageContext
+                                          .read<SongProvider>()
+                                          .rescheduleAllNotifications();
+                                      Navigator.pop(pageContext);
+                                    },
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: primaryColor.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: primaryColor.withOpacity(0.5),
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          provider.t('save'),
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          ...['en', 'tr', 'fr', 'de', 'es', 'ar'].map((langCode) {
-            final provider = context.read<LanguageProvider>();
-            final isSelected = provider.currentLanguage == langCode;
-            String langName = '';
-            String flag = '';
-            switch (langCode) {
-              case 'en':
-                langName = 'English';
-                flag = '🇬🇧';
-                break;
-              case 'tr':
-                langName = 'Türkçe';
-                flag = '🇹🇷';
-                break;
-              case 'fr':
-                langName = 'Français';
-                flag = '🇫🇷';
-                break;
-              case 'de':
-                langName = 'Deutsch';
-                flag = '🇩🇪';
-                break;
-              case 'es':
-                langName = 'Español';
-                flag = '🇪🇸';
-                break;
-              case 'ar':
-                langName = 'العربية';
-                flag = '🇸🇦';
-                break;
-            }
-            return ListTile(
-              leading: Container(
-                width: 36,
-                height: 26,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                alignment: Alignment.center,
-                child: Text(flag, style: const TextStyle(fontSize: 16)),
+          );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 1.0);
+          const end = Offset.zero;
+          const curve = Curves.easeOutCubic;
+          var tween =
+              Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          return SlideTransition(
+              position: animation.drive(tween), child: child);
+        },
+      ),
+    );
+  }
+
+  String _getQualityText(String quality, LanguageProvider langProvider) {
+    switch (quality) {
+      case 'low':
+        return langProvider.t('quality_low');
+      case 'medium':
+        return langProvider.t('quality_medium');
+      case 'high':
+      default:
+        return langProvider.t('quality_high');
+    }
+  }
+
+  void _showDownloadQualityFullScreen(BuildContext context) {
+    final provider = context.read<SongProvider>();
+    final langProvider = context.read<LanguageProvider>();
+    String selectedQuality = provider.downloadQuality;
+
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (pageContext, animation, secondaryAnimation) {
+          return Scaffold(
+            backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
+            body: SafeArea(
+              child: StatefulBuilder(
+                builder: (context, setState) {
+                  final primaryColor = Theme.of(context).primaryColor;
+
+                  Widget buildQualityOption(String code, String title,
+                      String subtitle, IconData icon) {
+                    final isSelected = selectedQuality == code;
+                    return GestureDetector(
+                      onTap: () => setState(() => selectedQuality = code),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? primaryColor.withOpacity(0.2)
+                              : Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected
+                                ? primaryColor.withOpacity(0.5)
+                                : Colors.white.withOpacity(0.1),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(icon,
+                                color:
+                                    isSelected ? primaryColor : Colors.white70,
+                                size: 32),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    title,
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? primaryColor
+                                          : Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    subtitle,
+                                    style: TextStyle(
+                                      color: Colors.grey.shade400,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (isSelected)
+                              Icon(Icons.check_circle_rounded,
+                                  color: primaryColor, size: 24),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
+                  return Column(
+                    children: [
+                      Align(
+                        alignment: Alignment.topRight,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: IconButton(
+                            icon: const Icon(Icons.close_rounded,
+                                color: Colors.white, size: 32),
+                            onPressed: () => Navigator.pop(pageContext),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Icon(Icons.high_quality_rounded,
+                          size: 64, color: primaryColor),
+                      const SizedBox(height: 16),
+                      Text(
+                        langProvider.t('download_quality'),
+                        style: TextStyle(
+                          color: primaryColor,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        child: Text(
+                          langProvider.currentLanguage == 'tr'
+                              ? "Bu ayar MP3 indirmelerinde ses kalitesini (Bitrate), MP4 video indirmelerinde ise görüntü çözünürlüğünü (1080p, 720p, 480p) belirler."
+                              : "This setting determines the audio quality (Bitrate) for MP3 downloads, and the video resolution (1080p, 720p, 480p) for MP4 downloads.",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              color: Colors.grey.shade400,
+                              fontSize: 13,
+                              height: 1.4),
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      Expanded(
+                        child: ListView(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          physics: const BouncingScrollPhysics(),
+                          children: [
+                            buildQualityOption(
+                              'high',
+                              langProvider.currentLanguage == 'tr'
+                                  ? 'Yüksek Kalite'
+                                  : 'High Quality',
+                              '1080p / 320kbps',
+                              Icons.hd_rounded,
+                            ),
+                            buildQualityOption(
+                              'medium',
+                              langProvider.currentLanguage == 'tr'
+                                  ? 'Orta Kalite'
+                                  : 'Medium Quality',
+                              '720p / 192kbps',
+                              Icons.sd_rounded,
+                            ),
+                            buildQualityOption(
+                              'low',
+                              langProvider.currentLanguage == 'tr'
+                                  ? 'Düşük Kalite'
+                                  : 'Low Quality',
+                              '480p / 128kbps',
+                              Icons.data_saver_on_rounded,
+                            ),
+                            const SizedBox(height: 40),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 55,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: BackdropFilter(
+                                  filter:
+                                      ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                                  child: InkWell(
+                                    onTap: () async {
+                                      provider
+                                          .setDownloadQuality(selectedQuality);
+                                      Navigator.pop(pageContext);
+                                    },
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: primaryColor.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: primaryColor.withOpacity(0.5),
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          langProvider.t('save') ??
+                                              (langProvider.currentLanguage ==
+                                                      'tr'
+                                                  ? 'Kaydet'
+                                                  : 'Save'),
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
-              title: Text(
-                langName,
-                style: TextStyle(
-                  color: isSelected
-                      ? Theme.of(context).primaryColor
-                      : Colors.white,
-                ),
-              ),
-              trailing: isSelected
-                  ? Icon(Icons.check, color: Theme.of(context).primaryColor)
-                  : null,
-              onTap: () {
-                provider.setLanguage(langCode);
-                context.read<SongProvider>().rescheduleAllNotifications();
-                Navigator.pop(context);
-              },
-            );
-          }).toList(),
-          const SizedBox(height: 16),
-        ],
+            ),
+          );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 1.0);
+          const end = Offset.zero;
+          const curve = Curves.easeOutCubic;
+          var tween =
+              Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          return SlideTransition(
+              position: animation.drive(tween), child: child);
+        },
       ),
     );
   }
@@ -647,99 +1108,141 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _showSleepTimerDialog(BuildContext context) {
+  void _showSleepTimerFullScreen(BuildContext context) {
     final langProvider = context.read<LanguageProvider>();
 
-    CustomBottomSheet.showContent(
-      context: context,
-      child: Consumer<SongProvider>(
-        builder: (context, provider, child) {
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 32),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CustomIcons.svgIcon(
-                    CustomIcons.timerOutlined,
-                    color: Theme.of(context).primaryColor,
-                    size: 28,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    langProvider.t('sleep_timer'),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              if (provider.isSleepTimerActive &&
-                  provider.sleepTimerEndTime != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  "Kapanış: ${provider.sleepTimerEndTime!.hour.toString().padLeft(2, '0')}:${provider.sleepTimerEndTime!.minute.toString().padLeft(2, '0')}",
-                  style: TextStyle(
-                    color: Theme.of(context).primaryColor,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 32),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    _buildModernTimerOption(context, 15),
-                    _buildModernTimerOption(context, 30),
-                    _buildModernTimerOption(context, 45),
-                    _buildModernTimerOption(context, 60),
-                    _buildModernTimerOption(context, 90),
-                    _buildModernTimerOption(context, 120),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              if (provider.isSleepTimerActive)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () {
-                        provider.cancelSleepTimer();
-                        Navigator.pop(context);
-                        CustomSnackBar.showInfo(
-                          context: context,
-                          message: langProvider.t('timer_canceled'),
-                        );
-                      },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.redAccent,
-                        side: const BorderSide(color: Colors.redAccent),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (pageContext, animation, secondaryAnimation) {
+          return Scaffold(
+            backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
+            body: SafeArea(
+              child: Consumer<SongProvider>(
+                builder: (context, provider, child) {
+                  final primaryColor = Theme.of(context).primaryColor;
+                  return Column(
+                    children: [
+                      Align(
+                        alignment: Alignment.topRight,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: IconButton(
+                            icon: const Icon(Icons.close_rounded,
+                                color: Colors.white, size: 32),
+                            onPressed: () => Navigator.pop(pageContext),
+                          ),
                         ),
                       ),
-                      child: Text(
-                        langProvider.t('cancel'),
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      const SizedBox(height: 8),
+                      Icon(Icons.timer_rounded, size: 64, color: primaryColor),
+                      const SizedBox(height: 16),
+                      Text(
+                        langProvider.t('sleep_timer'),
+                        style: TextStyle(
+                          color: primaryColor,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                  ),
-                )
-              else
-                const SizedBox(height: 24),
-            ],
+                      if (provider.isSleepTimerActive &&
+                          provider.sleepTimerEndTime != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          "Kapanış: ${provider.sleepTimerEndTime!.hour.toString().padLeft(2, '0')}:${provider.sleepTimerEndTime!.minute.toString().padLeft(2, '0')}",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 32),
+                      Expanded(
+                        child: ListView(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          physics: const BouncingScrollPhysics(),
+                          children: [
+                            Wrap(
+                              spacing: 16,
+                              runSpacing: 16,
+                              alignment: WrapAlignment.center,
+                              children: [
+                                _buildModernTimerOption(context, 15),
+                                _buildModernTimerOption(context, 30),
+                                _buildModernTimerOption(context, 45),
+                                _buildModernTimerOption(context, 60),
+                                _buildModernTimerOption(context, 90),
+                                _buildModernTimerOption(context, 120),
+                              ],
+                            ),
+                            const SizedBox(height: 40),
+                            if (provider.isSleepTimerActive)
+                              SizedBox(
+                                width: double.infinity,
+                                height: 55,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(
+                                        sigmaX: 10, sigmaY: 10),
+                                    child: InkWell(
+                                      onTap: () {
+                                        provider.cancelSleepTimer();
+                                        Navigator.pop(pageContext);
+                                        CustomSnackBar.showInfo(
+                                          context: context,
+                                          message:
+                                              langProvider.t('timer_canceled'),
+                                        );
+                                      },
+                                      borderRadius: BorderRadius.circular(16),
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color:
+                                              Colors.redAccent.withOpacity(0.2),
+                                          borderRadius:
+                                              BorderRadius.circular(16),
+                                          border: Border.all(
+                                            color: Colors.redAccent
+                                                .withOpacity(0.5),
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            langProvider.t('cancel'),
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            const SizedBox(height: 24),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
           );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 1.0);
+          const end = Offset.zero;
+          const curve = Curves.easeOutCubic;
+          var tween =
+              Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          return SlideTransition(
+              position: animation.drive(tween), child: child);
         },
       ),
     );
@@ -763,10 +1266,10 @@ class _SettingsPageState extends State<SettingsPage> {
         },
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          width: (MediaQuery.of(context).size.width - 64) / 3,
+          width: (MediaQuery.of(context).size.width - 80) / 3,
           padding: const EdgeInsets.symmetric(vertical: 20),
           decoration: BoxDecoration(
-            color: Colors.grey.shade900,
+            color: Colors.white.withOpacity(0.05),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: Colors.white.withOpacity(0.1)),
           ),
@@ -782,9 +1285,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               const SizedBox(height: 4),
               Text(
-                langProvider
-                    .t('duration')
-                    .substring(
+                langProvider.t('duration').substring(
                       0,
                       2,
                     ), // "Süre" kelimesinin ilk 2 harfi (Sü) veya çeviriye göre değişir
@@ -801,11 +1302,23 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _showEqualizerBottomSheet(BuildContext context) {
-    CustomBottomSheet.showContent(
-      context: context,
-      isScrollControlled: true,
-      child: const _EqualizerSheet(),
+  void _showEqualizerFullScreen(BuildContext context) {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (pageContext, animation, secondaryAnimation) {
+          return const _EqualizerFullScreen();
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 1.0);
+          const end = Offset.zero;
+          const curve = Curves.easeOutCubic;
+          var tween =
+              Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          return SlideTransition(
+              position: animation.drive(tween), child: child);
+        },
+      ),
     );
   }
 }
@@ -971,14 +1484,14 @@ class _UpdateCheckButtonState extends State<_UpdateCheckButton> {
   }
 }
 
-class _EqualizerSheet extends StatefulWidget {
-  const _EqualizerSheet();
+class _EqualizerFullScreen extends StatefulWidget {
+  const _EqualizerFullScreen();
 
   @override
-  State<_EqualizerSheet> createState() => _EqualizerSheetState();
+  State<_EqualizerFullScreen> createState() => _EqualizerFullScreenState();
 }
 
-class _EqualizerSheetState extends State<_EqualizerSheet> {
+class _EqualizerFullScreenState extends State<_EqualizerFullScreen> {
   late bool _isEnabled;
   late List<double> _values;
   final List<String> _freqs = ['60Hz', '230Hz', '910Hz', '3.6kHz', '14kHz'];
@@ -1007,159 +1520,187 @@ class _EqualizerSheetState extends State<_EqualizerSheet> {
     final primaryColor = Theme.of(context).primaryColor;
     final langProvider = context.watch<LanguageProvider>();
 
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-        left: 24,
-        right: 24,
-        top: 12,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: IconButton(
+                  icon: const Icon(Icons.close_rounded,
+                      color: Colors.white, size: 32),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Icon(Icons.equalizer_rounded, size: 64, color: primaryColor),
+            const SizedBox(height: 16),
+            Text(
+              langProvider.t('equalizer'),
+              style: TextStyle(
+                color: primaryColor,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 32),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                physics: const BouncingScrollPhysics(),
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: primaryColor.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.equalizer_rounded,
-                      color: primaryColor,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Text(
-                    langProvider.t('equalizer'),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              Switch(
-                value: _isEnabled,
-                activeColor: primaryColor,
-                onChanged: (val) {
-                  setState(() => _isEnabled = val);
-                  _saveToProvider();
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                _isEnabled
-                    ? langProvider.t('custom_setting')
-                    : langProvider.t('off'),
-                style: TextStyle(
-                  color: _isEnabled ? primaryColor : Colors.grey.shade500,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              TextButton(
-                onPressed: _isEnabled ? _reset : null,
-                style: TextButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  minimumSize: const Size(50, 30),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: Text(
-                  langProvider.t('reset'),
-                  style: TextStyle(
-                    color: _isEnabled ? Colors.white70 : Colors.grey.shade700,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            height: 220,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: List.generate(5, (index) {
-                return Column(
-                  children: [
-                    Text(
-                      _values[index] > 0
-                          ? "+${_values[index].toInt()}dB"
-                          : "${_values[index].toInt()}dB",
-                      style: TextStyle(
-                        color: _isEnabled ? Colors.white : Colors.grey.shade700,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _isEnabled
+                            ? langProvider.t('custom_setting')
+                            : langProvider.t('off'),
+                        style: TextStyle(
+                          color:
+                              _isEnabled ? primaryColor : Colors.grey.shade500,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
+                      Switch(
+                        value: _isEnabled,
+                        activeColor: primaryColor,
+                        onChanged: (val) {
+                          setState(() => _isEnabled = val);
+                          _saveToProvider();
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Container(
+                    height: 300,
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: Colors.white.withOpacity(0.1)),
                     ),
-                    const SizedBox(height: 12),
-                    Expanded(
-                      child: RotatedBox(
-                        quarterTurns: 3, // Dikey slider için çeviriyoruz
-                        child: SliderTheme(
-                          data: SliderTheme.of(context).copyWith(
-                            trackHeight: 6,
-                            activeTrackColor: _isEnabled
-                                ? primaryColor
-                                : Colors.grey.shade800,
-                            inactiveTrackColor: _isEnabled
-                                ? Colors.white.withOpacity(0.08)
-                                : Colors.white.withOpacity(0.02),
-                            thumbColor: _isEnabled
-                                ? Colors.white
-                                : Colors.grey.shade600,
-                            overlayColor: primaryColor.withOpacity(0.2),
-                            trackShape: const RoundedRectSliderTrackShape(),
-                          ),
-                          child: Slider(
-                            value: _values[index],
-                            min: -15,
-                            max: 15,
-                            divisions: 30, // Hassas geçişler
-                            onChanged: _isEnabled
-                                ? (val) {
-                                    setState(() {
-                                      _values[index] = val;
-                                    });
-                                  }
-                                : null,
-                            onChangeEnd: _isEnabled
-                                ? (val) => _saveToProvider()
-                                : null,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: List.generate(5, (index) {
+                        return Column(
+                          children: [
+                            Text(
+                              _values[index] > 0
+                                  ? "+${_values[index].toInt()}dB"
+                                  : "${_values[index].toInt()}dB",
+                              style: TextStyle(
+                                color: _isEnabled
+                                    ? Colors.white
+                                    : Colors.grey.shade700,
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Expanded(
+                              child: RotatedBox(
+                                quarterTurns: 3,
+                                child: SliderTheme(
+                                  data: SliderTheme.of(context).copyWith(
+                                    trackHeight: 6,
+                                    activeTrackColor: _isEnabled
+                                        ? primaryColor
+                                        : Colors.grey.shade800,
+                                    inactiveTrackColor: _isEnabled
+                                        ? Colors.white.withOpacity(0.08)
+                                        : Colors.white.withOpacity(0.02),
+                                    thumbColor: _isEnabled
+                                        ? Colors.white
+                                        : Colors.grey.shade600,
+                                    overlayColor: primaryColor.withOpacity(0.2),
+                                    trackShape:
+                                        const RoundedRectSliderTrackShape(),
+                                  ),
+                                  child: Slider(
+                                    value: _values[index],
+                                    min: -15,
+                                    max: 15,
+                                    divisions: 30,
+                                    onChanged: _isEnabled
+                                        ? (val) {
+                                            setState(() {
+                                              _values[index] = val;
+                                            });
+                                          }
+                                        : null,
+                                    onChangeEnd: _isEnabled
+                                        ? (val) => _saveToProvider()
+                                        : null,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            Text(
+                              _freqs[index],
+                              style: TextStyle(
+                                color: _isEnabled
+                                    ? Colors.grey.shade400
+                                    : Colors.grey.shade700,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        );
+                      }),
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  if (_isEnabled)
+                    SizedBox(
+                      width: double.infinity,
+                      height: 55,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: InkWell(
+                            onTap: _reset,
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: primaryColor.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: primaryColor.withOpacity(0.5),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  langProvider.t('reset'),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      _freqs[index],
-                      style: TextStyle(
-                        color: _isEnabled
-                            ? Colors.grey.shade400
-                            : Colors.grey.shade700,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                );
-              }),
+                  const SizedBox(height: 24),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -9,6 +9,9 @@ import 'package:muzik_app/models/song_model.dart';
 import 'package:muzik_app/services/audius_service.dart';
 import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/providers/language_provider.dart';
+import 'package:muzik_app/providers/auth_provider.dart';
+import 'package:muzik_app/widgets/custom_snack_bar.dart';
+import 'package:muzik_app/widgets/custom_search_bar.dart';
 
 class InitialArtistsPage extends StatefulWidget {
   final VoidCallback onCompleted;
@@ -85,6 +88,9 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
 
   Future<void> _finishSelection() async {
     final provider = context.read<SongProvider>();
+    final langProvider = context.read<LanguageProvider>();
+    final authProvider = context.read<AuthProvider>();
+
     // Seçilen sanatçıları Firestore'a kaydet
     await provider.saveFollowedArtistsToFirestore();
     await provider.markInitialArtistsSeen();
@@ -92,6 +98,14 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
     // Ana sayfaya geçmeden önce, trendleri seçilen sanatçılara göre yenilemek için tetikle
     // forceRefresh: true ile eski listeyi temizleyip yükleme ekranının görünmesini sağlıyoruz.
     provider.fetchSongsFromApi(forceRefresh: true);
+
+    if (mounted) {
+      final userName = authProvider.user?.displayName ?? langProvider.t('user');
+      CustomSnackBar.showSuccess(
+        context: context,
+        message: langProvider.t('welcome_user').replaceAll('%s', userName),
+      );
+    }
 
     widget.onCompleted(); // Seçim bitti, AuthWrapper'ı tetikle
   }
@@ -175,44 +189,22 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24.0),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius:
+                          BorderRadius.circular(CustomSearchBar.cornerRadius),
                       child: BackdropFilter(
                         filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
                         child: Container(
                           color: Colors.grey.shade800.withOpacity(0.5),
-                          child: TextField(
+                          child: CustomSearchBar(
                             controller: _searchController,
-                            style: const TextStyle(color: Colors.white),
-                            decoration: InputDecoration(
-                              hintText: langProvider.t('search_artist'),
-                              hintStyle: TextStyle(color: Colors.grey.shade500),
-                              prefixIcon: Padding(
-                                padding: const EdgeInsets.all(12.0),
-                                child: CustomIcons.svgIcon(
-                                  CustomIcons.search,
-                                  color: Colors.grey.shade400,
-                                  size: 24,
-                                ),
-                              ),
-                              suffixIcon: _searchQuery.isNotEmpty
-                                  ? IconButton(
-                                      icon: CustomIcons.svgIcon(
-                                        CustomIcons.clear,
-                                        size: 24,
-                                        color: Colors.grey,
-                                      ),
-                                      onPressed: () {
-                                        _searchController.clear();
-                                        _onSearchChanged('');
-                                      },
-                                    )
-                                  : null,
-                              border: InputBorder.none,
-                              filled: false,
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 15,
-                              ),
-                            ),
+                            hintText: langProvider.t('search_artist'),
+                            fillColor: Colors.transparent,
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 15),
+                            showClearButton: _searchQuery.isNotEmpty,
+                            onClear: () {
+                              _onSearchChanged('');
+                            },
                             onChanged: _onSearchChanged,
                           ),
                         ),
@@ -289,192 +281,156 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
                             ),
                           )
                         : displayArtists.isEmpty && _searchQuery.isNotEmpty
-                        ? Center(
-                            child: Text(
-                              langProvider.t('no_results'),
-                              style: const TextStyle(
-                                color: Colors.grey,
-                                fontSize: 16,
-                              ),
-                            ),
-                          )
-                        : GridView.builder(
-                            padding: const EdgeInsets.fromLTRB(
-                              24,
-                              8,
-                              24,
-                              120,
-                            ), // Alt buton için kaydırma boşluğu
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
+                            ? Center(
+                                child: Text(
+                                  langProvider.t('no_results'),
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              )
+                            : GridView.builder(
+                                padding: const EdgeInsets.fromLTRB(
+                                  24,
+                                  8,
+                                  24,
+                                  120,
+                                ), // Alt buton için kaydırma boşluğu
+                                gridDelegate:
+                                    const SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: 2,
-                                  childAspectRatio: 1.0, // Tam kare boyut
+                                  childAspectRatio:
+                                      0.8, // Altında isim yazması için dikeyde yer açtık
                                   crossAxisSpacing: 16,
                                   mainAxisSpacing: 16,
                                 ),
-                            itemCount: displayArtists.length,
-                            itemBuilder: (context, index) {
-                              final artist = displayArtists[index];
-                              final isSelected = provider.isArtistFollowed(
-                                artist.artist,
-                              );
-                              // Seçiliyse listedeki sırasını bul (0'dan başladığı için +1 ekliyoruz)
-                              final selectionIndex = isSelected
-                                  ? provider.followedArtists.indexOf(
-                                          artist.artist,
-                                        ) +
-                                        1
-                                  : 0;
-
-                              return GestureDetector(
-                                onTap: () {
-                                  provider.toggleFollowArtist(
+                                itemCount: displayArtists.length,
+                                itemBuilder: (context, index) {
+                                  final artist = displayArtists[index];
+                                  final isSelected = provider.isArtistFollowed(
                                     artist.artist,
-                                    syncToFirestore: false,
                                   );
-                                  // Klavye açıksa kapat
-                                  FocusScope.of(context).unfocus();
-                                },
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 300),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: isSelected
-                                          ? Theme.of(context).primaryColor
-                                          : Colors.transparent,
-                                      width: 3,
-                                    ),
-                                    boxShadow: isSelected
-                                        ? [
-                                            BoxShadow(
-                                              color: Theme.of(
-                                                context,
-                                              ).primaryColor.withOpacity(0.3),
-                                              blurRadius: 15,
-                                              spreadRadius: 2,
-                                            ),
-                                          ]
-                                        : [],
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(17),
-                                    child: Stack(
-                                      fit: StackFit.expand,
+
+                                  return GestureDetector(
+                                    onTap: () {
+                                      provider.toggleFollowArtist(
+                                        artist.artist,
+                                        syncToFirestore: false,
+                                      );
+                                      // Klavye açıksa kapat
+                                      FocusScope.of(context).unfocus();
+                                    },
+                                    child: Column(
                                       children: [
-                                        // Kapak Resmi
-                                        artist.coverUrl.isNotEmpty
-                                            ? Transform.scale(
-                                                scale:
-                                                    (artist.coverUrl.contains(
-                                                          'ytimg.com',
-                                                        ) ||
-                                                        artist.coverUrl
-                                                            .contains(
-                                                              'youtube.com',
-                                                            ))
-                                                    ? 1.35
-                                                    : 1.0,
-                                                child: Image.network(
-                                                  artist.coverUrl,
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder: (c, e, s) =>
-                                                      Container(
-                                                        color: Colors
-                                                            .grey
-                                                            .shade800,
-                                                      ),
-                                                ),
-                                              )
-                                            : Container(
-                                                color: Colors.white.withOpacity(
-                                                  0.05,
-                                                ),
-                                                child: Center(
-                                                  child: SizedBox(
-                                                    width: 24,
-                                                    height: 24,
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                          color: Theme.of(
-                                                            context,
-                                                          ).primaryColor,
-                                                          strokeWidth: 2.5,
-                                                        ),
-                                                  ),
-                                                ),
+                                        Expanded(
+                                          child: AnimatedContainer(
+                                            duration: const Duration(
+                                                milliseconds: 300),
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: isSelected
+                                                    ? Colors.greenAccent
+                                                    : Colors.transparent,
+                                                width: 3,
                                               ),
-                                        // Alt kısımdaki isim okunsun diye Gradient karartma
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                              begin: Alignment.topCenter,
-                                              end: Alignment.bottomCenter,
-                                              colors: [
-                                                Colors.transparent,
-                                                Colors.black.withOpacity(0.8),
-                                              ],
-                                              stops: const [0.5, 1.0],
+                                              boxShadow: isSelected
+                                                  ? [
+                                                      BoxShadow(
+                                                        color: Colors
+                                                            .greenAccent
+                                                            .withOpacity(0.3),
+                                                        blurRadius: 15,
+                                                        spreadRadius: 2,
+                                                      ),
+                                                    ]
+                                                  : [],
+                                            ),
+                                            child: ClipOval(
+                                              child: Stack(
+                                                fit: StackFit.expand,
+                                                children: [
+                                                  // Kapak Resmi
+                                                  artist.coverUrl.isNotEmpty
+                                                      ? Image.network(
+                                                          artist.coverUrl,
+                                                          fit: BoxFit.cover,
+                                                          errorBuilder: (c, e,
+                                                                  s) =>
+                                                              Container(
+                                                                  color: Colors
+                                                                      .grey
+                                                                      .shade800),
+                                                        )
+                                                      : Container(
+                                                          color: Colors.white
+                                                              .withOpacity(
+                                                                  0.05),
+                                                          child: Center(
+                                                            child: SizedBox(
+                                                              width: 24,
+                                                              height: 24,
+                                                              child:
+                                                                  CircularProgressIndicator(
+                                                                color: Theme.of(
+                                                                        context)
+                                                                    .primaryColor,
+                                                                strokeWidth:
+                                                                    2.5,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                  // Sadece seçildiğinde hafif kararma efekti
+                                                  if (isSelected)
+                                                    Container(
+                                                        color: Colors.black
+                                                            .withOpacity(0.4)),
+                                                  if (isSelected)
+                                                    Center(
+                                                      child: Icon(
+                                                        Icons
+                                                            .check_circle_rounded,
+                                                        color:
+                                                            Colors.greenAccent,
+                                                        size: 54,
+                                                        shadows: [
+                                                          Shadow(
+                                                            color: Colors
+                                                                .greenAccent
+                                                                .withOpacity(
+                                                                    0.8),
+                                                            blurRadius: 20,
+                                                            offset:
+                                                                const Offset(
+                                                                    0, 0),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
                                             ),
                                           ),
                                         ),
-                                        if (isSelected)
-                                          Container(
-                                            color: Theme.of(
-                                              context,
-                                            ).primaryColor.withOpacity(0.2),
-                                          ),
-                                        if (isSelected)
-                                          Positioned(
-                                            top: 12,
-                                            right: 12,
-                                            child: Container(
-                                              width: 26,
-                                              height: 26,
-                                              alignment: Alignment.center,
-                                              decoration: BoxDecoration(
-                                                color: Theme.of(
-                                                  context,
-                                                ).primaryColor,
-                                                shape: BoxShape.circle,
-                                                border: Border.all(
-                                                  color: Colors.white,
-                                                  width: 2,
-                                                ),
-                                              ),
-                                              child: Text(
-                                                '$selectionIndex',
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        Positioned(
-                                          bottom: 12,
-                                          left: 12,
-                                          right: 12,
-                                          child: Text(
-                                            artist.artist,
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            textAlign: TextAlign.center,
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 14,
-                                            ),
+                                        const SizedBox(height: 10),
+                                        Text(
+                                          artist.artist,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
                                           ),
                                         ),
                                       ],
                                     ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
+                                  );
+                                },
+                              ),
                   ),
                 ],
               ),
@@ -508,41 +464,20 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
                     children: [
                       Expanded(
                         flex: 1,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.05),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.15),
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  onTap: _finishSelection,
-                                  borderRadius: BorderRadius.circular(20),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 16,
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        langProvider.t('skip'),
-                                        style: const TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
+                        child: TextButton(
+                          onPressed: _finishSelection,
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          child: Text(
+                            langProvider.t('skip'),
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),

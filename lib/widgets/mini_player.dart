@@ -36,15 +36,13 @@ class MiniPlayer extends StatefulWidget {
       );
 
       // Canlı veya belirgin renkleri tercih et
-      Color? color =
-          generator.vibrantColor?.color ??
+      Color? color = generator.vibrantColor?.color ??
           generator.lightVibrantColor?.color ??
           generator.dominantColor?.color;
 
       // Eğer renk siyaha çok yakınsa (luminance < 0.05) daha açık/soluk alternatifleri dene
       if (color != null && color.computeLuminance() < 0.05) {
-        color =
-            generator.lightMutedColor?.color ??
+        color = generator.lightMutedColor?.color ??
             generator.mutedColor?.color ??
             color;
       }
@@ -63,10 +61,9 @@ class MiniPlayer extends StatefulWidget {
   State<MiniPlayer> createState() => _MiniPlayerState();
 }
 
-class _MiniPlayerState extends State<MiniPlayer>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+class _MiniPlayerState extends State<MiniPlayer> {
   Timer? _timer;
+  late SongProvider _songProvider;
 
   // Global state'ler: MiniPlayer'ın tüm sayfalarda aynı durumu (açık/kapalı) ve aynı konumu korumasını sağlar
   static final ValueNotifier<bool> isGloballyMinimized = ValueNotifier<bool>(
@@ -111,16 +108,12 @@ class _MiniPlayerState extends State<MiniPlayer>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      duration: const Duration(seconds: 3),
-      vsync: this,
-    );
+    _songProvider = context.read<SongProvider>();
     _startTimer();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
     _timer?.cancel();
     super.dispose();
   }
@@ -128,8 +121,7 @@ class _MiniPlayerState extends State<MiniPlayer>
   void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
-        final provider = context.read<SongProvider>();
-        if (provider.isSleepTimerActive) {
+        if (_songProvider.isSleepTimerActive) {
           setState(() {});
         }
       }
@@ -167,19 +159,12 @@ class _MiniPlayerState extends State<MiniPlayer>
               final playerState = snapshot.data;
               final playing = playerState?.playing ?? false;
               final processingState = playerState?.processingState;
-              final isLoading =
-                  processingState == ProcessingState.loading ||
+              final isLoading = processingState == ProcessingState.loading ||
                   processingState == ProcessingState.buffering ||
                   songProvider.isSongLoading;
 
               final glowColor =
                   _dominantColor ?? Theme.of(context).primaryColor;
-
-              if (playing && !_controller.isAnimating) {
-                _controller.repeat();
-              } else if (!playing && _controller.isAnimating) {
-                _controller.stop();
-              }
 
               return _buildExpandedPlayer(
                 context,
@@ -237,215 +222,209 @@ class _MiniPlayerState extends State<MiniPlayer>
           onTap: () {
             PlayerPage.show(context);
           },
-          child: Container(
-            width: screenWidth * 0.95,
-            child: AnimatedBuilder(
-              animation: _controller,
-              builder: (context, child) {
-                return Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    gradient: playing
-                        ? SweepGradient(
-                            colors: [
-                              Colors.transparent,
-                              glowColor,
-                              Colors.transparent,
-                            ],
-                            stops: const [0.0, 0.5, 1.0],
-                            transform: GradientRotation(
-                              _controller.value * 2 * math.pi,
-                            ),
-                          )
-                        : null,
-                    color: playing ? null : Colors.transparent,
-                  ),
-                  child: child,
-                );
-              },
+          child: RepaintBoundary(
+            child: SizedBox(
+              width: screenWidth * 0.95,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(6),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(
-                    color: Colors.grey.shade900.withOpacity(0.6),
-                    child: Stack(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          child: Row(
-                            children: [
-                              // En Sol: Kapak Resmi
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: Transform.scale(
-                                  scale:
-                                      (song.coverUrl.contains('ytimg.com') ||
-                                          song.coverUrl.contains('youtube.com'))
-                                      ? 1.35
-                                      : 1.0,
-                                  child:
-                                      (song.localImagePath != null &&
-                                          File(
-                                            song.localImagePath!,
-                                          ).existsSync())
-                                      ? Image.file(
-                                          File(song.localImagePath!),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  color: (playing || isLoading)
+                      ? Color.lerp(Colors.grey.shade900, glowColor, 0.25)
+                      : Colors.grey.shade900,
+                  child: Stack(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          left: 6,
+                          right: 12,
+                          top: 8,
+                          bottom: 8,
+                        ),
+                        child: Row(
+                          children: [
+                            // En Sol: Kapak Resmi
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: (song.localImagePath != null &&
+                                      File(
+                                        song.localImagePath!,
+                                      ).existsSync())
+                                  ? Image.file(
+                                      File(song.localImagePath!),
+                                      height: 44,
+                                      width: 78,
+                                      fit: BoxFit.cover,
+                                      cacheHeight: 150,
+                                      errorBuilder: (
+                                        context,
+                                        error,
+                                        stackTrace,
+                                      ) =>
+                                          Container(
+                                        height: 44,
+                                        width: 78,
+                                        color: Colors.black,
+                                        child: Center(
+                                          child: Image.asset(
+                                            'assets/icon/OYN_ana_logo_seffaf.png',
+                                            color:
+                                                Theme.of(context).primaryColor,
+                                            width: 24,
+                                            height: 24,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  : (song.coverUrl.isEmpty)
+                                      ? Container(
                                           height: 44,
-                                          width: 44,
-                                          fit: BoxFit.cover,
-                                          cacheHeight: 150,
-                                          errorBuilder:
-                                              (
-                                                context,
-                                                error,
-                                                stackTrace,
-                                              ) => Container(
-                                                height: 44,
-                                                width: 44,
-                                                color: Colors.grey.shade800,
-                                                child: CustomIcons.svgIcon(
-                                                  CustomIcons.musicNoteRounded,
-                                                  color: Colors.white24,
-                                                  size: 20,
-                                                ),
-                                              ),
+                                          width: 78,
+                                          color: Colors.black,
+                                          child: Center(
+                                            child: Image.asset(
+                                              'assets/icon/OYN_ana_logo_seffaf.png',
+                                              color: Theme.of(context)
+                                                  .primaryColor,
+                                              width: 24,
+                                              height: 24,
+                                            ),
+                                          ),
                                         )
                                       : CachedNetworkImage(
                                           imageUrl: song.coverUrl,
                                           height: 44,
-                                          width: 44,
+                                          width: 78,
                                           fit: BoxFit.cover,
                                           memCacheHeight: 150,
                                           errorWidget: (context, url, error) =>
                                               Container(
-                                                height: 44,
-                                                width: 44,
-                                                color: Colors.grey.shade800,
-                                                child: CustomIcons.svgIcon(
-                                                  CustomIcons.musicNoteRounded,
-                                                  color: Colors.white24,
-                                                  size: 20,
-                                                ),
+                                            height: 44,
+                                            width: 78,
+                                            color: Colors.black,
+                                            child: Center(
+                                              child: Image.asset(
+                                                'assets/icon/OYN_ana_logo_seffaf.png',
+                                                color: Theme.of(context)
+                                                    .primaryColor,
+                                                width: 24,
+                                                height: 24,
                                               ),
+                                            ),
+                                          ),
                                         ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              // Orta: Şarkı ve Sanatçı Adı
-                              Expanded(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      song.title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13, // Küçük yazı
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      song.artist,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: Colors.grey.shade400,
-                                        fontSize: 11, // Çok küçük yazı
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (songProvider.isSleepTimerActive &&
-                                  songProvider.sleepTimerEndTime != null)
-                                _buildTimerDisplay(
-                                  context,
-                                  songProvider.sleepTimerEndTime!,
-                                ),
-                              const SizedBox(width: 8),
-                              // En Sağ: Oynat / Durdur İkonu
-                              if (isLoading)
-                                const SizedBox(
-                                  width: 36,
-                                  height: 36,
-                                  child: Padding(
-                                    padding: EdgeInsets.all(6.0),
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2.5,
-                                    ),
-                                  ),
-                                )
-                              else
-                                GestureDetector(
-                                  onTap: () {
-                                    if (playing) {
-                                      songProvider.audioPlayer.pause();
-                                    } else {
-                                      songProvider.audioPlayer.play();
-                                    }
-                                  },
-                                  behavior: HitTestBehavior.opaque,
-                                  child: Container(
-                                    width: 40,
-                                    height: 40,
-                                    alignment: Alignment.center,
-                                    child: CustomIcons.svgIcon(
-                                      playing
-                                          ? CustomIcons.pauseRounded
-                                          : CustomIcons.playArrowRounded,
-                                      color: Colors.white,
-                                      size: 32,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        // En Alt: İlerleme Çizgisi
-                        Positioned(
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          child: RepaintBoundary(
-                            child: StreamBuilder<Duration>(
-                              stream: songProvider.audioPlayer.positionStream,
-                              builder: (context, snapshot) {
-                                final position = snapshot.data ?? Duration.zero;
-                                final duration =
-                                    songProvider.audioPlayer.duration ??
-                                    Duration.zero;
-                                double value = 0.0;
-                                if (duration.inMilliseconds > 0) {
-                                  value =
-                                      (position.inMilliseconds /
-                                              duration.inMilliseconds)
-                                          .clamp(0.0, 1.0);
-                                }
-                                return LinearProgressIndicator(
-                                  value: value,
-                                  minHeight: 2,
-                                  backgroundColor: Colors.transparent,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
-                                  ),
-                                );
-                              },
                             ),
+
+                            const SizedBox(width: 12),
+                            // Orta: Şarkı ve Sanatçı Adı
+                            Expanded(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    song.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13, // Küçük yazı
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    song.artist,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Colors.grey.shade400,
+                                      fontSize: 11, // Çok küçük yazı
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            if (songProvider.isSleepTimerActive &&
+                                songProvider.sleepTimerEndTime != null)
+                              _buildTimerDisplay(
+                                context,
+                                songProvider.sleepTimerEndTime!,
+                              ),
+                            const SizedBox(width: 8),
+                            // En Sağ: Oynat / Durdur İkonu
+                            if (isLoading)
+                              const SizedBox(
+                                width: 36,
+                                height: 36,
+                                child: Padding(
+                                  padding: EdgeInsets.all(6.0),
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2.5,
+                                  ),
+                                ),
+                              )
+                            else
+                              GestureDetector(
+                                onTap: () {
+                                  if (playing) {
+                                    songProvider.audioPlayer.pause();
+                                  } else {
+                                    songProvider.audioPlayer.play();
+                                  }
+                                },
+                                behavior: HitTestBehavior.opaque,
+                                child: Container(
+                                  width: 40,
+                                  height: 40,
+                                  alignment: Alignment.center,
+                                  child: CustomIcons.svgIcon(
+                                    playing
+                                        ? CustomIcons.pauseRounded
+                                        : CustomIcons.playArrowRounded,
+                                    color: Colors.white,
+                                    size: 32,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      // En Alt: İlerleme Çizgisi
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: RepaintBoundary(
+                          child: StreamBuilder<Duration>(
+                            stream: songProvider.audioPlayer.positionStream,
+                            builder: (context, snapshot) {
+                              final position = snapshot.data ?? Duration.zero;
+                              final duration =
+                                  songProvider.audioPlayer.duration ??
+                                      Duration.zero;
+                              double value = 0.0;
+                              if (duration.inMilliseconds > 0) {
+                                value = (position.inMilliseconds /
+                                        duration.inMilliseconds)
+                                    .clamp(0.0, 1.0);
+                              }
+                              return LinearProgressIndicator(
+                                value: value,
+                                minHeight: 1,
+                                backgroundColor: Colors.transparent,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              );
+                            },
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -502,9 +481,7 @@ class _FloatingMiniPlayer extends StatefulWidget {
   State<_FloatingMiniPlayer> createState() => _FloatingMiniPlayerState();
 }
 
-class _FloatingMiniPlayerState extends State<_FloatingMiniPlayer>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+class _FloatingMiniPlayerState extends State<_FloatingMiniPlayer> {
   Offset position = _MiniPlayerState.globalFloatingPosition;
 
   Color? _dominantColor;
@@ -527,10 +504,6 @@ class _FloatingMiniPlayerState extends State<_FloatingMiniPlayer>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    );
   }
 
   @override
@@ -556,7 +529,6 @@ class _FloatingMiniPlayerState extends State<_FloatingMiniPlayer>
 
   @override
   void dispose() {
-    _controller.dispose();
     super.dispose();
   }
 
@@ -574,16 +546,9 @@ class _FloatingMiniPlayerState extends State<_FloatingMiniPlayer>
       builder: (context, snapshot) {
         final playing = snapshot.data?.playing ?? false;
         final processingState = snapshot.data?.processingState;
-        final isLoading =
-            processingState == ProcessingState.loading ||
+        final isLoading = processingState == ProcessingState.loading ||
             processingState == ProcessingState.buffering ||
             provider.isSongLoading;
-
-        if (playing && !_controller.isAnimating) {
-          _controller.repeat();
-        } else if (!playing && _controller.isAnimating) {
-          _controller.stop();
-        }
 
         return Positioned(
           left: position.dx,
@@ -615,150 +580,153 @@ class _FloatingMiniPlayerState extends State<_FloatingMiniPlayer>
             child: Material(
               type: MaterialType
                   .transparency, // Overlay içinde tap efektinin çalışması için
-              child: AnimatedBuilder(
-                animation: _controller,
-                builder: (context, child) {
-                  return Container(
-                    width: 140, // Karenin yeni boyutu 140x140
-                    height: 140,
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      gradient: playing
-                          ? SweepGradient(
-                              colors: [
-                                Colors.transparent,
-                                glowColor,
-                                Colors.transparent,
-                              ],
-                              stops: const [0.0, 0.5, 1.0],
-                              transform: GradientRotation(
-                                _controller.value * 2 * math.pi,
-                              ),
-                            )
-                          : null,
-                      color: playing ? null : Colors.transparent,
-                    ),
-                    child: child,
-                  );
-                },
+              child: SizedBox(
+                width: 140,
+                height: 140,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(14),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(
-                      color: Colors.grey.shade900.withOpacity(0.85),
-                      padding: const EdgeInsets.all(12),
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Column(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              // Üst Kısım: Küçük kapak ve bilgiler
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(6),
-                                    child: Transform.scale(
-                                      scale:
-                                          (song.coverUrl.contains(
-                                                'ytimg.com',
-                                              ) ||
-                                              song.coverUrl.contains(
-                                                'youtube.com',
-                                              ))
-                                          ? 1.35
-                                          : 1.0,
-                                      child:
-                                          (song.localImagePath != null &&
-                                              File(
-                                                song.localImagePath!,
-                                              ).existsSync())
-                                          ? Image.file(
-                                              File(song.localImagePath!),
-                                              width: 45,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    color: (playing || isLoading)
+                        ? Color.lerp(Colors.grey.shade900, glowColor, 0.25)
+                        : Colors.grey.shade900,
+                    padding: const EdgeInsets.all(12),
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            // Üst Kısım: Küçük kapak ve bilgiler
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: (song.localImagePath != null &&
+                                          File(
+                                            song.localImagePath!,
+                                          ).existsSync())
+                                      ? Image.file(
+                                          File(song.localImagePath!),
+                                          width: 80,
+                                          height: 45,
+                                          fit: BoxFit.cover,
+                                          cacheHeight: 200,
+                                          errorBuilder:
+                                              (context, error, stackTrace) =>
+                                                  Container(
+                                            width: 80,
+                                            height: 45,
+                                            color: Colors.black,
+                                            child: Center(
+                                              child: Image.asset(
+                                                'assets/icon/OYN_ana_logo_seffaf.png',
+                                                color: Theme.of(context)
+                                                    .primaryColor,
+                                                width: 24,
+                                                height: 24,
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                      : (song.coverUrl.isEmpty)
+                                          ? Container(
+                                              width: 80,
                                               height: 45,
-                                              fit: BoxFit.cover,
-                                              cacheHeight: 200,
+                                              color: Colors.black,
+                                              child: Center(
+                                                child: Image.asset(
+                                                  'assets/icon/OYN_ana_logo_seffaf.png',
+                                                  color: Theme.of(context)
+                                                      .primaryColor,
+                                                  width: 24,
+                                                  height: 24,
+                                                ),
+                                              ),
                                             )
                                           : CachedNetworkImage(
                                               imageUrl: song.coverUrl,
-                                              width: 45,
+                                              width: 80,
                                               height: 45,
                                               fit: BoxFit.cover,
                                               memCacheHeight: 200,
-                                              errorWidget:
-                                                  (
-                                                    context,
-                                                    url,
-                                                    error,
-                                                  ) => Container(
-                                                    width: 45,
-                                                    height: 45,
-                                                    color: Colors.grey.shade800,
+                                              errorWidget: (
+                                                context,
+                                                url,
+                                                error,
+                                              ) =>
+                                                  Container(
+                                                width: 80,
+                                                height: 45,
+                                                color: Colors.black,
+                                                child: Center(
+                                                  child: Image.asset(
+                                                    'assets/icon/OYN_ana_logo_seffaf.png',
+                                                    color: Theme.of(context)
+                                                        .primaryColor,
+                                                    width: 24,
+                                                    height: 24,
                                                   ),
+                                                ),
+                                              ),
                                             ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              // Alt Kısım: Yan yana Play/Pause ve Geçiş Butonları
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceEvenly,
-                                children: [
-                                  if (isLoading)
-                                    const Padding(
-                                      padding: EdgeInsets.all(4.0),
-                                      child: SizedBox(
-                                        width: 30,
-                                        height: 30,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2.5,
-                                        ),
-                                      ),
-                                    )
-                                  else
-                                    GestureDetector(
-                                      onTap: () {
-                                        if (playing)
-                                          provider.audioPlayer.pause();
-                                        else
-                                          provider.audioPlayer.play();
-                                      },
-                                      behavior: HitTestBehavior.opaque,
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(4.0),
-                                        child: CustomIcons.svgIcon(
-                                          playing
-                                              ? CustomIcons.pauseRounded
-                                              : CustomIcons.playArrowRounded,
-                                          color: Colors.white,
-                                          size: 30,
-                                        ),
+                                ),
+                              ],
+                            ),
+                            // Alt Kısım: Yan yana Play/Pause ve Geçiş Butonları
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                if (isLoading)
+                                  const Padding(
+                                    padding: EdgeInsets.all(4.0),
+                                    child: SizedBox(
+                                      width: 30,
+                                      height: 30,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2.5,
                                       ),
                                     ),
+                                  )
+                                else
                                   GestureDetector(
-                                    onTap: () => provider.playNext(),
+                                    onTap: () {
+                                      if (playing)
+                                        provider.audioPlayer.pause();
+                                      else
+                                        provider.audioPlayer.play();
+                                    },
                                     behavior: HitTestBehavior.opaque,
                                     child: Padding(
                                       padding: const EdgeInsets.all(4.0),
                                       child: CustomIcons.svgIcon(
-                                        CustomIcons.playerNext,
+                                        playing
+                                            ? CustomIcons.pauseRounded
+                                            : CustomIcons.playArrowRounded,
                                         color: Colors.white,
                                         size: 30,
                                       ),
                                     ),
                                   ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                                GestureDetector(
+                                  onTap: () => provider.playNext(),
+                                  behavior: HitTestBehavior.opaque,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(4.0),
+                                    child: CustomIcons.svgIcon(
+                                      CustomIcons.playerNext,
+                                      color: Colors.white,
+                                      size: 30,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ),

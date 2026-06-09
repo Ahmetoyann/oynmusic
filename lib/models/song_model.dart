@@ -14,7 +14,7 @@ class Song {
   final String coverUrl;
   final String audioUrl;
   int? duration; // Şarkı süresi (saniye cinsinden)
-  final String? lyrics;
+  String? lyrics;
   String? localPath; // İndirilen dosyanın yerel yolu
   String? localImagePath; // İndirilen kapak resminin yerel yolu
   DateTime? lastPlayed; // Son oynatılma zamanı
@@ -48,8 +48,7 @@ class Song {
 
       // Kapak resmini 'album' nesnesinin içindeki 'cover_medium' alanından alıyoruz.
       // Eğer bu alanlar boş (null) gelirse, varsayılan bir yer tutucu resim kullanıyoruz.
-      coverUrl:
-          albumInfo?['cover_small'] ??
+      coverUrl: albumInfo?['cover_small'] ??
           albumInfo?['cover_medium'] ??
           'https://via.placeholder.com/250',
 
@@ -121,8 +120,7 @@ class Song {
       title: snippet['title'] ?? 'İsimsiz Video',
       artist: snippet['channelTitle'] ?? 'YouTube Kanalı',
       // İnternet tasarrufu için düşük/orta çözünürlüklü kapak resmi alıyoruz
-      coverUrl:
-          snippet['thumbnails']['medium']?['url'] ??
+      coverUrl: snippet['thumbnails']['medium']?['url'] ??
           snippet['thumbnails']['default']?['url'] ??
           snippet['thumbnails']['high']?['url'] ??
           'https://via.placeholder.com/250',
@@ -143,8 +141,7 @@ class Song {
       id: videoId,
       title: snippet['title'] ?? 'İsimsiz Video',
       artist: snippet['channelTitle'] ?? 'YouTube Kanalı',
-      coverUrl:
-          snippet['thumbnails']['medium']?['url'] ??
+      coverUrl: snippet['thumbnails']['medium']?['url'] ??
           snippet['thumbnails']['default']?['url'] ??
           snippet['thumbnails']['high']?['url'] ??
           'https://via.placeholder.com/250',
@@ -164,8 +161,7 @@ class Song {
       id: trackId.toString(),
       title: json['title'] ?? 'İsimsiz Şarkı',
       artist: user['name'] ?? 'Bilinmeyen Sanatçı',
-      coverUrl:
-          artwork['150x150'] ??
+      coverUrl: artwork['150x150'] ??
           artwork['480x480'] ??
           'https://via.placeholder.com/250',
       audioUrl: 'https://discoveryprovider.audius.co/v1/tracks/$trackId/stream',
@@ -219,12 +215,10 @@ class Song {
       lyrics: map['lyrics'],
       localPath: map['localPath'],
       localImagePath: map['localImagePath'],
-      lastPlayed: map['lastPlayed'] != null
-          ? DateTime.parse(map['lastPlayed'])
-          : null,
-      dateAdded: map['dateAdded'] != null
-          ? DateTime.parse(map['dateAdded'])
-          : null,
+      lastPlayed:
+          map['lastPlayed'] != null ? DateTime.parse(map['lastPlayed']) : null,
+      dateAdded:
+          map['dateAdded'] != null ? DateTime.parse(map['dateAdded']) : null,
     );
   }
 }
@@ -244,11 +238,11 @@ class MusicFolder {
   });
 
   Map<String, dynamic> toJson() => {
-    'name': name,
-    'songs': songs.map((s) => s.toJson()).toList(),
-    'isFromDownloads': isFromDownloads,
-    'customImagePath': customImagePath,
-  };
+        'name': name,
+        'songs': songs.map((s) => s.toJson()).toList(),
+        'isFromDownloads': isFromDownloads,
+        'customImagePath': customImagePath,
+      };
 
   factory MusicFolder.fromJson(Map<String, dynamic> json) {
     return MusicFolder(

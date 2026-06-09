@@ -52,12 +52,9 @@ class _BlurryAlbumCardState extends State<BlurryAlbumCard> {
                 errorBuilder: (context, error, stackTrace) =>
                     Container(color: Colors.grey.shade900),
               ),
-              // 2. Blur Efekti
-              BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
-                child: Container(
-                  color: Colors.black.withOpacity(0.4), // Karartma
-                ),
+              // 2. Koyu Overlay (Blur yerine performans için sadece karartma)
+              Container(
+                color: Colors.black.withOpacity(0.7), // Karartma
               ),
               // 3. İçerik (Resim + Metin)
               Padding(

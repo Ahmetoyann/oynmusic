@@ -10,7 +10,6 @@ import 'package:muzik_app/providers/auth_provider.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/widgets/custom_app_bar.dart';
 import 'package:muzik_app/pages/player_page.dart';
-import 'package:muzik_app/widgets/custom_banner_ad.dart';
 import 'package:muzik_app/pages/artist_detail_page.dart';
 import 'package:muzik_app/widgets/song_grid_card.dart';
 import 'package:muzik_app/providers/language_provider.dart';
@@ -19,6 +18,7 @@ import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:muzik_app/pages/login_page.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:muzik_app/widgets/custom_search_bar.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -191,8 +191,8 @@ class _SearchPageState extends State<SearchPage> {
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
                         color: Theme.of(context).primaryColor.withOpacity(
-                          0.2,
-                        ), // İkon arkası saydam renk
+                              0.2,
+                            ), // İkon arkası saydam renk
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
@@ -202,8 +202,8 @@ class _SearchPageState extends State<SearchPage> {
                       ),
                     ),
                     const SizedBox(width: 6),
-                    const Text(
-                      "Sözler aklında mı?",
+                    Text(
+                      langProvider.t('lyrics_in_mind'),
                       maxLines: 1,
                       softWrap: false,
                       style: TextStyle(
@@ -229,59 +229,43 @@ class _SearchPageState extends State<SearchPage> {
           children: [
             // Arama Kutusu
             ClipRRect(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(CustomSearchBar.cornerRadius),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
                 child: Container(
-                  color: Colors.grey.shade800.withOpacity(0.5),
-                  child: TextField(
+                  color: Colors.white,
+                  child: CustomSearchBar(
                     controller: _searchController,
-                    autofocus: false,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: langProvider.t('what_to_listen'),
-                      prefixIcon: Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: CustomIcons.svgIcon(
-                          CustomIcons.search,
-                          color: Colors.grey.shade400,
-                          size: 24,
-                        ),
-                      ),
-                      filled: false,
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 15),
-                      // Arama kutusunun sonuna temizleme butonu ekle
-                      suffixIcon: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (aramaMetni.isNotEmpty)
-                            IconButton(
-                              icon: CustomIcons.svgIcon(
-                                CustomIcons.clear,
-                                size: 24,
-                                color: Colors.grey,
-                              ),
-                              onPressed: () {
-                                _searchController.clear();
-                                songProvider.updateSearchText('');
-                                if (_isListening) _stopListening();
-                              },
-                            ),
-                          if (_speechEnabled)
-                            _PulsingMic(
-                              isListening: _isListening,
-                              onTap: _isListening
-                                  ? _stopListening
-                                  : _startListening,
-                              color: Theme.of(context).primaryColor,
-                            ),
-                        ],
+                    textStyle: const TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14),
+                    hintStyle: const TextStyle(color: Colors.black),
+                    hintText: langProvider.t('what_to_listen'),
+                    prefixIcon: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: CustomIcons.svgIcon(
+                        CustomIcons.search,
+                        color: Colors.black,
+                        size: 28,
                       ),
                     ),
-                    // Kullanıcı her harf girdiğinde bu fonksiyon tetiklenir.
+                    fillColor: Colors.transparent,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 15),
+                    showClearButton: aramaMetni.isNotEmpty,
+                    onClear: () {
+                      songProvider.updateSearchText('');
+                      if (_isListening) _stopListening();
+                    },
+                    extraSuffix: _speechEnabled
+                        ? _PulsingMic(
+                            isListening: _isListening,
+                            onTap:
+                                _isListening ? _stopListening : _startListening,
+                            color: Theme.of(context).primaryColor,
+                          )
+                        : null,
                     onChanged: (value) {
-                      // Provider'daki arama metnini güncelle.
                       songProvider.updateSearchText(value);
                     },
                     onSubmitted: (value) {
@@ -398,13 +382,13 @@ class _SearchPageState extends State<SearchPage> {
     String suggestionTitle = '';
     if (selectedTab == 'artists') {
       suggestionsToDisplay = songProvider.suggestedArtists;
-      suggestionTitle = 'Ayın Popüler Sanatçıları';
+      suggestionTitle = langProvider.t('popular_artists_month');
     } else if (selectedTab == 'collections') {
       suggestionsToDisplay = songProvider.suggestedAlbums;
-      suggestionTitle = 'Ayın Popüler Mix\'leri';
+      suggestionTitle = langProvider.t('popular_mixes_month');
     } else {
       suggestionsToDisplay = songProvider.suggestedSongs;
-      suggestionTitle = 'Sizin İçin Önerilenler';
+      suggestionTitle = langProvider.t('recommended_for_you');
     }
 
     if (songProvider.isSearchLoading) {
@@ -449,9 +433,8 @@ class _SearchPageState extends State<SearchPage> {
                 final history = songProvider.searchHistory;
                 // Kutucuklar yatayda daha az yer kapladığı için limiti 3'ten 5'e çıkardık
                 final showAll = _isHistoryExpanded || history.length <= 5;
-                final itemsToShow = showAll
-                    ? history
-                    : history.take(5).toList();
+                final itemsToShow =
+                    showAll ? history : history.take(5).toList();
                 final remainingCount = history.length - 5;
 
                 return Column(
@@ -470,8 +453,8 @@ class _SearchPageState extends State<SearchPage> {
                               _searchController.text = historyItem;
                               _searchController.selection =
                                   TextSelection.fromPosition(
-                                    TextPosition(offset: historyItem.length),
-                                  );
+                                TextPosition(offset: historyItem.length),
+                              );
                               songProvider.updateSearchText(historyItem);
                               songProvider.addToSearchHistory(historyItem);
                             },
@@ -566,24 +549,25 @@ class _SearchPageState extends State<SearchPage> {
               padding: EdgeInsets.all(32.0),
               child: Center(child: CircularProgressIndicator()),
             )
-          else if (suggestionsToDisplay.isNotEmpty) ...[
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                MediaQuery.of(context).size.width * 0.025,
-                16,
-                MediaQuery.of(context).size.width * 0.025,
-                8,
-              ),
-              child: Text(
-                suggestionTitle,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
+          else ...[
+            if (suggestionsToDisplay.isNotEmpty)
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  MediaQuery.of(context).size.width * 0.025,
+                  16,
+                  MediaQuery.of(context).size.width * 0.025,
+                  8,
+                ),
+                child: Text(
+                  suggestionTitle,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
                 ),
               ),
-            ),
-            if (selectedTab == 'collections')
+            if (selectedTab == 'collections' && suggestionsToDisplay.isNotEmpty)
               Padding(
                 padding: EdgeInsets.symmetric(
                   horizontal: MediaQuery.of(context).size.width * 0.025,
@@ -606,31 +590,34 @@ class _SearchPageState extends State<SearchPage> {
                   ),
                 ),
               )
-            else if (selectedTab == 'artists')
+            else if (selectedTab == 'artists' &&
+                suggestionsToDisplay.isNotEmpty)
               ...suggestionsToDisplay.map(
                 (song) => _buildArtistTile(context, song),
               )
-            else ...[
+            else if (selectedTab == 'songs' || selectedTab == 'all') ...[
               // SİZİN İÇİN ÖNERİLENLER (KOMPOZİT GÖRÜNÜM)
               // 1. Önerilen Şarkılar (Üstte 4 adet SongCard)
-              ...suggestionsToDisplay.take(4).map((song) {
-                return SongCard(
-                  song: song,
-                  showOptions: true,
-                  onTap: () {
-                    final isCurrent = songProvider.currentSong?.id == song.id;
-                    if (isCurrent) {
-                      if (songProvider.audioPlayer.playing) {
-                        songProvider.audioPlayer.pause();
+              if (suggestionsToDisplay.isNotEmpty)
+                ...suggestionsToDisplay.take(4).map((song) {
+                  final isCurrent = songProvider.currentSong?.id == song.id;
+                  return SongCard(
+                    song: song,
+                    isPlaying: isCurrent,
+                    showOptions: true,
+                    onTap: () {
+                      if (isCurrent) {
+                        if (songProvider.audioPlayer.playing) {
+                          songProvider.audioPlayer.pause();
+                        } else {
+                          songProvider.audioPlayer.play();
+                        }
                       } else {
-                        songProvider.audioPlayer.play();
+                        songProvider.playSong(song, suggestionsToDisplay);
                       }
-                    } else {
-                      songProvider.playSong(song, suggestionsToDisplay);
-                    }
-                  },
-                );
-              }),
+                    },
+                  );
+                }),
 
               // 2. Önerilen Sanatçılar (Büyük Küreler)
               if (songProvider.suggestedArtists.isNotEmpty) ...[
@@ -641,8 +628,8 @@ class _SearchPageState extends State<SearchPage> {
                     MediaQuery.of(context).size.width * 0.025,
                     12,
                   ),
-                  child: const Text(
-                    "Popüler Sanatçılar",
+                  child: Text(
+                    langProvider.t('popular_artists'),
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -670,54 +657,9 @@ class _SearchPageState extends State<SearchPage> {
                   ),
                 ),
               ],
-
-              // 3. Önerilen Mix'ler (Yana kaydırılabilir SongGrid)
-              if (songProvider.suggestedAlbums.isNotEmpty) ...[
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    MediaQuery.of(context).size.width * 0.025,
-                    24,
-                    MediaQuery.of(context).size.width * 0.025,
-                    12,
-                  ),
-                  child: const Text(
-                    "Sizin İçin Mix'ler",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
-                ),
-                SizedBox(
-                  height: 190, // SongGridCard için uygun yükseklik
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    padding: EdgeInsets.symmetric(
-                      horizontal: MediaQuery.of(context).size.width * 0.025,
-                    ),
-                    itemCount: songProvider.suggestedAlbums.length,
-                    itemBuilder: (context, index) {
-                      final mixSong = songProvider.suggestedAlbums[index];
-                      return Container(
-                        width: 140,
-                        margin: const EdgeInsets.only(right: 16),
-                        child: _buildAlbumGridCard(
-                          context,
-                          mixSong,
-                          songProvider.suggestedAlbums,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
             ],
           ],
           const SizedBox(height: 16),
-          // Reklamlar geçici olarak kapatıldığı için gizlendi.
-          // const CustomBannerAd(),
         ],
       );
     }
@@ -740,11 +682,11 @@ class _SearchPageState extends State<SearchPage> {
                   sliver: SliverGrid(
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          childAspectRatio: 0.75,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                        ),
+                      crossAxisCount: 2,
+                      childAspectRatio: 1.15,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                    ),
                     delegate: SliverChildBuilderDelegate(
                       (context, index) => _buildAlbumGridCard(
                         context,
@@ -771,7 +713,7 @@ class _SearchPageState extends State<SearchPage> {
                       showOptions: true,
                       onTap: () {
                         if (!isCurrentSong) {
-                          songProvider.playSong(song, sonuclar);
+                          songProvider.playSongWithSmartQueue(song);
                         } else {
                           if (songProvider.audioPlayer.playing) {
                             songProvider.audioPlayer.pause();
@@ -791,8 +733,6 @@ class _SearchPageState extends State<SearchPage> {
               ),
             ),
           const SliverToBoxAdapter(child: SizedBox(height: 16)),
-          // Reklamlar geçici olarak kapatıldığı için gizlendi.
-          // const SliverToBoxAdapter(child: CustomBannerAd()),
           SliverToBoxAdapter(child: SizedBox(height: bottomPadding)),
         ],
       );
@@ -824,24 +764,17 @@ class _SearchPageState extends State<SearchPage> {
           ? const CustomShimmer(width: 56, height: 56, borderRadius: 28)
           : ClipRRect(
               borderRadius: BorderRadius.circular(28),
-              child: Transform.scale(
-                scale:
-                    (coverUrl.contains('ytimg.com') ||
-                        coverUrl.contains('youtube.com'))
-                    ? 1.35
-                    : 1.0,
-                child: CachedNetworkImage(
-                  imageUrl: coverUrl,
-                  memCacheHeight: 200,
+              child: CachedNetworkImage(
+                imageUrl: coverUrl,
+                memCacheHeight: 200,
+                width: 56,
+                height: 56,
+                fit: BoxFit.cover,
+                errorWidget: (context, url, error) => Container(
                   width: 56,
                   height: 56,
-                  fit: BoxFit.cover,
-                  errorWidget: (context, url, error) => Container(
-                    width: 56,
-                    height: 56,
-                    color: Colors.grey.shade800,
-                    child: const Icon(Icons.person, color: Colors.white54),
-                  ),
+                  color: Colors.grey.shade800,
+                  child: const Icon(Icons.person, color: Colors.white54),
                 ),
               ),
             ),
@@ -947,7 +880,8 @@ class _SearchPageState extends State<SearchPage> {
       return const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
+          AspectRatio(
+            aspectRatio: 16 / 9,
             child: CustomShimmer(
               width: double.infinity,
               height: double.infinity,
@@ -1004,8 +938,7 @@ class _SearchPageState extends State<SearchPage> {
           MaterialPageRoute(
             builder: (context) => ArtistDetailPage(
               artistName: song.artist,
-              songs:
-                  const [], // Sanatçı detayı sayfasında zaten API'den güncel şarkılar çekilecek
+              songs: const [], // Sanatçı detayı sayfasında zaten API'den güncel şarkılar çekilecek
             ),
           ),
         );
@@ -1079,35 +1012,36 @@ class _SearchPageState extends State<SearchPage> {
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade900,
+                  color: Theme.of(context).primaryColor.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
                 child: CustomIcons.svgIcon(
                   CustomIcons.searchOff,
                   size: 64,
-                  color: Theme.of(context).primaryColor.withOpacity(0.5),
+                  color: Theme.of(context).primaryColor,
                 ),
               ),
               const SizedBox(height: 24),
               Text(
                 langProvider.t('no_results'),
                 style: const TextStyle(
-                  fontSize: 20,
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
               ),
               const SizedBox(height: 12),
-              Text(
-                langProvider
-                    .t('search_no_results_query')
-                    .replaceAll('%s', query),
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Text(
+                  langProvider
+                      .t('search_no_results_query')
+                      .replaceAll('%s', query),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey.shade400, fontSize: 15),
+                ),
               ),
               const Spacer(),
-              // Reklamlar geçici olarak kapatıldığı için gizlendi.
-              // const CustomBannerAd(),
               SizedBox(height: bottomPadding),
             ],
           ),
@@ -1238,6 +1172,7 @@ class _LyricsSearchDialogState extends State<_LyricsSearchDialog>
 
   @override
   Widget build(BuildContext context) {
+    final langProvider = context.read<LanguageProvider>();
     final primaryColor = Theme.of(context).primaryColor;
 
     return Scaffold(
@@ -1296,8 +1231,8 @@ class _LyricsSearchDialogState extends State<_LyricsSearchDialog>
                   const SizedBox(height: 8),
                   Icon(Icons.mic_external_on, size: 60, color: primaryColor),
                   const SizedBox(height: 16),
-                  const Text(
-                    "Şarkıyı Hatırla",
+                  Text(
+                    langProvider.t('remember_song'),
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 22,
@@ -1307,8 +1242,8 @@ class _LyricsSearchDialogState extends State<_LyricsSearchDialog>
                   const SizedBox(height: 8),
                   Text(
                     _isListening
-                        ? "Seni dinliyorum..."
-                        : "Hatırladığın sözleri veya melodiyi mırıldan.",
+                        ? langProvider.t('listening_to_you')
+                        : langProvider.t('hum_lyrics_melody'),
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.grey.shade400, fontSize: 15),
                   ),
@@ -1389,8 +1324,8 @@ class _LyricsSearchDialogState extends State<_LyricsSearchDialog>
                               ),
                               if (!_isListening) ...[
                                 const SizedBox(height: 4),
-                                const Text(
-                                  "Başlat",
+                                Text(
+                                  langProvider.t('start_listening'),
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 12,
@@ -1496,11 +1431,6 @@ class _PulsingMicState extends State<_PulsingMic>
                   );
                 },
               ),
-            Icon(
-              widget.isListening ? Icons.mic : Icons.mic_none_rounded,
-              color: widget.isListening ? widget.color : Colors.grey.shade400,
-              size: 24,
-            ),
           ],
         ),
       ),

@@ -22,6 +22,131 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  /// Firebase hata kodlarını Türkçeleştirir
+  String _translateAuthError(String code, String? defaultMessage) {
+    switch (code) {
+      case 'invalid-credential':
+      case 'wrong-password':
+      case 'user-not-found':
+        return 'Girdiğiniz e-posta adresi veya şifre hatalı.';
+      case 'invalid-email':
+        return 'Geçersiz bir e-posta adresi girdiniz.';
+      case 'user-disabled':
+        return 'Bu hesap devre dışı bırakılmış.';
+      case 'email-already-in-use':
+        return 'Bu e-posta adresi ile zaten bir hesap oluşturulmuş.';
+      case 'operation-not-allowed':
+        return 'E-posta/Şifre ile giriş işlemi yapılandırması kapalı.';
+      case 'weak-password':
+        return 'Daha güçlü bir şifre belirlemelisiniz (En az 6 karakter).';
+      case 'network-request-failed':
+        return 'İnternet bağlantısı kurulamadı. Lütfen ağınızı kontrol edin.';
+      case 'too-many-requests':
+        return 'Çok fazla başarısız deneme yaptınız. Lütfen bir süre sonra tekrar deneyin.';
+      default:
+        return defaultMessage ?? 'Bilinmeyen bir hata oluştu.';
+    }
+  }
+
+  /// E-posta ve Şifre ile Kayıt Ol
+  Future<User?> registerWithEmailPassword(
+      String email, String password, String displayName) async {
+    if (_auth == null) {
+      try {
+        _auth = FirebaseAuth.instance;
+      } catch (e) {
+        debugPrint("FirebaseAuth başlatılamadı: $e");
+        return null;
+      }
+    }
+    try {
+      final UserCredential userCredential =
+          await _auth!.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      if (userCredential.user != null) {
+        await userCredential.user!.updateDisplayName(displayName);
+        await userCredential.user!.reload();
+        _user = _auth!.currentUser;
+        notifyListeners();
+      }
+      return userCredential.user;
+    } on FirebaseAuthException catch (e) {
+      debugPrint("Kayıt Hatası: ${e.code}");
+      throw Exception(_translateAuthError(e.code, e.message));
+    } catch (e) {
+      debugPrint("Kayıt Hatası: $e");
+      throw Exception("Kayıt işlemi başarısız oldu.");
+    }
+  }
+
+  /// E-posta ve Şifre ile Giriş Yap
+  Future<User?> signInWithEmailPassword(String email, String password) async {
+    if (_auth == null) {
+      try {
+        _auth = FirebaseAuth.instance;
+      } catch (e) {
+        debugPrint("FirebaseAuth başlatılamadı: $e");
+        return null;
+      }
+    }
+    try {
+      final UserCredential userCredential =
+          await _auth!.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      _user = userCredential.user;
+      notifyListeners();
+      return _user;
+    } on FirebaseAuthException catch (e) {
+      debugPrint("Giriş Hatası: ${e.code}");
+      throw Exception(_translateAuthError(e.code, e.message));
+    } catch (e) {
+      debugPrint("Giriş Hatası: $e");
+      throw Exception("Giriş işlemi başarısız oldu.");
+    }
+  }
+
+  /// Şifre Sıfırlama E-postası Gönder
+  Future<void> resetPassword(String email) async {
+    if (_auth == null) {
+      try {
+        _auth = FirebaseAuth.instance;
+      } catch (e) {
+        debugPrint("FirebaseAuth başlatılamadı: $e");
+        throw Exception("Kimlik doğrulama servisi başlatılamadı.");
+      }
+    }
+    try {
+      await _auth!.sendPasswordResetEmail(email: email);
+    } on FirebaseAuthException catch (e) {
+      debugPrint("Şifre Sıfırlama Hatası: ${e.code}");
+      throw Exception(_translateAuthError(e.code, e.message));
+    } catch (e) {
+      debugPrint("Şifre Sıfırlama Hatası: $e");
+      throw Exception("Şifre sıfırlama e-postası gönderilemedi.");
+    }
+  }
+
+  /// E-posta Doğrulama Bağlantısı Gönder
+  Future<void> sendEmailVerification() async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null && !currentUser.emailVerified) {
+        await currentUser.sendEmailVerification();
+      }
+    } on FirebaseAuthException catch (e) {
+      debugPrint("Doğrulama E-postası Hatası: ${e.code}");
+      throw Exception(_translateAuthError(e.code, e.message));
+    } catch (e) {
+      debugPrint("Doğrulama E-postası Hatası: $e");
+      throw Exception("Doğrulama e-postası gönderilemedi.");
+    }
+  }
+
   /// Google ile Giriş Yap
   Future<User?> signInWithGoogle() async {
     // Eğer _auth başlatılamadıysa (örneğin main.dart'ta hata olduysa) tekrar dene
