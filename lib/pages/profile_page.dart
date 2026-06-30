@@ -27,6 +27,7 @@ import 'package:muzik_app/pages/artist_detail_page.dart';
 import 'package:muzik_app/services/audius_service.dart';
 import 'package:muzik_app/providers/language_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:muzik_app/widgets/device_cover_placeholder.dart';
 import 'package:muzik_app/services/custom_winning_add.dart';
 import 'package:muzik_app/pages/login_page.dart';
 
@@ -288,6 +289,16 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
+  Widget _buildCoverPlaceholder(
+      {double width = double.infinity, double height = double.infinity}) {
+    return DeviceCoverPlaceholder(
+      width: width == double.infinity ? null : width,
+      height: height == double.infinity ? null : height,
+      borderRadius: 4,
+      logoColor: Theme.of(context).primaryColor,
+    );
+  }
+
   Widget _buildSingleImage(Song song) {
     if (song.localImagePath != null &&
         File(song.localImagePath!).existsSync()) {
@@ -299,7 +310,7 @@ class _ProfilePageState extends State<ProfilePage>
         height: double.infinity,
         cacheHeight: 200,
         cacheWidth: 200,
-        errorBuilder: (c, e, s) => Container(color: Colors.grey.shade800),
+        errorBuilder: (c, e, s) => _buildCoverPlaceholder(),
       ));
     }
     return ClipRect(
@@ -310,15 +321,7 @@ class _ProfilePageState extends State<ProfilePage>
         height: double.infinity,
         memCacheHeight: 200,
         memCacheWidth: 200,
-        errorWidget: (context, url, error) => Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.grey.shade800, Colors.grey.shade900],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
+        errorWidget: (context, url, error) => _buildCoverPlaceholder(),
       ),
     );
   }
@@ -328,18 +331,7 @@ class _ProfilePageState extends State<ProfilePage>
 
     Widget buildDefaultCover() {
       if (songs.isEmpty) {
-        return Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.grey.shade800, Colors.grey.shade900],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: const Icon(Icons.music_note, color: Colors.white54, size: 32),
-        );
+        return _buildCoverPlaceholder();
       }
 
       if (songs.length < 4) {
@@ -1727,33 +1719,9 @@ class _ProfilePageState extends State<ProfilePage>
                                       height: 40,
                                       fit: BoxFit.cover,
                                       errorWidget: (context, url, error) =>
-                                          Container(
-                                        width: 71,
-                                        height: 40,
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            colors: [
-                                              Colors.grey.shade800,
-                                              Colors.grey.shade900,
-                                            ],
-                                            begin: Alignment.topLeft,
-                                            end: Alignment.bottomRight,
-                                          ),
-                                        ),
-                                      ),
+                                          _buildCoverPlaceholder(
+                                              width: 71, height: 40),
                                     ),
-                                  ),
-                                  title: Text(
-                                    song.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(color: Colors.white),
-                                  ),
-                                  subtitle: Text(
-                                    song.artist,
-                                    maxLines: 1,
-                                    style:
-                                        TextStyle(color: Colors.grey.shade400),
                                   ),
                                   trailing: Text(
                                     durationString,
@@ -2011,20 +1979,8 @@ class _ProfilePageState extends State<ProfilePage>
                                             fit: BoxFit.cover,
                                             errorWidget:
                                                 (context, url, error) =>
-                                                    Container(
-                                              width: 71,
-                                              height: 40,
-                                              decoration: BoxDecoration(
-                                                gradient: LinearGradient(
-                                                  colors: [
-                                                    Colors.grey.shade800,
-                                                    Colors.grey.shade900,
-                                                  ],
-                                                  begin: Alignment.topLeft,
-                                                  end: Alignment.bottomRight,
-                                                ),
-                                              ),
-                                            ),
+                                                    _buildCoverPlaceholder(
+                                                        width: 71, height: 40),
                                           ),
                                   ),
                                   title: Text(
@@ -2154,21 +2110,9 @@ class _ProfilePageState extends State<ProfilePage>
                                                 fit: BoxFit.cover,
                                                 errorWidget:
                                                     (context, url, error) =>
-                                                        Container(
-                                                  width: 71,
-                                                  height: 40,
-                                                  decoration: BoxDecoration(
-                                                    gradient: LinearGradient(
-                                                      colors: [
-                                                        Colors.grey.shade800,
-                                                        Colors.grey.shade900,
-                                                      ],
-                                                      begin: Alignment.topLeft,
-                                                      end:
-                                                          Alignment.bottomRight,
-                                                    ),
-                                                  ),
-                                                ),
+                                                        _buildCoverPlaceholder(
+                                                            width: 71,
+                                                            height: 40),
                                               ),
                                       ),
                                       title: Text(

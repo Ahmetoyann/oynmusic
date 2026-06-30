@@ -23,6 +23,7 @@ import 'package:muzik_app/pages/player_page.dart';
 import 'package:muzik_app/widgets/custom_drop_down.dart';
 import 'package:muzik_app/providers/language_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:muzik_app/widgets/device_cover_placeholder.dart';
 
 class ListelerPage extends StatefulWidget {
   const ListelerPage({super.key});
@@ -344,18 +345,22 @@ class _ListelerPageState extends State<ListelerPage> {
         width: double.infinity,
         height: double.infinity,
         errorBuilder: (context, error, stackTrace) {
-          return Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.grey.shade800, Colors.grey.shade900],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
+          return DeviceCoverPlaceholder(
+            logoColor: Theme.of(context).primaryColor,
           );
         },
       ));
     }
+
+    if (song.coverUrl.isEmpty) {
+      return DeviceCoverPlaceholder(
+        width: 32,
+        height: 32,
+        borderRadius: 4,
+        logoColor: Theme.of(context).primaryColor,
+      );
+    }
+
     return ClipRect(
       child: CachedNetworkImage(
         imageUrl: song.coverUrl,
@@ -364,14 +369,11 @@ class _ListelerPageState extends State<ListelerPage> {
         width: double.infinity,
         height: double.infinity,
         errorWidget: (context, url, error) {
-          return Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.grey.shade800, Colors.grey.shade900],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
+          return DeviceCoverPlaceholder(
+            width: 32,
+            height: 32,
+            borderRadius: 4,
+            logoColor: Theme.of(context).primaryColor,
           );
         },
       ),
@@ -1390,22 +1392,26 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
                             height: 40,
                             fit: BoxFit.cover,
                           )
-                        : CachedNetworkImage(
-                            imageUrl: song.coverUrl,
-                            width: 71,
-                            height: 40,
-                            fit: BoxFit.cover,
-                            errorWidget: (context, url, error) => Container(
-                              width: 71,
-                              height: 40,
-                              color: Colors.grey.shade800,
-                              child: CustomIcons.svgIcon(
-                                CustomIcons.musicNote,
-                                color: Colors.grey,
-                                size: 24,
-                              ),
-                            ),
-                          ),
+                        : (song.coverUrl.isNotEmpty
+                            ? CachedNetworkImage(
+                                imageUrl: song.coverUrl,
+                                width: 71,
+                                height: 40,
+                                fit: BoxFit.cover,
+                                errorWidget: (context, url, error) =>
+                                    DeviceCoverPlaceholder(
+                                  width: 71,
+                                  height: 40,
+                                  borderRadius: 4,
+                                  logoColor: Theme.of(context).primaryColor,
+                                ),
+                              )
+                            : DeviceCoverPlaceholder(
+                                width: 71,
+                                height: 40,
+                                borderRadius: 4,
+                                logoColor: Theme.of(context).primaryColor,
+                              )),
                   ),
                   const SizedBox(width: 12),
                   Expanded(

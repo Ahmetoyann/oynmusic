@@ -11,6 +11,7 @@ import 'package:muzik_app/pages/player_page.dart';
 import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/providers/language_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:muzik_app/widgets/device_cover_placeholder.dart';
 import 'package:palette_generator/palette_generator.dart';
 
 class MiniPlayer extends StatefulWidget {
@@ -229,9 +230,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
                 borderRadius: BorderRadius.circular(6),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
-                  color: (playing || isLoading)
-                      ? Color.lerp(Colors.grey.shade900, glowColor, 0.25)
-                      : Colors.grey.shade900,
+                  color: Color.lerp(Colors.grey.shade900, glowColor, 0.25),
                   child: Stack(
                     children: [
                       Padding(
@@ -261,35 +260,21 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                         error,
                                         stackTrace,
                                       ) =>
-                                          Container(
-                                        height: 44,
+                                          DeviceCoverPlaceholder(
                                         width: 78,
-                                        color: Colors.black,
-                                        child: Center(
-                                          child: Image.asset(
-                                            'assets/icon/OYN_ana_logo_seffaf.png',
-                                            color:
-                                                Theme.of(context).primaryColor,
-                                            width: 24,
-                                            height: 24,
-                                          ),
-                                        ),
+                                        height: 44,
+                                        borderRadius: 4,
+                                        logoColor:
+                                            Theme.of(context).primaryColor,
                                       ),
                                     )
                                   : (song.coverUrl.isEmpty)
-                                      ? Container(
-                                          height: 44,
+                                      ? DeviceCoverPlaceholder(
                                           width: 78,
-                                          color: Colors.black,
-                                          child: Center(
-                                            child: Image.asset(
-                                              'assets/icon/OYN_ana_logo_seffaf.png',
-                                              color: Theme.of(context)
-                                                  .primaryColor,
-                                              width: 24,
-                                              height: 24,
-                                            ),
-                                          ),
+                                          height: 44,
+                                          borderRadius: 4,
+                                          logoColor:
+                                              Theme.of(context).primaryColor,
                                         )
                                       : CachedNetworkImage(
                                           imageUrl: song.coverUrl,
@@ -298,19 +283,12 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                           fit: BoxFit.cover,
                                           memCacheHeight: 150,
                                           errorWidget: (context, url, error) =>
-                                              Container(
-                                            height: 44,
+                                              DeviceCoverPlaceholder(
                                             width: 78,
-                                            color: Colors.black,
-                                            child: Center(
-                                              child: Image.asset(
-                                                'assets/icon/OYN_ana_logo_seffaf.png',
-                                                color: Theme.of(context)
-                                                    .primaryColor,
-                                                width: 24,
-                                                height: 24,
-                                              ),
-                                            ),
+                                            height: 44,
+                                            borderRadius: 4,
+                                            logoColor:
+                                                Theme.of(context).primaryColor,
                                           ),
                                         ),
                             ),
@@ -587,9 +565,7 @@ class _FloatingMiniPlayerState extends State<_FloatingMiniPlayer> {
                   borderRadius: BorderRadius.circular(14),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 300),
-                    color: (playing || isLoading)
-                        ? Color.lerp(Colors.grey.shade900, glowColor, 0.25)
-                        : Colors.grey.shade900,
+                    color: Color.lerp(Colors.grey.shade900, glowColor, 0.25),
                     padding: const EdgeInsets.all(12),
                     child: Stack(
                       clipBehavior: Clip.none,
@@ -615,35 +591,21 @@ class _FloatingMiniPlayerState extends State<_FloatingMiniPlayer> {
                                           cacheHeight: 200,
                                           errorBuilder:
                                               (context, error, stackTrace) =>
-                                                  Container(
+                                                  DeviceCoverPlaceholder(
                                             width: 80,
                                             height: 45,
-                                            color: Colors.black,
-                                            child: Center(
-                                              child: Image.asset(
-                                                'assets/icon/OYN_ana_logo_seffaf.png',
-                                                color: Theme.of(context)
-                                                    .primaryColor,
-                                                width: 24,
-                                                height: 24,
-                                              ),
-                                            ),
+                                            borderRadius: 4,
+                                            logoColor:
+                                                Theme.of(context).primaryColor,
                                           ),
                                         )
                                       : (song.coverUrl.isEmpty)
-                                          ? Container(
+                                          ? DeviceCoverPlaceholder(
                                               width: 80,
                                               height: 45,
-                                              color: Colors.black,
-                                              child: Center(
-                                                child: Image.asset(
-                                                  'assets/icon/OYN_ana_logo_seffaf.png',
-                                                  color: Theme.of(context)
-                                                      .primaryColor,
-                                                  width: 24,
-                                                  height: 24,
-                                                ),
-                                              ),
+                                              borderRadius: 4,
+                                              logoColor: Theme.of(context)
+                                                  .primaryColor,
                                             )
                                           : CachedNetworkImage(
                                               imageUrl: song.coverUrl,
@@ -656,19 +618,12 @@ class _FloatingMiniPlayerState extends State<_FloatingMiniPlayer> {
                                                 url,
                                                 error,
                                               ) =>
-                                                  Container(
+                                                  DeviceCoverPlaceholder(
                                                 width: 80,
                                                 height: 45,
-                                                color: Colors.black,
-                                                child: Center(
-                                                  child: Image.asset(
-                                                    'assets/icon/OYN_ana_logo_seffaf.png',
-                                                    color: Theme.of(context)
-                                                        .primaryColor,
-                                                    width: 24,
-                                                    height: 24,
-                                                  ),
-                                                ),
+                                                borderRadius: 4,
+                                                logoColor: Theme.of(context)
+                                                    .primaryColor,
                                               ),
                                             ),
                                 ),

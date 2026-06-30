@@ -72,6 +72,7 @@ class LanguageProvider with ChangeNotifier {
       'following': 'Following',
       'duration': 'Duration',
       'most_played': 'Most Played',
+      'most_played_artists': 'Most Played Artists',
       'recently_played': 'Recently Played',
       'my_playlists': 'My Playlists',
       'sign_out': 'Sign Out',
@@ -144,6 +145,7 @@ class LanguageProvider with ChangeNotifier {
       'no_downloads': 'No Downloads Yet',
       'no_downloads_desc': 'Download songs you want to listen offline.',
       'discover_songs': 'Discover Songs',
+      'smart_reminder_title': 'Most played at this hour',
       'delete_from_device': 'Delete from Device',
       'song_playing_title': 'Song is Playing',
       'song_playing_warning':
@@ -339,6 +341,8 @@ class LanguageProvider with ChangeNotifier {
       'coin_info_text':
           '2 Coins are required to download Music, 3 Coins for Video.\nYou can earn +4 Coins by watching a short ad.',
       'coin_history': 'Coin History',
+      'app_downloads': 'App Downloads',
+      'device_music': 'Device Music',
       'watch_ad_btn': 'Watch Ad (+4 Coins)',
       'ad_preparing': 'Ad is preparing, please wait a moment and try again.',
       'earned_4_coins': 'You earned +4 Coins!',
@@ -379,6 +383,7 @@ class LanguageProvider with ChangeNotifier {
       'following': 'Takip',
       'duration': 'Süre',
       'most_played': 'En Çok',
+      'most_played_artists': 'En Sık Dinlediğin Sanatçılar',
       'recently_played': 'Son Dinlenenler',
       'my_playlists': 'Çalma Listelerim',
       'sign_out': 'Çıkış Yap',
@@ -452,6 +457,7 @@ class LanguageProvider with ChangeNotifier {
       'no_downloads': 'Henüz İndirilen Yok',
       'no_downloads_desc': 'Çevrimdışı dinlemek istediğiniz parçaları indirin.',
       'discover_songs': 'Parçaları Keşfet',
+      'smart_reminder_title': 'Bu Saatte En Çok Dinlediğin',
       'delete_from_device': 'Cihazdan Sil',
       'song_playing_title': 'Parça Çalınıyor',
       'song_playing_warning':
@@ -648,6 +654,8 @@ class LanguageProvider with ChangeNotifier {
       'coin_info_text':
           'Müzik indirmek için 2 Jeton, Video indirmek için 3 Jeton gereklidir.\nKısa bir reklam izleyerek +4 Jeton kazanabilirsiniz.',
       'coin_history': 'Jeton Hareketleri',
+      'app_downloads': 'Uygulama İndirmeleri',
+      'device_music': 'Cihazımdaki Müzikler',
       'watch_ad_btn': 'Reklam İzle (+4 Jeton)',
       'ad_preparing':
           'Reklam hazırlanıyor, lütfen biraz bekleyip tekrar deneyin.',
@@ -690,6 +698,7 @@ class LanguageProvider with ChangeNotifier {
       'following': 'Abonnements',
       'duration': 'Durée',
       'most_played': 'Les Plus Écoutés',
+      'most_played_artists': 'Artistes les plus écoutés',
       'recently_played': 'Écoutés Récemment',
       'my_playlists': 'Mes Playlists',
       'sign_out': 'Se Déconnecter',
@@ -762,6 +771,7 @@ class LanguageProvider with ChangeNotifier {
       'no_downloads_desc':
           'Téléchargez les chansons que vous souhaitez écouter hors ligne.',
       'discover_songs': 'Découvrir des chansons',
+      'smart_reminder_title': 'Le plus écouté à cette heure',
       'delete_from_device': 'Supprimer de l\'appareil',
       'song_playing_title': 'Chanson en cours',
       'song_playing_warning':
@@ -1005,6 +1015,7 @@ class LanguageProvider with ChangeNotifier {
       'following': 'Folge ich',
       'duration': 'Dauer',
       'most_played': 'Meistgespielt',
+      'most_played_artists': 'Am häufigsten gehörte Künstler',
       'recently_played': 'Zuletzt gespielt',
       'my_playlists': 'Meine Playlists',
       'sign_out': 'Abmelden',
@@ -1076,6 +1087,7 @@ class LanguageProvider with ChangeNotifier {
       'no_downloads_desc':
           'Laden Sie Lieder herunter, die Sie offline hören möchten.',
       'discover_songs': 'Lieder entdecken',
+      'smart_reminder_title': 'Zurzeit am meisten gehört',
       'delete_from_device': 'Vom Gerät löschen',
       'song_playing_title': 'Lied wird abgespielt',
       'song_playing_warning':
@@ -1320,6 +1332,7 @@ class LanguageProvider with ChangeNotifier {
       'following': 'Siguiendo',
       'duration': 'Duración',
       'most_played': 'Más Escuchados',
+      'most_played_artists': 'Artistas más escuchados',
       'recently_played': 'Escuchados Recientemente',
       'my_playlists': 'Mis Listas',
       'sign_out': 'Cerrar Sesión',
@@ -1392,6 +1405,7 @@ class LanguageProvider with ChangeNotifier {
       'no_downloads_desc':
           'Descarga las canciones que quieras escuchar sin conexión.',
       'discover_songs': 'Descubrir Canciones',
+      'smart_reminder_title': 'Lo más escuchado a esta hora',
       'delete_from_device': 'Eliminar del dispositivo',
       'song_playing_title': 'Canción Reproduciéndose',
       'song_playing_warning':
@@ -1633,6 +1647,7 @@ class LanguageProvider with ChangeNotifier {
       'following': 'يتابع',
       'duration': 'المدة',
       'most_played': 'الأكثر استماعاً',
+      'most_played_artists': 'الفنانون الأكثر استماعاً',
       'recently_played': 'تم تشغيله مؤخراً',
       'my_playlists': 'قوائم التشغيل الخاصة بي',
       'sign_out': 'تسجيل الخروج',
@@ -1704,6 +1719,7 @@ class LanguageProvider with ChangeNotifier {
       'no_downloads_desc':
           'قم بتنزيل الأغاني التي ترغب في الاستماع إليها بدون إنترنت.',
       'discover_songs': 'اكتشاف الأغاني',
+      'smart_reminder_title': 'الأكثر استماعاً في هذا الوقت',
       'delete_from_device': 'حذف من الجهاز',
       'song_playing_title': 'الأغنية قيد التشغيل',
       'song_playing_warning': 'يرجى إيقاف الأغنية الحالية قبل الحذف.',

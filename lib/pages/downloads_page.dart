@@ -22,6 +22,7 @@ import 'package:muzik_app/providers/language_provider.dart';
 import 'package:muzik_app/widgets/custom_search_bar.dart';
 import 'package:muzik_app/pages/downloaded_videos_view.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:muzik_app/widgets/device_cover_placeholder.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
 enum SortOption { dateNewest, dateOldest, nameAZ, nameZA }
@@ -530,30 +531,21 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                   coverWidget = CachedNetworkImage(
                                     imageUrl: firstSong.coverUrl,
                                     fit: BoxFit.cover,
-                                    errorWidget: (c, e, s) => Container(
-                                      color: Colors.black,
-                                      child: Center(
-                                        child: Image.asset(
-                                          'assets/icon/OYN_ana_logo_seffaf.png',
-                                          color: Theme.of(context).primaryColor,
-                                          width: 20,
-                                          height: 20,
-                                        ),
-                                      ),
+                                    errorWidget: (c, e, s) =>
+                                        DeviceCoverPlaceholder(
+                                      width: 71,
+                                      height: 40,
+                                      borderRadius: 8,
+                                      logoColor: Theme.of(context).primaryColor,
                                     ),
                                   );
                                 }
                               } else {
-                                coverWidget = Container(
-                                  color: Colors.black,
-                                  child: Center(
-                                    child: Image.asset(
-                                      'assets/icon/OYN_ana_logo_seffaf.png',
-                                      color: Theme.of(context).primaryColor,
-                                      width: 20,
-                                      height: 20,
-                                    ),
-                                  ),
+                                coverWidget = DeviceCoverPlaceholder(
+                                  width: 71,
+                                  height: 40,
+                                  borderRadius: 8,
+                                  logoColor: Theme.of(context).primaryColor,
                                 );
                               }
 
@@ -1056,16 +1048,8 @@ class _DownloadsPageState extends State<DownloadsPage> {
     }
 
     if (song.coverUrl.isEmpty) {
-      return Container(
-        color: Colors.black,
-        child: Center(
-          child: Image.asset(
-            'assets/icon/OYN_ana_logo_seffaf.png',
-            color: Theme.of(context).primaryColor,
-            width: 24,
-            height: 24,
-          ),
-        ),
+      return DeviceCoverPlaceholder(
+        logoColor: Theme.of(context).primaryColor,
       );
     }
 
@@ -1556,7 +1540,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                         ),
                                         child: Center(
                                           child: Text(
-                                            'Uygulama İndirmeleri',
+                                            langProvider.t('app_downloads'),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: TextStyle(
@@ -1595,7 +1579,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                         ),
                                         child: Center(
                                           child: Text(
-                                            'Cihazımdaki Müzikler',
+                                            langProvider.t('device_music'),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: TextStyle(
@@ -2137,17 +2121,12 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                                               7)),
                                                   child: AspectRatio(
                                                     aspectRatio: 16 / 9,
-                                                    child: Container(
-                                                      color: Colors.black,
-                                                      child: Center(
-                                                        child: Image.asset(
-                                                            'assets/icon/OYN_ana_logo_seffaf.png',
-                                                            color: Theme.of(
-                                                                    context)
-                                                                .primaryColor,
-                                                            width: 48,
-                                                            height: 48),
-                                                      ),
+                                                    child:
+                                                        DeviceCoverPlaceholder(
+                                                      borderRadius: 7,
+                                                      logoColor:
+                                                          Theme.of(context)
+                                                              .primaryColor,
                                                     ),
                                                   ),
                                                 ),
@@ -2369,16 +2348,12 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                       child: SizedBox(
                                         width: 71,
                                         height: 40,
-                                        child: Container(
-                                          color: Colors.black,
-                                          child: Center(
-                                            child: Image.asset(
-                                                'assets/icon/OYN_ana_logo_seffaf.png',
-                                                color: Theme.of(context)
-                                                    .primaryColor,
-                                                width: 24,
-                                                height: 24),
-                                          ),
+                                        child: DeviceCoverPlaceholder(
+                                          width: 71,
+                                          height: 40,
+                                          borderRadius: 6,
+                                          logoColor:
+                                              Theme.of(context).primaryColor,
                                         ),
                                       ),
                                     ),

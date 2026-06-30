@@ -15,6 +15,7 @@ import 'package:text_scroll/text_scroll.dart';
 import 'package:muzik_app/providers/language_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:muzik_app/widgets/device_cover_placeholder.dart';
 import 'package:muzik_app/services/custom_winning_add.dart';
 
 class SongCard extends StatelessWidget {
@@ -83,7 +84,7 @@ class SongCard extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
-                child: _buildImage(),
+                child: _buildImage(context),
               ),
               if (isFavorite)
                 Positioned(
@@ -143,7 +144,7 @@ class SongCard extends StatelessWidget {
     );
   }
 
-  Widget _buildImage() {
+  Widget _buildImage(BuildContext context) {
     const double w = 56;
     const double h = 32;
 
@@ -155,12 +156,12 @@ class SongCard extends StatelessWidget {
         height: h,
         cacheHeight: 200,
         fit: BoxFit.cover,
-        errorBuilder: (c, e, s) => _buildPlaceholder(w, h),
+        errorBuilder: (c, e, s) => _buildPlaceholder(context, w, h),
       );
     }
 
     if (song.coverUrl.isEmpty) {
-      return _buildPlaceholder(w, h);
+      return _buildPlaceholder(context, w, h);
     }
 
     return CachedNetworkImage(
@@ -170,36 +171,37 @@ class SongCard extends StatelessWidget {
       memCacheHeight: 200,
       memCacheWidth: 200,
       fit: BoxFit.cover,
-      errorWidget: (context, url, error) => _buildPlaceholder(w, h),
+      errorWidget: (context, url, error) => _buildPlaceholder(context, w, h),
     );
   }
 
-  Widget _buildPlaceholder(double width, double height) {
-    return Container(
+  static Widget _buildStaticPlaceholder(
+      BuildContext context, double width, double height) {
+    return DeviceCoverPlaceholder(
       width: width,
       height: height,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.grey.shade800, Colors.grey.shade900],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Center(
-        child: CustomIcons.svgIcon(
-          CustomIcons.musicNote,
-          color: Colors.white54,
-          size: 20,
-        ),
-      ),
+      borderRadius: 16,
+      logoColor: Theme.of(context).primaryColor,
+    );
+  }
+
+  Widget _buildPlaceholder(BuildContext context, double width, double height) {
+    return DeviceCoverPlaceholder(
+      width: width,
+      height: height,
+      borderRadius: 4,
+      logoColor: Theme.of(context).primaryColor,
     );
   }
 
   Widget _buildTrailingActions(BuildContext context) {
+    final bool isDeviceSong =
+        song.localPath != null && song.audioUrl == song.localPath;
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (showDownloadButton) ...[
+        if (showDownloadButton && !isDeviceSong) ...[
           Consumer<SongProvider>(
             builder: (context, provider, child) {
               final isDownloaded = provider.isSongDownloaded(song.id);
@@ -886,14 +888,8 @@ class SongCard extends StatelessWidget {
                               imageUrl: song.coverUrl,
                               fit: BoxFit.cover,
                               memCacheHeight: 400,
-                              errorWidget: (context, url, error) => Container(
-                                color: Colors.grey.shade800,
-                                child: const Icon(
-                                  Icons.music_note,
-                                  size: 40,
-                                  color: Colors.white54,
-                                ),
-                              ),
+                              errorWidget: (context, url, error) =>
+                                  _buildStaticPlaceholder(context, 288, 162),
                             ),
                     ),
                   ),

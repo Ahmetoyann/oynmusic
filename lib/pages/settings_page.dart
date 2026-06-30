@@ -510,7 +510,7 @@ class _SettingsPageState extends State<SettingsPage> {
             children: [
               ListTile(
                 leading: _buildLeadingIcon(
-                  Theme.of(context).primaryColor,
+                  Colors.black,
                   Image.asset(
                     'assets/icon/OYN_ana_logo_seffaf.png',
                     width: 24,
@@ -530,7 +530,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     return Text(
                       version,
                       style: TextStyle(
-                        color: Theme.of(context).primaryColor,
+                        color: Colors.grey.shade600,
                         fontWeight: FontWeight.bold,
                       ),
                     );

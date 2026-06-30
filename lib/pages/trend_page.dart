@@ -23,6 +23,7 @@ import 'package:muzik_app/providers/language_provider.dart';
 import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:muzik_app/pages/login_page.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:muzik_app/widgets/device_cover_placeholder.dart';
 import 'package:muzik_app/services/custom_winning_add.dart';
 
 /// Trend şarkıları gösteren ana sayfa widget'ı
@@ -1140,8 +1141,12 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget> {
                           imageUrl: song.coverUrl,
                           fit: BoxFit.cover,
                           memCacheHeight: 300,
-                          errorWidget: (context, url, error) => Container(
-                            color: Colors.grey.shade800,
+                          errorWidget: (context, url, error) =>
+                              DeviceCoverPlaceholder(
+                            width: double.infinity,
+                            height: double.infinity,
+                            borderRadius: 6,
+                            logoColor: Theme.of(context).primaryColor,
                           ),
                         ),
                 ),
@@ -1225,8 +1230,12 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget> {
                         imageUrl: song.coverUrl,
                         fit: BoxFit.cover,
                         memCacheHeight: 150,
-                        errorWidget: (context, url, error) => Container(
-                          color: Colors.grey.shade800,
+                        errorWidget: (context, url, error) =>
+                            DeviceCoverPlaceholder(
+                          width: 71,
+                          height: 40,
+                          borderRadius: 4,
+                          logoColor: Theme.of(context).primaryColor,
                         ),
                       ),
               ),
@@ -1428,49 +1437,49 @@ class _DailySongCardState extends State<DailySongCard> {
     final horizontalPadding = MediaQuery.of(context).size.width * 0.025;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-        horizontalPadding,
-        16,
-        horizontalPadding,
-        16,
-      ),
-      child: RepaintBoundary(
-        child: GestureDetector(
-          onTap: () {
-            // Kartın geneline tıklandığında seçenekler menüsünü aç
-            SongCard.showModernMenu(
-              context,
-              widget.song,
-              onTap: () {
-                // Menüden "Oynat" seçilirse çalma işlemini yap
-                if (provider.currentSong?.id == widget.song.id) {
-                  if (provider.audioPlayer.playing) {
-                    provider.audioPlayer.pause();
+        padding: EdgeInsets.fromLTRB(
+          horizontalPadding,
+          16,
+          horizontalPadding,
+          16,
+        ),
+        child: RepaintBoundary(
+          child: GestureDetector(
+            onTap: () {
+              // Kartın geneline tıklandığında seçenekler menüsünü aç
+              SongCard.showModernMenu(
+                context,
+                widget.song,
+                onTap: () {
+                  // Menüden "Oynat" seçilirse çalma işlemini yap
+                  if (provider.currentSong?.id == widget.song.id) {
+                    if (provider.audioPlayer.playing) {
+                      provider.audioPlayer.pause();
+                    } else {
+                      provider.audioPlayer.play();
+                    }
                   } else {
-                    provider.audioPlayer.play();
+                    provider.playSong(widget.song, widget.playlist);
                   }
-                } else {
-                  provider.playSong(widget.song, widget.playlist);
-                }
-              },
-            );
-          },
-          child: Container(
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(24)),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade900.withOpacity(0.8),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.1),
-                    width: 1.5,
+                },
+              );
+            },
+            child: Container(
+              decoration:
+                  BoxDecoration(borderRadius: BorderRadius.circular(24)),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade900.withOpacity(0.8),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.1),
+                      width: 1.5,
+                    ),
                   ),
-                ),
-                child: Row(
-                  children: [
+                  child: Row(children: [
                     // Kapak Resmi
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
@@ -1480,17 +1489,16 @@ class _DailySongCardState extends State<DailySongCard> {
                         height: 63,
                         fit: BoxFit.cover,
                         memCacheHeight: 250,
-                        errorWidget: (context, url, error) => Container(
+                        errorWidget: (context, url, error) =>
+                            DeviceCoverPlaceholder(
                           width: 112,
                           height: 63,
-                          color: Colors.grey.shade800,
-                          child: const Icon(
-                            Icons.music_note,
-                            color: Colors.white54,
-                          ),
+                          borderRadius: 10,
+                          logoColor: Theme.of(context).primaryColor,
                         ),
                       ),
                     ),
+
                     const SizedBox(width: 16),
                     // Şarkı Bilgileri
                     Expanded(
@@ -1591,13 +1599,11 @@ class _DailySongCardState extends State<DailySongCard> {
                       ),
                     ),
                     const SizedBox(width: 4),
-                  ],
+                  ]),
                 ),
               ),
             ),
           ),
-        ),
-      ),
-    );
+        ));
   }
 }

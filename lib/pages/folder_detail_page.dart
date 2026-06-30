@@ -20,6 +20,7 @@ import 'package:muzik_app/widgets/custom_app_bar.dart';
 import 'package:muzik_app/widgets/custom_drop_down.dart';
 import 'package:muzik_app/providers/language_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:muzik_app/widgets/device_cover_placeholder.dart';
 import 'package:muzik_app/widgets/custom_search_bar.dart';
 
 enum FolderSortOption { titleAZ, titleZA, artistAZ, artistZA }
@@ -1301,30 +1302,30 @@ class _FolderDetailPageState extends State<FolderDetailPage>
         width: double.infinity,
         height: double.infinity,
         errorBuilder: (context, error, stackTrace) {
-          return Container(
-            color: Colors.grey.shade900,
-            child: CustomIcons.svgIcon(
-              CustomIcons.musicNote,
-              size: 32,
-              color: Colors.grey,
-            ),
+          return DeviceCoverPlaceholder(
+            logoColor: Theme.of(context).primaryColor,
           );
         },
       ));
     }
+
+    if (song.coverUrl.isEmpty) {
+      return DeviceCoverPlaceholder(
+        width: 108,
+        height: 108,
+        borderRadius: 8,
+        logoColor: Theme.of(context).primaryColor,
+      );
+    }
+
     return ClipRect(
       child: CachedNetworkImage(
         imageUrl: song.coverUrl,
         fit: BoxFit.cover,
         width: double.infinity,
         height: double.infinity,
-        errorWidget: (context, url, error) => Container(
-          color: Colors.grey.shade800,
-          child: CustomIcons.svgIcon(
-            CustomIcons.musicNote,
-            size: 32,
-            color: Colors.grey,
-          ),
+        errorWidget: (context, url, error) => DeviceCoverPlaceholder(
+          logoColor: Theme.of(context).primaryColor,
         ),
       ),
     );
@@ -1788,27 +1789,32 @@ class _AddSongsSheetState extends State<AddSongsSheet> {
                                           height: 40,
                                           fit: BoxFit.cover,
                                         )
-                                      : CachedNetworkImage(
-                                          imageUrl: song.coverUrl,
-                                          width: 71,
-                                          height: 40,
-                                          fit: BoxFit.cover,
-                                          errorWidget: (
-                                            context,
-                                            url,
-                                            error,
-                                          ) =>
-                                              Container(
-                                            width: 71,
-                                            height: 40,
-                                            color: Colors.grey.shade800,
-                                            child: CustomIcons.svgIcon(
-                                              CustomIcons.musicNote,
-                                              color: Colors.grey,
-                                              size: 24,
-                                            ),
-                                          ),
-                                        ),
+                                      : (song.coverUrl.isNotEmpty
+                                          ? CachedNetworkImage(
+                                              imageUrl: song.coverUrl,
+                                              width: 71,
+                                              height: 40,
+                                              fit: BoxFit.cover,
+                                              errorWidget: (
+                                                context,
+                                                url,
+                                                error,
+                                              ) =>
+                                                  DeviceCoverPlaceholder(
+                                                width: 71,
+                                                height: 40,
+                                                borderRadius: 4,
+                                                logoColor: Theme.of(context)
+                                                    .primaryColor,
+                                              ),
+                                            )
+                                          : DeviceCoverPlaceholder(
+                                              width: 71,
+                                              height: 40,
+                                              borderRadius: 4,
+                                              logoColor: Theme.of(context)
+                                                  .primaryColor,
+                                            )),
                                 ),
                               ),
                               const SizedBox(width: 12),

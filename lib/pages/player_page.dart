@@ -20,6 +20,7 @@ import 'package:muzik_app/widgets/custom_banner_ad.dart';
 import 'package:text_scroll/text_scroll.dart';
 import 'package:muzik_app/providers/language_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:muzik_app/widgets/device_cover_placeholder.dart';
 import 'package:muzik_app/pages/artist_detail_page.dart';
 import 'package:muzik_app/widgets/mini_player.dart';
 import 'package:muzik_app/services/custom_winning_add.dart';
@@ -30,8 +31,11 @@ class PlayerPage extends StatefulWidget {
   static void show(BuildContext context) {
     Navigator.of(context).push(
       PageRouteBuilder(
-        opaque: false, // Arka planın görünmesini sağlar
-        pageBuilder: (_, __, ___) => const PlayerPage(),
+        opaque: true,
+        pageBuilder: (pageContext, animation, secondaryAnimation) => Container(
+          color: Theme.of(pageContext).scaffoldBackgroundColor,
+          child: const PlayerPage(),
+        ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           const begin = Offset(0.0, 1.0);
           const end = Offset.zero;
@@ -375,19 +379,20 @@ class _PlayerPageState extends State<PlayerPage> {
                           ),
                           const Spacer(),
                           // İndirme ve Paylaş Butonları (Aynı Hizada)
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 8,
+                            alignment: WrapAlignment.spaceBetween,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
                               if (!isDeviceSong) ...[
                                 _buildDownloadButton(
                                     context, songProvider, currentSong,
                                     isMp4: false),
-                                const SizedBox(width: 12),
                                 _buildDownloadButton(
                                     context, songProvider, currentSong,
                                     isMp4: true),
                               ],
-                              const Spacer(), // Temas etmemeleri için arayı açar ve Paylaş ikonunu en sağa iter
                               IconButton(
                                 icon: Icon(
                                   Icons.ios_share,
@@ -863,17 +868,12 @@ class _PlayerPageState extends State<PlayerPage> {
                                           cacheHeight: 200,
                                         )
                                       else if (song.coverUrl.isEmpty)
-                                        Container(
-                                          color: Colors.black,
-                                          child: Center(
-                                            child: Image.asset(
-                                              'assets/icon/OYN_ana_logo_seffaf.png',
-                                              color: Theme.of(context)
-                                                  .primaryColor,
-                                              width: 24,
-                                              height: 24,
-                                            ),
-                                          ),
+                                        DeviceCoverPlaceholder(
+                                          width: 71,
+                                          height: 40,
+                                          borderRadius: 6,
+                                          logoColor:
+                                              Theme.of(context).primaryColor,
                                         )
                                       else
                                         CachedNetworkImage(
@@ -885,17 +885,12 @@ class _PlayerPageState extends State<PlayerPage> {
                                             url,
                                             error,
                                           ) =>
-                                              Container(
-                                            color: Colors.black,
-                                            child: Center(
-                                              child: Image.asset(
-                                                'assets/icon/OYN_ana_logo_seffaf.png',
-                                                color: Theme.of(context)
-                                                    .primaryColor,
-                                                width: 24,
-                                                height: 24,
-                                              ),
-                                            ),
+                                              DeviceCoverPlaceholder(
+                                            width: 71,
+                                            height: 40,
+                                            borderRadius: 6,
+                                            logoColor:
+                                                Theme.of(context).primaryColor,
                                           ),
                                         ),
                                       if (isCurrent)
@@ -1500,15 +1495,11 @@ class _GlowingAlbumCover extends StatelessWidget {
                 fit: BoxFit.cover,
               )
             : (highResUrl.isEmpty
-                ? Container(
-                    color: Colors.black,
-                    child: Center(
-                      child: Image.asset(
-                        'assets/icon/OYN_ana_logo_seffaf.png',
-                        color: Theme.of(context).primaryColor,
-                        width: size * 0.4,
-                      ),
-                    ),
+                ? DeviceCoverPlaceholder(
+                    width: size,
+                    height: height,
+                    borderRadius: 6,
+                    logoColor: Theme.of(context).primaryColor,
                   )
                 : CachedNetworkImage(
                     imageUrl: highResUrl,
@@ -1521,15 +1512,12 @@ class _GlowingAlbumCover extends StatelessWidget {
                         width: size,
                         height: height,
                         fit: BoxFit.cover,
-                        errorWidget: (context, url, error) => Container(
-                          color: Colors.black,
-                          child: Center(
-                            child: Image.asset(
-                              'assets/icon/OYN_ana_logo_seffaf.png',
-                              color: Theme.of(context).primaryColor,
-                              width: size * 0.4,
-                            ),
-                          ),
+                        errorWidget: (context, url, error) =>
+                            DeviceCoverPlaceholder(
+                          width: size,
+                          height: height,
+                          borderRadius: 6,
+                          logoColor: Theme.of(context).primaryColor,
                         ),
                       );
                     },
@@ -1978,15 +1966,45 @@ Widget _buildDownloadButton(
               ),
               const SizedBox(width: 6),
               const Text(
-                "Video 3 ",
+                "Video",
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                   fontSize: 15,
                 ),
               ),
-              const Icon(Icons.monetization_on_rounded,
-                  color: Colors.amber, size: 16),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.14),
+                  ),
+                ),
+                child: Row(
+                  children: const [
+                    Text(
+                      '3',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    SizedBox(width: 4),
+                    Icon(
+                      Icons.monetization_on_rounded,
+                      color: Colors.amber,
+                      size: 16,
+                    ),
+                  ],
+                ),
+              ),
             ],
           );
           onTap = () {
@@ -2136,15 +2154,45 @@ Widget _buildDownloadButton(
             ),
             const SizedBox(width: 6),
             const Text(
-              "Müzik 2 ",
+              "Müzik",
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
                 fontSize: 15,
               ),
             ),
-            const Icon(Icons.monetization_on_rounded,
-                color: Colors.amber, size: 16),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 4,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.14),
+                ),
+              ),
+              child: Row(
+                children: const [
+                  Text(
+                    '2',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  SizedBox(width: 4),
+                  Icon(
+                    Icons.monetization_on_rounded,
+                    color: Colors.amber,
+                    size: 16,
+                  ),
+                ],
+              ),
+            ),
           ],
         );
         onTap = () {

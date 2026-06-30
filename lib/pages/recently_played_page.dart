@@ -15,6 +15,7 @@ import 'package:muzik_app/providers/language_provider.dart';
 import 'package:muzik_app/widgets/custom_banner_ad.dart';
 import 'package:muzik_app/widgets/custom_search_bar.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:muzik_app/widgets/device_cover_placeholder.dart';
 import 'package:muzik_app/pages/artist_detail_page.dart';
 
 class RecentlyPlayedPage extends StatefulWidget {
@@ -27,14 +28,7 @@ class RecentlyPlayedPage extends StatefulWidget {
 class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchText = '';
-  String _selectedFilter = 'Tümü';
-
-  final List<String> _filters = [
-    'Tümü',
-    'Şarkılar',
-    'Koleksiyonlar',
-    'Keşifler'
-  ];
+  String _selectedFilter = '';
 
   @override
   void dispose() {
@@ -109,29 +103,59 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
     final langProvider = context.watch<LanguageProvider>();
     final allSongs = songProvider.recentlyPlayed;
 
+    bool isCollectionSong(Song song) {
+      final title = song.title.toLowerCase();
+      return title.contains('mix') ||
+          title.contains('albüm') ||
+          title.contains('album') ||
+          title.contains('playlist') ||
+          title.contains('set');
+    }
+
+    // Localized filter labels
+    final filters = [
+      langProvider.t('all'),
+      langProvider.t('songs'),
+      langProvider.t('collections'),
+      langProvider.t('discover_songs'),
+    ];
+
+    final selectedFilter =
+        _selectedFilter.isEmpty ? filters[0] : _selectedFilter;
+
     // Arama filtresi
-    final displayedSongs = allSongs.where((song) {
+    var displayedSongs = allSongs.where((song) {
       final query = _searchText.toLowerCase();
       final matchesSearch = song.title.toLowerCase().contains(query) ||
           song.artist.toLowerCase().contains(query);
 
-      bool matchesFilter = true;
-      if (_selectedFilter == 'Şarkılar') {
-        matchesFilter = !song.title.toLowerCase().contains('mix') &&
-            !song.title.toLowerCase().contains('albüm');
-      } else if (_selectedFilter == 'Koleksiyonlar') {
-        matchesFilter = song.title.toLowerCase().contains('mix') ||
-            song.title.toLowerCase().contains('albüm') ||
-            song.title.toLowerCase().contains('set');
-      } else if (_selectedFilter == 'Keşifler') {
-        // Basit bir keşif mantığı: Play count 1 ise (veya son 24 saatte eklendiyse)
+      if (selectedFilter == filters[1]) {
+        return matchesSearch && !isCollectionSong(song);
+      } else if (selectedFilter == filters[2]) {
+        return matchesSearch && isCollectionSong(song);
+      } else if (selectedFilter == filters[3]) {
         final count = songProvider.getSongListeningSeconds(song.id);
-        matchesFilter =
-            count < 120; // 2 dakikadan az dinlenenler yeni keşif sayılır
+        return matchesSearch && count < 120;
       }
 
-      return matchesSearch && matchesFilter;
+      return matchesSearch;
     }).toList();
+
+    if (selectedFilter == filters[2]) {
+      displayedSongs.sort((a, b) {
+        final aTime = a.lastPlayed ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bTime = b.lastPlayed ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return bTime.compareTo(aTime);
+      });
+      final uniqueCollections = <String, Song>{};
+      for (var song in displayedSongs) {
+        final key = song.title.toLowerCase();
+        if (!uniqueCollections.containsKey(key)) {
+          uniqueCollections[key] = song;
+        }
+      }
+      displayedSongs = uniqueCollections.values.toList();
+    }
 
     // En Sık Dinlenen Sanatçıları Hesapla
     final Map<String, int> artistPlayCounts = {};
@@ -219,13 +243,13 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
 
                 // --- Akıllı Filtre Çipleri ---
                 SliverToBoxAdapter(
-                  child: _buildFilterChips(context),
+                  child: _buildFilterChips(context, filters, selectedFilter),
                 ),
 
                 // --- En Sık Dinlediğin Sanatçılar (Yatay Scroll) ---
                 if (_searchText.isEmpty &&
                     topArtists.isNotEmpty &&
-                    _selectedFilter == 'Tümü')
+                    selectedFilter == filters[0])
                   SliverToBoxAdapter(
                     child: _buildTopArtists(context, topArtists, songProvider),
                   ),
@@ -233,34 +257,12 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
                 // --- Bu Saatte En Çok Dinlediğin Akıllı Kart ---
                 if (_searchText.isEmpty &&
                     allSongs.length > 5 &&
-                    _selectedFilter == 'Tümü')
+                    selectedFilter == filters[0])
                   SliverToBoxAdapter(
                     child: _buildSmartReminder(context, allSongs, songProvider),
                   ),
 
-                // --- Temizle Butonu ---
-                if (displayedSongs.isNotEmpty)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 16, bottom: 8),
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton.icon(
-                          onPressed: () => _showClearHistoryDialog(context),
-                          icon: CustomIcons.svgIcon(CustomIcons.delete,
-                              size: 16, color: Colors.redAccent),
-                          label: Text(langProvider.t('clear_history'),
-                              style: const TextStyle(fontSize: 12)),
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.redAccent,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 4),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
+                
                 // --- Zaman Tüneli Mimarisi (Flattened Lazy List) ---
                 if (displayedSongs.isEmpty)
                   SliverFillRemaining(
@@ -338,18 +340,19 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
 
   // --- YENİ EKLENEN MODERN VİDGET METOTLARI ---
 
-  Widget _buildFilterChips(BuildContext context) {
+  Widget _buildFilterChips(
+      BuildContext context, List<String> filters, String selectedFilter) {
     return SizedBox(
       height: 40,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
-        itemCount: _filters.length,
+        itemCount: filters.length,
         separatorBuilder: (context, index) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
-          final filter = _filters[index];
-          final isSelected = _selectedFilter == filter;
+          final filter = filters[index];
+          final isSelected = selectedFilter == filter;
           return GestureDetector(
             onTap: () => setState(() => _selectedFilter = filter),
             child: ClipRRect(
@@ -394,15 +397,16 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
 
   Widget _buildTopArtists(
       BuildContext context, List<String> topArtists, SongProvider provider) {
+    final langProvider = context.read<LanguageProvider>();
     final primaryColor = Theme.of(context).primaryColor;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-          child: const Text(
-            "En Sık Dinlediğin Sanatçılar",
-            style: TextStyle(
+          child: Text(
+            langProvider.t('most_played_artists'),
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -435,6 +439,7 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
 
   Widget _buildSmartReminder(
       BuildContext context, List<Song> allSongs, SongProvider provider) {
+    final langProvider = context.watch<LanguageProvider>();
     final primaryColor = Theme.of(context).primaryColor;
     // Saate uygun rastgele bir favori seçimi
     final random = Random();
@@ -466,7 +471,7 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "Bu Saatte En Çok Dinlediğin",
+                    langProvider.t('smart_reminder_title'),
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.7),
                       fontSize: 12,
@@ -568,10 +573,11 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
                   width: 71,
                   height: 40,
                   fit: BoxFit.cover,
-                  errorWidget: (c, u, e) => Container(
+                  errorWidget: (c, u, e) => DeviceCoverPlaceholder(
                     width: 71,
                     height: 40,
-                    color: Colors.grey.shade800,
+                    borderRadius: 4,
+                    logoColor: Theme.of(context).primaryColor,
                   ),
                 ),
               ),
@@ -751,7 +757,7 @@ class _TopArtistTileState extends State<_TopArtistTile> {
                 boxShadow: widget.isTop
                     ? [
                         BoxShadow(
-                            color: primaryColor.withOpacity(0.6),
+                            color: primaryColor.withOpacity(0.1),
                             blurRadius: 15,
                             spreadRadius: 2)
                       ]
