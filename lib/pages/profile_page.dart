@@ -20,6 +20,7 @@ import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/widgets/mini_player.dart';
 import 'package:muzik_app/widgets/custom_app_bar.dart';
+import 'package:muzik_app/pages/settings_page.dart';
 import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/pages/player_page.dart';
 import 'package:palette_generator/palette_generator.dart';
@@ -960,58 +961,84 @@ class _ProfilePageState extends State<ProfilePage>
             const SizedBox(height: 24),
           ],
 
+          // Ayarlar Butonu
           Padding(
-            padding: const EdgeInsets.only(top: 16.0),
+            padding: const EdgeInsets.only(bottom: 16.0),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(24),
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.redAccent.withOpacity(0.2),
+                  color: Colors.grey.shade800.withOpacity(0.5),
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                    color: Colors.redAccent.withOpacity(0.5),
+                    color: Colors.white.withOpacity(0.2),
                     width: 1.5,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.redAccent.withOpacity(0.2),
-                      blurRadius: 15,
-                      spreadRadius: 1,
-                    ),
-                  ],
                 ),
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    onTap: () => _showSignOutBottomSheet(context, provider),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const SettingsPage()),
+                      );
+                    },
                     borderRadius: BorderRadius.circular(24),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                        vertical: 16,
-                        horizontal: 20,
-                      ),
+                          vertical: 16, horizontal: 20),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          CustomIcons.svgIcon(
-                            CustomIcons.logout,
-                            color: Colors.redAccent,
-                            size: 22,
-                          ),
+                          CustomIcons.svgIcon(CustomIcons.settings,
+                              color: Colors.white, size: 22),
                           const SizedBox(width: 12),
                           Text(
-                            langProvider.t('sign_out'),
+                            langProvider.t('settings'),
                             style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16),
                           ),
                         ],
                       ),
                     ),
                   ),
                 ),
+              ),
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: TextButton(
+              onPressed: () => _showSignOutBottomSheet(context, provider),
+              style: TextButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CustomIcons.svgIcon(
+                    CustomIcons.logout,
+                    color: Colors.redAccent,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    langProvider.t('sign_out'),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16),
+                  ),
+                ],
               ),
             ),
           ),
@@ -1434,7 +1461,7 @@ class _ProfilePageState extends State<ProfilePage>
                                       child: Container(
                                         padding: const EdgeInsets.all(8),
                                         decoration: BoxDecoration(
-                                          color: Theme.of(context).primaryColor,
+                                          color: Colors.white,
                                           shape: BoxShape.circle,
                                           border: Border.all(
                                             color: Colors.grey.shade900,
@@ -1444,7 +1471,7 @@ class _ProfilePageState extends State<ProfilePage>
                                         child: CustomIcons.svgIcon(
                                           CustomIcons.cameraAlt,
                                           size: 16,
-                                          color: Colors.white,
+                                          color: Colors.black,
                                         ),
                                       ),
                                     ),

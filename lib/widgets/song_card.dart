@@ -454,16 +454,15 @@ class SongCard extends StatelessWidget {
                                     fit: BoxFit.cover,
                                   );
                                 } else {
-                                  coverWidget = Image.network(
-                                    firstSong.coverUrl,
+                                  coverWidget = CachedNetworkImage(
+                                    imageUrl: firstSong.coverUrl,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (c, e, s) => Container(
-                                      color: Colors.grey.shade800,
-                                      child: CustomIcons.svgIcon(
-                                        CustomIcons.musicNote,
-                                        color: Colors.white54,
-                                        size: 24,
-                                      ),
+                                    errorWidget: (c, e, s) =>
+                                        DeviceCoverPlaceholder(
+                                      width: 71,
+                                      height: 40,
+                                      borderRadius: 8,
+                                      logoColor: Theme.of(context).primaryColor,
                                     ),
                                   );
                                 }

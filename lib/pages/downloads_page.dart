@@ -1432,7 +1432,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                   height: 48,
                                   decoration: BoxDecoration(
                                     color: Colors.grey.shade900,
-                                    borderRadius: BorderRadius.circular(4),
+                                    borderRadius: BorderRadius.circular(5),
                                   ),
                                   child: CustomDropDown<SortOption>(
                                     icon: Row(

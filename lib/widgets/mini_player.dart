@@ -227,7 +227,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
             child: SizedBox(
               width: screenWidth * 0.95,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(7),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
                   color: Color.lerp(Colors.grey.shade900, glowColor, 0.25),

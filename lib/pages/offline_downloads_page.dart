@@ -142,229 +142,212 @@ class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
           return Scaffold(
             backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
             body: SafeArea(
-              child: Consumer<SongProvider>(
-                builder: (innerContext, songProvider, child) {
-                  final folders = songProvider.folders;
-                  final theme = Theme.of(innerContext);
-
-                  return Column(
-                    children: [
-                      Align(
-                        alignment: Alignment.topRight,
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: IconButton(
-                            icon: const Icon(Icons.close_rounded,
-                                color: Colors.white, size: 32),
-                            onPressed: () => Navigator.pop(pageContext),
-                          ),
+              child: StatefulBuilder(
+                builder: (modalContext, setModalState) => Column(
+                  children: [
+                    Align(
+                      alignment: Alignment.topRight,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: IconButton(
+                          icon: const Icon(Icons.close_rounded,
+                              color: Colors.white, size: 32),
+                          onPressed: () => Navigator.pop(pageContext),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Icon(Icons.playlist_add_check_circle_rounded,
-                          size: 64, color: theme.primaryColor),
-                      const SizedBox(height: 16),
-                      Text(
-                        langProvider.t('add_to_playlist'),
-                        style: TextStyle(
-                          color: theme.primaryColor,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-
-                      // Modern "Yeni Liste Oluştur" Butonu
-                      Padding(
+                    ),
+                    Expanded(
+                      child: SingleChildScrollView(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: theme.primaryColor.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: theme.primaryColor.withOpacity(0.5),
-                                width: 1.5,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(height: 8),
+                            GestureDetector(
+                              onTap: () async {
+                                final ImagePicker picker = ImagePicker();
+                                final XFile? image = await picker.pickImage(
+                                  source: ImageSource.gallery,
+                                );
+                                if (image != null) {
+                                  setModalState(() {
+                                    selectedImagePath = image.path;
+                                  });
+                                }
+                              },
+                              child: Container(
+                                width: 256,
+                                height: 144,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade900,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.3),
+                                      blurRadius: 15,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ],
+                                  image: selectedImagePath != null
+                                      ? DecorationImage(
+                                          image: FileImage(
+                                              File(selectedImagePath!)),
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.1),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: selectedImagePath == null
+                                    ? Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.add_a_photo_outlined,
+                                            color:
+                                                Theme.of(context).primaryColor,
+                                            size: 48,
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            langProvider.t('choose_cover'),
+                                            style: TextStyle(
+                                              color: Colors.grey.shade500,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    : null,
                               ),
                             ),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: () {
-                                  Navigator.pop(pageContext);
-                                  _showCreateFolderBottomSheet(context);
-                                },
-                                borderRadius: BorderRadius.circular(16),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 16,
-                                    horizontal: 20,
+                            const SizedBox(height: 24),
+                            Container(
+                              margin:
+                                  const EdgeInsets.symmetric(horizontal: 24),
+                              child: TextField(
+                                controller: controller,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: langProvider.t('list_name'),
+                                  hintStyle: TextStyle(
+                                    color: Colors.grey.shade500,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      CustomIcons.svgIcon(
-                                        CustomIcons.addRounded,
-                                        color: Colors.white,
-                                        size: 24,
+                                  filled: true,
+                                  fillColor: Colors.grey.shade800,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                    horizontal: 16,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: BackdropFilter(
+                                  filter:
+                                      ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(
+                                        context,
+                                      ).primaryColor.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: Theme.of(
+                                          context,
+                                        ).primaryColor.withOpacity(0.5),
+                                        width: 1.5,
                                       ),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        langProvider.t('create_new_list'),
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Theme.of(
+                                            context,
+                                          ).primaryColor.withOpacity(0.2),
+                                          blurRadius: 15,
+                                          spreadRadius: 1,
+                                        ),
+                                      ],
+                                    ),
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        onTap: () {
+                                          if (controller.text.isNotEmpty) {
+                                            context
+                                                .read<SongProvider>()
+                                                .createFolder(
+                                                  name: controller.text,
+                                                  songs:
+                                                      _selectedSongs.toList(),
+                                                  isFromDownloads: true,
+                                                  customImagePath:
+                                                      selectedImagePath,
+                                                );
+                                            Navigator.pop(pageContext);
+                                            setState(() {
+                                              _isSelectionMode = false;
+                                              _selectedSongs.clear();
+                                            });
+                                            CustomSnackBar.showSuccess(
+                                              context: context,
+                                              message:
+                                                  '${controller.text} ${langProvider.t('create')}d.',
+                                            );
+                                          } else {
+                                            CustomSnackBar.showError(
+                                              context: context,
+                                              message:
+                                                  'Lütfen bir liste adı girin.',
+                                            );
+                                          }
+                                        },
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 16),
+                                          child: Center(
+                                            child: Text(
+                                              langProvider.t('create'),
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                    ],
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
+                            const SizedBox(height: 24),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 24),
-
-                      if (folders.isEmpty)
-                        Expanded(
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                CustomIcons.svgIcon(
-                                  CustomIcons.folderOpenRounded,
-                                  size: 48,
-                                  color: Colors.grey.shade800,
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  langProvider.t('no_lists'),
-                                  style: const TextStyle(color: Colors.grey),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      else
-                        Expanded(
-                          child: ListView.separated(
-                            physics: const BouncingScrollPhysics(),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 24, vertical: 8),
-                            itemCount: folders.length,
-                            separatorBuilder: (context, index) =>
-                                const SizedBox(height: 12),
-                            itemBuilder: (context, index) {
-                              final folder = folders[index];
-
-                              Widget coverWidget;
-                              if (folder.customImagePath != null &&
-                                  File(folder.customImagePath!).existsSync()) {
-                                coverWidget = Image.file(
-                                  File(folder.customImagePath!),
-                                  fit: BoxFit.cover,
-                                );
-                              } else if (folder.songs.isNotEmpty) {
-                                final firstSong = folder.songs.first;
-                                if (firstSong.localImagePath != null &&
-                                    File(firstSong.localImagePath!)
-                                        .existsSync()) {
-                                  coverWidget = Image.file(
-                                    File(firstSong.localImagePath!),
-                                    fit: BoxFit.cover,
-                                  );
-                                } else {
-                                  coverWidget = CachedNetworkImage(
-                                    imageUrl: firstSong.coverUrl,
-                                    fit: BoxFit.cover,
-                                    errorWidget: (c, e, s) =>
-                                        DeviceCoverPlaceholder(
-                                      width: 71,
-                                      height: 40,
-                                      borderRadius: 8,
-                                      logoColor: Theme.of(context).primaryColor,
-                                    ),
-                                  );
-                                }
-                              } else {
-                                coverWidget = DeviceCoverPlaceholder(
-                                  width: 71,
-                                  height: 40,
-                                  borderRadius: 8,
-                                  logoColor: Theme.of(context).primaryColor,
-                                );
-                              }
-
-                              return Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.05),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                      color: Colors.white.withOpacity(0.1)),
-                                ),
-                                child: ListTile(
-                                  contentPadding: const EdgeInsets.all(8),
-                                  leading: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: SizedBox(
-                                      width: 71,
-                                      height: 40,
-                                      child: coverWidget,
-                                    ),
-                                  ),
-                                  title: Text(
-                                    folder.name,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                  subtitle: Text(
-                                    '${folder.songs.length} ${langProvider.t('song')}',
-                                    style: TextStyle(
-                                        color: Colors.grey.shade400,
-                                        fontSize: 13),
-                                  ),
-                                  trailing: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.1),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: CustomIcons.svgIcon(
-                                      CustomIcons.arrowForwardIosRounded,
-                                      size: 14,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  onTap: () {
-                                    songProvider.addSongsToFolder(
-                                      folder,
-                                      _selectedSongs.toList(),
-                                    );
-                                    Navigator.pop(pageContext);
-                                    setState(() {
-                                      _isSelectionMode = false;
-                                      _selectedSongs.clear();
-                                    });
-                                    CustomSnackBar.showSuccess(
-                                      context: context,
-                                      message:
-                                          'Şarkılar ${folder.name} listesine eklendi.',
-                                    );
-                                  },
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                    ],
-                  );
-                },
+                    ),
+                  ],
+                ),
               ),
             ),
           );
@@ -1437,7 +1420,7 @@ class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
                                   height: 48,
                                   decoration: BoxDecoration(
                                     color: Colors.grey.shade900,
-                                    borderRadius: BorderRadius.circular(6),
+                                    borderRadius: BorderRadius.circular(5),
                                   ),
                                   child: CustomDropDown<SortOption>(
                                     icon: Row(

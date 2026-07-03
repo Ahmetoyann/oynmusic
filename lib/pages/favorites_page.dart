@@ -1119,75 +1119,81 @@ class _FavoritesPageState extends State<FavoritesPage> {
                                   ),
                                 ),
                                 const SizedBox(width: 12),
-                                Container(
-                                  height: 48,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade900,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: CustomDropDown<SortOption>(
-                                    icon: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          langProvider.t('sort') ?? "Sırala",
-                                          style: TextStyle(
-                                            color: Colors.grey.shade400,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
+                                Center(
+                                  child: Container(
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade900,
+                                      borderRadius: BorderRadius.circular(5),
+                                    ),
+                                    child: CustomDropDown<SortOption>(
+                                      icon: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            langProvider.t('sort') ?? "Sırala",
+                                            style: TextStyle(
+                                              color: Colors.grey.shade400,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                            ),
                                           ),
+                                          const SizedBox(width: 4),
+                                        ],
+                                      ),
+                                      tooltip: langProvider.t('sort'),
+                                      onSelected: (SortOption result) {
+                                        setState(() {
+                                          _sortOption = result;
+                                        });
+                                      },
+                                      items: [
+                                        CustomDropdownItem.build<SortOption>(
+                                          context: context,
+                                          value: SortOption.dateNewest,
+                                          icon: Icon(
+                                            Icons.arrow_downward_rounded,
+                                            size: 20,
+                                            color:
+                                                Theme.of(context).primaryColor,
+                                          ),
+                                          text: 'Tarihe Göre (En Yeni)',
                                         ),
-                                        const SizedBox(width: 4),
+                                        CustomDropdownItem.build<SortOption>(
+                                          context: context,
+                                          value: SortOption.dateOldest,
+                                          icon: Icon(
+                                            Icons.arrow_upward_rounded,
+                                            size: 20,
+                                            color:
+                                                Theme.of(context).primaryColor,
+                                          ),
+                                          text: 'Tarihe Göre (En Eski)',
+                                        ),
+                                        CustomDropdownItem.build<SortOption>(
+                                          context: context,
+                                          value: SortOption.nameAZ,
+                                          icon: Icon(
+                                            Icons.sort_by_alpha_rounded,
+                                            size: 20,
+                                            color:
+                                                Theme.of(context).primaryColor,
+                                          ),
+                                          text: 'İsme Göre (A-Z)',
+                                        ),
+                                        CustomDropdownItem.build<SortOption>(
+                                          context: context,
+                                          value: SortOption.nameZA,
+                                          icon: Icon(
+                                            Icons.sort_by_alpha_rounded,
+                                            size: 20,
+                                            color:
+                                                Theme.of(context).primaryColor,
+                                          ),
+                                          text: 'İsme Göre (Z-A)',
+                                        ),
                                       ],
                                     ),
-                                    tooltip: langProvider.t('sort'),
-                                    onSelected: (SortOption result) {
-                                      setState(() {
-                                        _sortOption = result;
-                                      });
-                                    },
-                                    items: [
-                                      CustomDropdownItem.build<SortOption>(
-                                        context: context,
-                                        value: SortOption.dateNewest,
-                                        icon: Icon(
-                                          Icons.arrow_downward_rounded,
-                                          size: 20,
-                                          color: Theme.of(context).primaryColor,
-                                        ),
-                                        text: 'Tarihe Göre (En Yeni)',
-                                      ),
-                                      CustomDropdownItem.build<SortOption>(
-                                        context: context,
-                                        value: SortOption.dateOldest,
-                                        icon: Icon(
-                                          Icons.arrow_upward_rounded,
-                                          size: 20,
-                                          color: Theme.of(context).primaryColor,
-                                        ),
-                                        text: 'Tarihe Göre (En Eski)',
-                                      ),
-                                      CustomDropdownItem.build<SortOption>(
-                                        context: context,
-                                        value: SortOption.nameAZ,
-                                        icon: Icon(
-                                          Icons.sort_by_alpha_rounded,
-                                          size: 20,
-                                          color: Theme.of(context).primaryColor,
-                                        ),
-                                        text: 'İsme Göre (A-Z)',
-                                      ),
-                                      CustomDropdownItem.build<SortOption>(
-                                        context: context,
-                                        value: SortOption.nameZA,
-                                        icon: Icon(
-                                          Icons.sort_by_alpha_rounded,
-                                          size: 20,
-                                          color: Theme.of(context).primaryColor,
-                                        ),
-                                        text: 'İsme Göre (Z-A)',
-                                      ),
-                                    ],
                                   ),
                                 ),
                               ],

@@ -154,6 +154,53 @@ class PlayerPage extends StatefulWidget {
                     ),
                   ),
                   const SizedBox(height: 32),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color:
+                              Theme.of(context).primaryColor.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color:
+                                Theme.of(context).primaryColor.withOpacity(0.5),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () {
+                              Navigator.pop(pageContext); // Mevcut ekranı kapat
+                              // Yeni liste oluşturma ekranını aç
+                              SongCard.showModernMenu(context, song);
+                            },
+                            borderRadius: BorderRadius.circular(16),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 16, horizontal: 20),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  CustomIcons.svgIcon(CustomIcons.addRounded,
+                                      color: Colors.white, size: 24),
+                                  const SizedBox(width: 12),
+                                  Text(langProvider.t('create_new_list'),
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                   if (songProvider.folders.isEmpty)
                     Expanded(
                       child: Center(
@@ -169,6 +216,8 @@ class PlayerPage extends StatefulWidget {
                   else
                     Expanded(
                       child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 8),
                         itemCount: songProvider.folders.length,
                         itemBuilder: (context, index) {
                           final folder = songProvider.folders[index];
@@ -379,28 +428,32 @@ class _PlayerPageState extends State<PlayerPage> {
                           ),
                           const Spacer(),
                           // İndirme ve Paylaş Butonları (Aynı Hizada)
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 8,
-                            alignment: WrapAlignment.spaceBetween,
-                            crossAxisAlignment: WrapCrossAlignment.center,
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              if (!isDeviceSong) ...[
-                                _buildDownloadButton(
-                                    context, songProvider, currentSong,
-                                    isMp4: false),
-                                _buildDownloadButton(
-                                    context, songProvider, currentSong,
-                                    isMp4: true),
-                              ],
-                              IconButton(
-                                icon: Icon(
-                                  Icons.ios_share,
-                                  color: Colors.white.withOpacity(0.7),
-                                  size: 24,
+                              if (!isDeviceSong)
+                                Wrap(
+                                  spacing: 12,
+                                  runSpacing: 8,
+                                  children: [
+                                    _buildDownloadButton(
+                                        context, songProvider, currentSong,
+                                        isMp4: false),
+                                    _buildDownloadButton(
+                                        context, songProvider, currentSong,
+                                        isMp4: true),
+                                  ],
                                 ),
-                                onPressed: () => _shareSong(currentSong),
-                              ),
+                              const Spacer(),
+                              if (!isDeviceSong)
+                                IconButton(
+                                  icon: Icon(
+                                    Icons.ios_share,
+                                    color: Colors.white.withOpacity(0.7),
+                                    size: 24,
+                                  ),
+                                  onPressed: () => _shareSong(currentSong),
+                                ),
                             ],
                           ),
                           const SizedBox(height: 20),
@@ -1163,13 +1216,12 @@ class _PlayerPageState extends State<PlayerPage> {
                               coverWidget = CachedNetworkImage(
                                 imageUrl: firstSong.coverUrl,
                                 fit: BoxFit.cover,
-                                errorWidget: (c, e, s) => Container(
-                                  color: Colors.grey.shade800,
-                                  child: CustomIcons.svgIcon(
-                                    CustomIcons.musicNote,
-                                    color: Colors.white54,
-                                    size: 24,
-                                  ),
+                                errorWidget: (c, e, s) =>
+                                    DeviceCoverPlaceholder(
+                                  width: 71,
+                                  height: 40,
+                                  borderRadius: 8,
+                                  logoColor: Theme.of(context).primaryColor,
                                 ),
                               );
                             }
@@ -2043,8 +2095,8 @@ Widget _buildDownloadButton(
               borderRadius: BorderRadius.circular(30),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 14,
+                  horizontal: 20,
+                  vertical: 12,
                 ),
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 300),
@@ -2235,8 +2287,8 @@ Widget _buildDownloadButton(
             borderRadius: BorderRadius.circular(30),
             child: Padding(
               padding: const EdgeInsets.symmetric(
-                horizontal: 24,
-                vertical: 14,
+                horizontal: 20,
+                vertical: 12,
               ),
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),

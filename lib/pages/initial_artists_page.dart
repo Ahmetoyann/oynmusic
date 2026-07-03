@@ -15,8 +15,13 @@ import 'package:muzik_app/widgets/custom_search_bar.dart';
 
 class InitialArtistsPage extends StatefulWidget {
   final VoidCallback onCompleted;
+  final bool isOptionalSelection;
 
-  const InitialArtistsPage({super.key, required this.onCompleted});
+  const InitialArtistsPage({
+    super.key,
+    required this.onCompleted,
+    this.isOptionalSelection = false,
+  });
 
   @override
   State<InitialArtistsPage> createState() => _InitialArtistsPageState();
@@ -90,21 +95,31 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
     final provider = context.read<SongProvider>();
     final langProvider = context.read<LanguageProvider>();
     final authProvider = context.read<AuthProvider>();
-
     // Seçilen sanatçıları Firestore'a kaydet
     await provider.saveFollowedArtistsToFirestore();
-    await provider.markInitialArtistsSeen();
 
-    // Ana sayfaya geçmeden önce, trendleri seçilen sanatçılara göre yenilemek için tetikle
-    // forceRefresh: true ile eski listeyi temizleyip yükleme ekranının görünmesini sağlıyoruz.
-    provider.fetchSongsFromApi(forceRefresh: true);
+    if (!widget.isOptionalSelection) {
+      await provider.markInitialArtistsSeen();
 
-    if (mounted) {
-      final userName = authProvider.user?.displayName ?? langProvider.t('user');
-      CustomSnackBar.showSuccess(
-        context: context,
-        message: langProvider.t('welcome_user').replaceAll('%s', userName),
-      );
+      // Ana sayfaya geçmeden önce, trendleri seçilen sanatçılara göre yenilemek için tetikle
+      // forceRefresh: true ile eski listeyi temizleyip yükleme ekranının görünmesini sağlıyoruz.
+      provider.fetchSongsFromApi(forceRefresh: true);
+
+      if (mounted) {
+        final userName =
+            authProvider.user?.displayName ?? langProvider.t('user');
+        CustomSnackBar.showSuccess(
+          context: context,
+          message: langProvider.t('welcome_user').replaceAll('%s', userName),
+        );
+      }
+    } else {
+      if (mounted) {
+        CustomSnackBar.showSuccess(
+          context: context,
+          message: langProvider.t('followed_artists_updated'),
+        );
+      }
     }
 
     widget.onCompleted(); // Seçim bitti, AuthWrapper'ı tetikle
@@ -115,7 +130,8 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
     final provider = context.watch<SongProvider>();
     final artists = provider.suggestedArtists;
     final followedCount = provider.followedArtists.length;
-    final canContinue = followedCount >= 3;
+    final canContinue =
+        widget.isOptionalSelection ? followedCount >= 0 : followedCount >= 3;
     final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
     final langProvider = context.watch<LanguageProvider>();
 
@@ -174,16 +190,17 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                    child: Text(
-                      "${langProvider.t('select_at_least_3')} ($followedCount/3)",
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: Colors.grey.shade400,
+                  if (!widget.isOptionalSelection)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                      child: Text(
+                        "${langProvider.t('select_at_least_3')} ($followedCount/3)",
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: Colors.grey.shade400,
+                        ),
                       ),
                     ),
-                  ),
                   const SizedBox(height: 16),
                   // Arama Çubuğu
                   Padding(
@@ -442,7 +459,6 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
                 left: 0,
                 right: 0,
                 child: Container(
-                  // SafeArea'nın alt boşluğunu hesaplayarak daha uyumlu durmasını sağlar
                   padding: EdgeInsets.fromLTRB(
                     24,
                     32,
@@ -460,96 +476,113 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
                       ],
                     ),
                   ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        flex: 1,
-                        child: TextButton(
-                          onPressed: _finishSelection,
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                          ),
-                          child: Text(
-                            langProvider.t('skip'),
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: canContinue
-                                    ? Theme.of(
-                                        context,
-                                      ).primaryColor.withOpacity(0.2)
-                                    : Colors.white.withOpacity(0.05),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: canContinue
-                                      ? Theme.of(
-                                          context,
-                                        ).primaryColor.withOpacity(0.5)
-                                      : Colors.white.withOpacity(0.1),
-                                  width: 1.5,
-                                ),
-                                boxShadow: canContinue
-                                    ? [
-                                        BoxShadow(
-                                          color: Theme.of(
-                                            context,
-                                          ).primaryColor.withOpacity(0.2),
-                                          blurRadius: 15,
-                                          spreadRadius: 1,
-                                        ),
-                                      ]
-                                    : [],
-                              ),
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  onTap: canContinue ? _finishSelection : null,
-                                  borderRadius: BorderRadius.circular(20),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 16,
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        langProvider.t('continue'),
-                                        style: TextStyle(
-                                          color: canContinue
-                                              ? Colors.white
-                                              : Colors.grey.shade600,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                  child: widget.isOptionalSelection
+                      ? _buildDoneButton(canContinue, langProvider)
+                      : _buildSkipContinueRow(canContinue, langProvider),
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSkipContinueRow(
+      bool canContinue, LanguageProvider langProvider) {
+    return Row(
+      children: [
+        if (!widget.isOptionalSelection)
+          Expanded(
+            flex: 1,
+            child: TextButton(
+              onPressed: _finishSelection,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              child: Text(
+                langProvider.t('skip'),
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        if (!widget.isOptionalSelection) const SizedBox(width: 12),
+        Expanded(
+          flex: 2,
+          child: _buildMainButton(
+            canContinue: canContinue,
+            text: langProvider.t('continue'),
+            onTap: _finishSelection,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDoneButton(bool canContinue, LanguageProvider langProvider) {
+    return _buildMainButton(
+      canContinue: canContinue,
+      text: langProvider.t('done'),
+      onTap: _finishSelection,
+    );
+  }
+
+  Widget _buildMainButton(
+      {required bool canContinue,
+      required String text,
+      required VoidCallback onTap}) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: canContinue
+                ? Theme.of(context).primaryColor.withOpacity(0.2)
+                : Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: canContinue
+                  ? Theme.of(context).primaryColor.withOpacity(0.5)
+                  : Colors.white.withOpacity(0.1),
+              width: 1.5,
+            ),
+            boxShadow: canContinue
+                ? [
+                    BoxShadow(
+                      color: Theme.of(context).primaryColor.withOpacity(0.2),
+                      blurRadius: 15,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : [],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: canContinue ? onTap : null,
+              borderRadius: BorderRadius.circular(20),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Center(
+                  child: Text(
+                    text,
+                    style: TextStyle(
+                      color: canContinue ? Colors.white : Colors.grey.shade600,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );

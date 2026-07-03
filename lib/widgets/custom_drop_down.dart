@@ -32,10 +32,10 @@ class CustomDropDown<T> extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(
-          20,
+          32,
         ), // Uygulamadaki diğer yuvarlatılmış köşelerle uyumlu
         side: BorderSide(
-          color: Colors.white.withOpacity(0.1),
+          color: Colors.white.withOpacity(0.05),
           width: 1,
         ), // Daha zarif bir kenarlık
       ),
@@ -64,12 +64,6 @@ class CustomDropdownItem {
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).primaryColor.withOpacity(0.15), // Daha soft bir arka plan
-              borderRadius: BorderRadius.circular(12),
-            ),
             child: icon,
           ),
           const SizedBox(width: 16),

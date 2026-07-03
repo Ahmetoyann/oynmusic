@@ -854,19 +854,37 @@ class _TrendPageState extends State<TrendPage> {
             itemBuilder: (context, index) {
               final song = mostPlayed[index];
 
+              Widget imageWidget;
+              if (song.localImagePath != null &&
+                  File(song.localImagePath!).existsSync()) {
+                imageWidget = Image.file(
+                  File(song.localImagePath!),
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: double.infinity,
+                );
+              } else if (song.coverUrl.isEmpty) {
+                imageWidget = DeviceCoverPlaceholder(
+                  logoColor: Theme.of(context).primaryColor,
+                  borderRadius: 4,
+                );
+              } else {
+                imageWidget = CachedNetworkImage(
+                  imageUrl: song.coverUrl,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: double.infinity,
+                  errorWidget: (context, url, error) => DeviceCoverPlaceholder(
+                    logoColor: Theme.of(context).primaryColor,
+                    borderRadius: 4,
+                  ),
+                );
+              }
+
               return Container(
-                width: artistSongWidth,
-                margin: const EdgeInsets.only(right: 16),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: SongGridCard(
-                    song: song,
-                    imageUrl: song.coverUrl,
-                    title: song.title,
-                    subtitle: song.artist,
+                  width: artistSongWidth,
+                  margin: const EdgeInsets.only(right: 16),
+                  child: GestureDetector(
                     onTap: () {
                       SongCard.showModernMenu(
                         context,
@@ -885,9 +903,33 @@ class _TrendPageState extends State<TrendPage> {
                         },
                       );
                     },
-                  ),
-                ),
-              );
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        AspectRatio(
+                          aspectRatio: 16 / 9,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: imageWidget,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(song.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13)),
+                        const SizedBox(height: 2),
+                        Text(song.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                color: Colors.grey.shade400, fontSize: 11)),
+                      ],
+                    ),
+                  ));
             },
           ),
         ),
@@ -985,11 +1027,14 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget> {
                           .read<SongProvider>()
                           .toggleFollowArtist(widget.artistName);
                       CustomSnackBar.showInfo(
-                        context: context,
-                        message: isFollowed
-                            ? "${widget.artistName} takipten çıkarıldı."
-                            : "${widget.artistName} takip ediliyor.",
-                      );
+                          context: context,
+                          message: isFollowed
+                              ? langProvider
+                                  .t('artist_unfollowed')
+                                  .replaceAll('%s', widget.artistName)
+                              : langProvider
+                                  .t('artist_followed_snack')
+                                  .replaceAll('%s', widget.artistName));
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
@@ -1075,9 +1120,7 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget> {
                               padding:
                                   const EdgeInsets.symmetric(vertical: 4.0),
                               child: Text(
-                                langProvider.currentLanguage == 'tr'
-                                    ? '+ Daha fazlası'
-                                    : '+ See more',
+                                langProvider.t('see_more'),
                                 style: TextStyle(
                                   color: primaryColor,
                                   fontSize: 12,
@@ -1358,28 +1401,29 @@ class _SmallArtistAvatarState extends State<_SmallArtistAvatar> {
       ),
       child: ClipOval(
         child: _isLoading && avatarUrl.isEmpty
-            ? Container(
-                color: Colors.grey.shade800,
-                child: const Center(
-                  child: SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white54),
-                  ),
-                ),
+            ? DeviceCoverPlaceholder(
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                logoColor: Theme.of(context).primaryColor,
               )
             : CachedNetworkImage(
                 imageUrl: avatarUrl.isNotEmpty
                     ? avatarUrl
                     : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(widget.artistName)}&background=random&color=fff&size=100',
                 fit: BoxFit.cover,
-                placeholder: (context, url) =>
-                    Container(color: Colors.grey.shade800),
-                errorWidget: (context, url, error) => Container(
-                    color: Colors.grey.shade800,
-                    child: const Icon(Icons.person,
-                        color: Colors.white54, size: 20)),
+                placeholder: (context, url) => DeviceCoverPlaceholder(
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  logoColor: Theme.of(context).primaryColor,
+                ),
+                errorWidget: (context, url, error) => DeviceCoverPlaceholder(
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  logoColor: Theme.of(context).primaryColor,
+                ),
               ),
       ),
     );
@@ -1400,20 +1444,21 @@ class DailySongCard extends StatefulWidget {
 class _DailySongCardState extends State<DailySongCard> {
   String _getPersonalizedGreeting(BuildContext context, String? displayName) {
     final hour = DateTime.now().hour;
-    final lang = context.read<LanguageProvider>().currentLanguage;
-    String greeting;
+    final langProvider = context.read<LanguageProvider>();
+    String greetingKey;
 
     if (hour >= 6 && hour < 12) {
-      greeting = lang == 'tr' ? 'Günaydın' : 'Good Morning';
+      greetingKey = 'good_morning';
     } else if (hour >= 12 && hour < 18) {
-      greeting = lang == 'tr' ? 'Tünaydın' : 'Good Afternoon';
+      greetingKey = 'good_afternoon';
     } else if (hour >= 18 && hour < 22) {
-      greeting = lang == 'tr' ? 'İyi Akşamlar' : 'Good Evening';
+      greetingKey = 'good_evening';
     } else {
-      greeting = lang == 'tr' ? 'İyi Geceler' : 'Good Night';
+      greetingKey = 'good_night';
     }
+    final greeting = langProvider.t(greetingKey);
 
-    final songOfTheDay = context.read<LanguageProvider>().t('song_of_the_day');
+    final songOfTheDay = langProvider.t('song_of_the_day');
 
     if (displayName != null && displayName.trim().isNotEmpty) {
       final firstName = displayName.trim().split(' ').first;

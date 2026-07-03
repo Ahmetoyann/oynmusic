@@ -28,7 +28,15 @@ class RecentlyPlayedPage extends StatefulWidget {
 class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchText = '';
-  String _selectedFilter = '';
+  String _selectedFilterKey = 'all'; // Anahtar olarak saklayacağız
+
+  // Filtreler için anahtar listesi
+  final List<String> _filterKeys = [
+    'all',
+    'songs',
+    'collections',
+    'discoveries'
+  ];
 
   @override
   void dispose() {
@@ -66,17 +74,11 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
     final dateToCheck = DateTime(date.year, date.month, date.day);
 
     if (dateToCheck.isAtSameMomentAs(today)) {
-      return langProvider.currentLanguage == 'tr'
-          ? 'Bugün'
-          : langProvider.t('today');
+      return langProvider.t('today');
     } else if (dateToCheck.isAtSameMomentAs(yesterday)) {
-      return langProvider.currentLanguage == 'tr'
-          ? 'Dün'
-          : langProvider.t('yesterday');
+      return langProvider.t('yesterday');
     } else {
-      return langProvider.currentLanguage == 'tr'
-          ? 'Daha Önce'
-          : langProvider.t('older');
+      return langProvider.t('older');
     }
   }
 
@@ -90,7 +92,10 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
       return "${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}";
     } else if (diff.inDays < 7) {
       // Son 1 hafta içindeyse gün sayısı
-      return "${diff.inDays} gün önce";
+      final langProvider = context.read<LanguageProvider>();
+      return langProvider
+          .t('days_ago')
+          .replaceAll('%d', diff.inDays.toString());
     } else {
       // Daha eskiyse tarih
       return "${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}";
@@ -103,59 +108,29 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
     final langProvider = context.watch<LanguageProvider>();
     final allSongs = songProvider.recentlyPlayed;
 
-    bool isCollectionSong(Song song) {
-      final title = song.title.toLowerCase();
-      return title.contains('mix') ||
-          title.contains('albüm') ||
-          title.contains('album') ||
-          title.contains('playlist') ||
-          title.contains('set');
-    }
-
-    // Localized filter labels
-    final filters = [
-      langProvider.t('all'),
-      langProvider.t('songs'),
-      langProvider.t('collections'),
-      langProvider.t('discover_songs'),
-    ];
-
-    final selectedFilter =
-        _selectedFilter.isEmpty ? filters[0] : _selectedFilter;
-
     // Arama filtresi
-    var displayedSongs = allSongs.where((song) {
+    final displayedSongs = allSongs.where((song) {
       final query = _searchText.toLowerCase();
       final matchesSearch = song.title.toLowerCase().contains(query) ||
           song.artist.toLowerCase().contains(query);
 
-      if (selectedFilter == filters[1]) {
-        return matchesSearch && !isCollectionSong(song);
-      } else if (selectedFilter == filters[2]) {
-        return matchesSearch && isCollectionSong(song);
-      } else if (selectedFilter == filters[3]) {
+      bool matchesFilter = true;
+      if (_selectedFilterKey == 'songs') {
+        matchesFilter = !song.title.toLowerCase().contains('mix') &&
+            !song.title.toLowerCase().contains('albüm');
+      } else if (_selectedFilterKey == 'collections') {
+        matchesFilter = song.title.toLowerCase().contains('mix') ||
+            song.title.toLowerCase().contains('albüm') ||
+            song.title.toLowerCase().contains('set');
+      } else if (_selectedFilterKey == 'discoveries') {
+        // Basit bir keşif mantığı: Play count 1 ise (veya son 24 saatte eklendiyse)
         final count = songProvider.getSongListeningSeconds(song.id);
-        return matchesSearch && count < 120;
+        matchesFilter =
+            count < 120; // 2 dakikadan az dinlenenler yeni keşif sayılır
       }
 
-      return matchesSearch;
+      return matchesSearch && matchesFilter;
     }).toList();
-
-    if (selectedFilter == filters[2]) {
-      displayedSongs.sort((a, b) {
-        final aTime = a.lastPlayed ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final bTime = b.lastPlayed ?? DateTime.fromMillisecondsSinceEpoch(0);
-        return bTime.compareTo(aTime);
-      });
-      final uniqueCollections = <String, Song>{};
-      for (var song in displayedSongs) {
-        final key = song.title.toLowerCase();
-        if (!uniqueCollections.containsKey(key)) {
-          uniqueCollections[key] = song;
-        }
-      }
-      displayedSongs = uniqueCollections.values.toList();
-    }
 
     // En Sık Dinlenen Sanatçıları Hesapla
     final Map<String, int> artistPlayCounts = {};
@@ -182,11 +157,7 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
       backgroundColor:
           const Color(0xFF0F0F0F), // Çok hafif farklı modern bir siyah
       extendBody: true,
-      appBar: CustomAppBar(
-        title: langProvider.currentLanguage == 'tr'
-            ? 'Müzik Geçmişi'
-            : langProvider.t('recently_played'),
-      ),
+      appBar: CustomAppBar(title: langProvider.t('recently_played')),
       bottomNavigationBar: songProvider.currentSong != null
           ? Container(
               decoration: BoxDecoration(
@@ -243,13 +214,13 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
 
                 // --- Akıllı Filtre Çipleri ---
                 SliverToBoxAdapter(
-                  child: _buildFilterChips(context, filters, selectedFilter),
+                  child: _buildFilterChips(context),
                 ),
 
                 // --- En Sık Dinlediğin Sanatçılar (Yatay Scroll) ---
                 if (_searchText.isEmpty &&
                     topArtists.isNotEmpty &&
-                    selectedFilter == filters[0])
+                    _selectedFilterKey == 'all')
                   SliverToBoxAdapter(
                     child: _buildTopArtists(context, topArtists, songProvider),
                   ),
@@ -257,12 +228,11 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
                 // --- Bu Saatte En Çok Dinlediğin Akıllı Kart ---
                 if (_searchText.isEmpty &&
                     allSongs.length > 5 &&
-                    selectedFilter == filters[0])
+                    _selectedFilterKey == 'all')
                   SliverToBoxAdapter(
                     child: _buildSmartReminder(context, allSongs, songProvider),
                   ),
 
-                
                 // --- Zaman Tüneli Mimarisi (Flattened Lazy List) ---
                 if (displayedSongs.isEmpty)
                   SliverFillRemaining(
@@ -274,7 +244,7 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
                     padding: EdgeInsets.only(
                       left: 16,
                       right: 16,
-                      bottom: songProvider.currentSong != null ? 160 : 40,
+                      bottom: 24,
                     ),
                     sliver: SliverList(
                       delegate: SliverChildBuilderDelegate(
@@ -333,6 +303,30 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
                       ),
                     ),
                   ),
+
+                // --- Geçmişi Temizle Butonu (Sayfa Sonu) ---
+                if (displayedSongs.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        bottom: songProvider.currentSong != null ? 160 : 40,
+                        top: 16,
+                      ),
+                      child: Center(
+                        child: TextButton.icon(
+                          onPressed: () => _showClearHistoryDialog(context),
+                          icon: CustomIcons.svgIcon(CustomIcons.delete,
+                              size: 18, color: Colors.redAccent),
+                          label: Text(langProvider.t('clear_history')),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.redAccent,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
     );
@@ -340,21 +334,21 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
 
   // --- YENİ EKLENEN MODERN VİDGET METOTLARI ---
 
-  Widget _buildFilterChips(
-      BuildContext context, List<String> filters, String selectedFilter) {
+  Widget _buildFilterChips(BuildContext context) {
+    final langProvider = context.watch<LanguageProvider>();
     return SizedBox(
       height: 40,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
-        itemCount: filters.length,
+        itemCount: _filterKeys.length,
         separatorBuilder: (context, index) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
-          final filter = filters[index];
-          final isSelected = selectedFilter == filter;
+          final filterKey = _filterKeys[index];
+          final isSelected = _selectedFilterKey == filterKey;
           return GestureDetector(
-            onTap: () => setState(() => _selectedFilter = filter),
+            onTap: () => setState(() => _selectedFilterKey = filterKey),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(20),
               child: BackdropFilter(
@@ -376,7 +370,7 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
                     ),
                   ),
                   child: Text(
-                    filter,
+                    langProvider.t(filterKey),
                     style: TextStyle(
                       color: isSelected
                           ? Theme.of(context).primaryColor
@@ -406,7 +400,7 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
           padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
           child: Text(
             langProvider.t('most_played_artists'),
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white,
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -510,77 +504,82 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
     final timeStr = _getExactTime(song.lastPlayed);
 
     return Dismissible(
-      key: ValueKey('${song.id}_${song.lastPlayed?.millisecondsSinceEpoch}'),
-      direction: DismissDirection.horizontal,
-      // Sağa Kaydırma: Favoriye Ekle/Çıkar
-      background: Container(
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.only(left: 24),
-        decoration: BoxDecoration(
-          color: Colors.green.shade700,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child:
-            const Icon(Icons.favorite_rounded, color: Colors.white, size: 32),
-      ),
-      // Sola Kaydırma: Kuyruğa Ekle
-      secondaryBackground: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 24),
-        decoration: BoxDecoration(
-          color: Colors.blueAccent.shade700,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: const Icon(Icons.queue_music_rounded,
-            color: Colors.white, size: 32),
-      ),
-      confirmDismiss: (direction) async {
-        if (direction == DismissDirection.startToEnd) {
-          provider.toggleFavorite(song);
-          return false; // Listede kalmaya devam etsin
-        } else if (direction == DismissDirection.endToStart) {
-          provider.addSongToNext(song);
-          return false; // Listede kalmaya devam etsin
-        }
-        return false;
-      },
-      child: GestureDetector(
-        onTap: () {
-          if (!isCurrentSong) {
-            provider.playSong(song, playlist);
-          }
-        },
-        child: Container(
-          padding: const EdgeInsets.all(8),
+        key: ValueKey('${song.id}_${song.lastPlayed?.millisecondsSinceEpoch}'),
+        direction: DismissDirection.horizontal,
+        // Sağa Kaydırma: Favoriye Ekle/Çıkar
+        background: Container(
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.only(left: 24),
           decoration: BoxDecoration(
-            color: isCurrentSong
-                ? primaryColor.withOpacity(0.15)
-                : Colors.white.withOpacity(0.03),
-            borderRadius: BorderRadius.circular(20), // Oval hatlı albüm kartı
-            border: Border.all(
-              color: isCurrentSong
-                  ? primaryColor.withOpacity(0.5)
-                  : Colors.white.withOpacity(0.05),
-            ),
+            color: Colors.green.shade700,
+            borderRadius: BorderRadius.circular(20),
           ),
-          child: Row(
-            children: [
+          child:
+              const Icon(Icons.favorite_rounded, color: Colors.white, size: 32),
+        ),
+        // Sola Kaydırma: Kuyruğa Ekle
+        secondaryBackground: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 24),
+          decoration: BoxDecoration(
+            color: Colors.blueAccent.shade700,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Icon(Icons.queue_music_rounded,
+              color: Colors.white, size: 32),
+        ),
+        confirmDismiss: (direction) async {
+          if (direction == DismissDirection.startToEnd) {
+            provider.toggleFavorite(song);
+            return false; // Listede kalmaya devam etsin
+          } else if (direction == DismissDirection.endToStart) {
+            provider.addSongToNext(song);
+            return false; // Listede kalmaya devam etsin
+          }
+          return false;
+        },
+        child: GestureDetector(
+          onTap: () {
+            if (!isCurrentSong) {
+              provider.playSong(song, playlist);
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: isCurrentSong
+                  ? primaryColor.withOpacity(0.15)
+                  : Colors.white.withOpacity(0.03),
+              borderRadius: BorderRadius.circular(20), // Oval hatlı albüm kartı
+              border: Border.all(
+                color: isCurrentSong
+                    ? primaryColor.withOpacity(0.5)
+                    : Colors.white.withOpacity(0.05),
+              ),
+            ),
+            child: Row(children: [
               // Oval Albüm Kapağı
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: CachedNetworkImage(
-                  imageUrl: song.coverUrl,
-                  width: 71,
-                  height: 40,
-                  fit: BoxFit.cover,
-                  errorWidget: (c, u, e) => DeviceCoverPlaceholder(
-                    width: 71,
-                    height: 40,
-                    borderRadius: 4,
-                    logoColor: Theme.of(context).primaryColor,
-                  ),
+              SizedBox(
+                width: 71,
+                height: 40,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: song.coverUrl.isEmpty
+                      ? DeviceCoverPlaceholder(
+                          logoColor: Theme.of(context).primaryColor,
+                          borderRadius: 4,
+                        )
+                      : CachedNetworkImage(
+                          imageUrl: song.coverUrl,
+                          fit: BoxFit.cover,
+                          errorWidget: (c, u, e) => DeviceCoverPlaceholder(
+                            logoColor: Theme.of(context).primaryColor,
+                            borderRadius: 4,
+                          ),
+                        ),
                 ),
               ),
+
               const SizedBox(width: 16),
               // Şarkı Adı ve Sanatçı
               Expanded(
@@ -622,11 +621,9 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
                   ),
                 ),
               ),
-            ],
+            ]),
           ),
-        ),
-      ),
-    );
+        ));
   }
 }
 
@@ -757,7 +754,7 @@ class _TopArtistTileState extends State<_TopArtistTile> {
                 boxShadow: widget.isTop
                     ? [
                         BoxShadow(
-                            color: primaryColor.withOpacity(0.1),
+                            color: primaryColor.withOpacity(0.0),
                             blurRadius: 15,
                             spreadRadius: 2)
                       ]

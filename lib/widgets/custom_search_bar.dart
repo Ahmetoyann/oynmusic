@@ -50,7 +50,7 @@ class CustomSearchBar extends StatelessWidget {
               padding: const EdgeInsets.all(12.0),
               child: CustomIcons.svgIcon(
                 CustomIcons.search,
-                color: Colors.grey,
+                color: Colors.white,
                 size: 24,
               ),
             ),

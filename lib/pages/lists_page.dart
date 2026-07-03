@@ -7,12 +7,15 @@ import 'package:image_picker/image_picker.dart';
 import 'package:muzik_app/providers/song_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:muzik_app/models/song_model.dart';
+import 'package:muzik_app/pages/initial_artists_page.dart';
+import 'package:muzik_app/main.dart';
 import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/pages/downloads_page.dart';
 import 'package:muzik_app/providers/auth_provider.dart';
 import 'package:muzik_app/pages/settings_page.dart';
 import 'package:muzik_app/pages/recently_played_page.dart';
 import 'package:muzik_app/pages/favorites_page.dart';
+import 'package:muzik_app/pages/artist_detail_page.dart';
 
 // 1. YENİ SAYFAYI IMPORT EDİYORUZ
 import 'package:muzik_app/pages/folder_detail_page.dart';
@@ -42,6 +45,7 @@ class _ListelerPageState extends State<ListelerPage> {
     final currentSongId = songProvider.currentSong?.id;
     final authProvider = context.watch<AuthProvider>();
     final langProvider = context.watch<LanguageProvider>();
+    final followedArtists = songProvider.followedArtists;
 
     // Çevrimdışı ise sadece indirilenlerden oluşturulan listeleri göster
     final displayFolders = hasConnection
@@ -56,94 +60,92 @@ class _ListelerPageState extends State<ListelerPage> {
       appBar: CustomAppBar(
         title: langProvider.t('library'),
         showLeading: false,
-        actions: [
-          IconButton(
-            icon: CustomIcons.svgIcon(CustomIcons.settings, size: 24),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SettingsPage()),
-              );
-            },
-          ),
-        ],
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Üst İkili Kartlar (İndirilenler ve Son Dinlenenler)
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              screenWidth * 0.025,
-              16,
-              screenWidth * 0.025,
-              12,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildFavoritesSquareCard(context),
-                _buildRecentlyPlayedSquareCard(context),
-              ],
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                screenWidth * 0.025,
+                16,
+                screenWidth * 0.025,
+                12,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildFavoritesSquareCard(context),
+                  _buildRecentlyPlayedSquareCard(context),
+                ],
+              ),
             ),
           ),
-
           if (sortedFolders.isNotEmpty || hasConnection)
-            Padding(
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  screenWidth * 0.025,
+                  8,
+                  screenWidth * 0.025,
+                  8,
+                ),
+                child: Text(
+                  langProvider.t(
+                      'my_playlists'), // "Çalma Listelerim" metnini dil dosyasından çeker
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          if (sortedFolders.isEmpty && !hasConnection)
+            SliverFillRemaining(
+              child: _buildEmptyState(context, hasConnection),
+              hasScrollBody: false,
+            )
+          else
+            SliverPadding(
               padding: EdgeInsets.fromLTRB(
                 screenWidth * 0.025,
                 8,
                 screenWidth * 0.025,
-                8,
+                8, // Alttaki boşluk azaltıldı, çünkü artık en altta değil.
               ),
-              child: Text(
-                langProvider.t(
-                    'my_playlists'), // "Çalma Listelerim" metnini dil dosyasından çeker
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+              sliver: SliverGrid(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    if (hasConnection) {
+                      if (index < sortedFolders.length) {
+                        return _buildFolderGridCard(
+                          context,
+                          sortedFolders[index],
+                        );
+                      } else {
+                        return _buildCreateListGridCard(context);
+                      }
+                    }
+                    return _buildFolderGridCard(
+                      context,
+                      sortedFolders[index],
+                    );
+                  },
+                  childCount: hasConnection
+                      ? sortedFolders.length + 1
+                      : sortedFolders.length,
+                ),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 8,
+                  childAspectRatio: 1.15,
                 ),
               ),
             ),
-
-          Expanded(
-            child: (sortedFolders.isEmpty && !hasConnection)
-                ? _buildEmptyState(context, hasConnection)
-                : GridView.builder(
-                    padding: EdgeInsets.fromLTRB(
-                      screenWidth * 0.025,
-                      8,
-                      screenWidth * 0.025,
-                      currentSongId != null ? 160 : 100,
-                    ),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      crossAxisSpacing: 10,
-                      mainAxisSpacing: 8,
-                      childAspectRatio: 1.15,
-                    ),
-                    itemCount: hasConnection
-                        ? sortedFolders.length + 5
-                        : sortedFolders.length,
-                    itemBuilder: (context, index) {
-                      if (hasConnection) {
-                        if (index < sortedFolders.length) {
-                          return _buildFolderGridCard(
-                            context,
-                            sortedFolders[index],
-                          );
-                        }
-                        return _buildCreateListGridCard(context);
-                      }
-                      return _buildFolderGridCard(
-                        context,
-                        sortedFolders[index],
-                      );
-                    },
-                  ),
-          ),
+          if (followedArtists.isNotEmpty)
+            ..._buildFollowedArtistsSlivers(
+                context, songProvider, followedArtists, currentSongId),
         ],
       ),
     );
@@ -162,13 +164,13 @@ class _ListelerPageState extends State<ListelerPage> {
               painter: _DashedBorderPainter(
                 color: Colors.grey.shade700,
                 strokeWidth: 1.5,
-                radius: 8,
+                radius: 4,
                 gap: 6,
               ),
               child: Container(
                 decoration: BoxDecoration(
                   color: Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(4),
                 ),
                 child: Center(
                   child: Text(
@@ -217,7 +219,7 @@ class _ListelerPageState extends State<ListelerPage> {
             aspectRatio: 16 / 9,
             child: Container(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(4),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.2),
@@ -227,7 +229,7 @@ class _ListelerPageState extends State<ListelerPage> {
                 ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(4),
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -996,6 +998,270 @@ class _ListelerPageState extends State<ListelerPage> {
   }
 }
 
+List<Widget> _buildFollowedArtistsSlivers(BuildContext context,
+    SongProvider songProvider, List<String> artists, String? currentSongId) {
+  final langProvider = context.watch<LanguageProvider>();
+  final screenWidth = MediaQuery.of(context).size.width;
+  return [
+    SliverToBoxAdapter(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          screenWidth * 0.025,
+          16,
+          screenWidth * 0.025,
+          12,
+        ),
+        child: Text(
+          langProvider.t('following'),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    ),
+    SliverPadding(
+      padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.025),
+      sliver: SliverGrid(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            if (index < artists.length) {
+              final artistName = artists[index];
+              return _FollowedArtistAvatar(
+                artistName: artistName,
+                songProvider: songProvider,
+              );
+            } else {
+              return _buildAddArtistAvatar(context);
+            }
+          },
+          childCount: artists.length + 1,
+        ),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 0.8,
+        ),
+      ),
+    ),
+    // Mini player'ın içeriği ezmemesi için en alta boşluk ekliyoruz.
+    SliverToBoxAdapter(
+      child: SizedBox(height: currentSongId != null ? 160 : 100),
+    ),
+  ];
+}
+
+Widget _buildAddArtistAvatar(BuildContext context) {
+  final langProvider = context.watch<LanguageProvider>();
+  return GestureDetector(
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => InitialArtistsPage(
+            isOptionalSelection: true,
+            onCompleted: () {
+              Navigator.pop(context);
+            },
+          ),
+        ),
+      );
+    },
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AspectRatio(
+          aspectRatio: 1.0,
+          child: CustomPaint(
+            painter: _DashedCircleBorderPainter(
+              color: Colors.grey.shade700,
+              strokeWidth: 1.5,
+              gap: 6,
+            ),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.transparent,
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Icon(
+                  Icons.add_rounded,
+                  color: Colors.grey.shade600,
+                  size: 40,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          langProvider.t('add_artist'),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _FollowedArtistAvatar extends StatefulWidget {
+  final String artistName;
+  final SongProvider songProvider;
+
+  const _FollowedArtistAvatar({
+    required this.artistName,
+    required this.songProvider,
+  });
+
+  @override
+  State<_FollowedArtistAvatar> createState() => _FollowedArtistAvatarState();
+}
+
+class _FollowedArtistAvatarState extends State<_FollowedArtistAvatar> {
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAvatar();
+  }
+
+  Future<void> _loadAvatar() async {
+    if (widget.songProvider.getArtistAvatar(widget.artistName) != null &&
+        widget.songProvider.getArtistAvatar(widget.artistName)!.isNotEmpty) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+    await widget.songProvider.fetchArtistAvatar(widget.artistName);
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final artistAvatar = widget.songProvider.getArtistAvatar(widget.artistName);
+    final imageUrl = artistAvatar != null && artistAvatar.isNotEmpty
+        ? artistAvatar
+        : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(widget.artistName)}&background=random&color=fff&size=100';
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ArtistDetailPage(
+              artistName: widget.artistName,
+              songs: const [],
+            ),
+          ),
+        );
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AspectRatio(
+            aspectRatio: 1.0,
+            child: ClipOval(
+              child: _isLoading
+                  ? const _ProfileShimmer(
+                      width: 80, height: 80, borderRadius: 40)
+                  : Container(
+                      color: Colors.grey.shade800,
+                      child: CachedNetworkImage(
+                        imageUrl: imageUrl,
+                        fit: BoxFit.cover,
+                        errorWidget: (context, url, error) =>
+                            const Icon(Icons.person, color: Colors.white54),
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.artistName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileShimmer extends StatefulWidget {
+  final double width;
+  final double height;
+  final double borderRadius;
+
+  const _ProfileShimmer({
+    required this.width,
+    required this.height,
+    this.borderRadius = 8.0,
+  });
+
+  @override
+  State<_ProfileShimmer> createState() => _ProfileShimmerState();
+}
+
+class _ProfileShimmerState extends State<_ProfileShimmer>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Container(
+          width: widget.width,
+          height: widget.height,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(widget.borderRadius),
+            gradient: LinearGradient(
+              begin: Alignment(-2.0 + (_controller.value * 4), 0.0),
+              end: Alignment(0.0 + (_controller.value * 4), 0.0),
+              colors: [
+                Colors.grey.shade900,
+                Colors.grey.shade800,
+                Colors.grey.shade900,
+              ],
+              stops: const [0.0, 0.5, 1.0],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _DashedBorderPainter extends CustomPainter {
   final Color color;
   final double strokeWidth;
@@ -1023,6 +1289,48 @@ class _DashedBorderPainter extends CustomPainter {
           Radius.circular(radius),
         ),
       );
+
+    final Path dashPath = Path();
+    final double dashWidth = 8.0;
+    double distance = 0.0;
+    for (final ui.PathMetric pathMetric in path.computeMetrics()) {
+      while (distance < pathMetric.length) {
+        dashPath.addPath(
+          pathMetric.extractPath(distance, distance + dashWidth),
+          Offset.zero,
+        );
+        distance += dashWidth;
+        distance += gap;
+      }
+    }
+    canvas.drawPath(dashPath, paint);
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
+}
+
+class _DashedCircleBorderPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+  final double gap;
+
+  _DashedCircleBorderPainter({
+    required this.color,
+    this.strokeWidth = 1.0,
+    this.gap = 5.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+
+    final Path path = Path()
+      ..addOval(Rect.fromCircle(
+          center: size.center(Offset.zero), radius: size.width / 2));
 
     final Path dashPath = Path();
     final double dashWidth = 8.0;

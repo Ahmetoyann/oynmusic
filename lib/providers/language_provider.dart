@@ -73,7 +73,7 @@ class LanguageProvider with ChangeNotifier {
       'duration': 'Duration',
       'most_played': 'Most Played',
       'most_played_artists': 'Most Played Artists',
-      'recently_played': 'Recently Played',
+      'recently_played': 'Listening History',
       'my_playlists': 'My Playlists',
       'sign_out': 'Sign Out',
       'create_new_list': 'Create New List',
@@ -85,6 +85,7 @@ class LanguageProvider with ChangeNotifier {
       'songs': 'Songs',
       'artists': 'Artists',
       'collections': 'Collections',
+      'discoveries': 'Discoveries',
       'recent_searches': 'Recent Searches',
       'clear': 'Clear',
       'all': 'All',
@@ -195,6 +196,7 @@ class LanguageProvider with ChangeNotifier {
       'no_history_desc': 'Songs you listen to will appear here.',
       'theme_color_desc': 'Personalize the app\'s main accent color',
       'data_saver_desc': 'Saves data by using lower quality audio',
+      'days_ago': '%d days ago',
       'equalizer_desc': 'Personalize audio frequencies',
       'clear_search_cache': 'Clear Search Cache',
       'clear_search_cache_desc': 'Updates Search and Trends results.',
@@ -347,8 +349,79 @@ class LanguageProvider with ChangeNotifier {
       'ad_preparing': 'Ad is preparing, please wait a moment and try again.',
       'earned_4_coins': 'You earned +4 Coins!',
       'no_transactions': 'No transactions yet.',
+      'artist_unfollowed': '%s unfollowed.',
+      'artist_followed_snack': 'Following %s.',
+      'good_morning': 'Good Morning',
+      'good_afternoon': 'Good Afternoon',
+      'good_evening': 'Good Evening',
+      'good_night': 'Good Night',
+      'update_message_default':
+          'Update to the latest version of the app to enjoy new features and improvements.',
+      'songs_could_not_be_loaded': 'Songs could not be loaded: %s',
+      'stream_not_found_for_download': 'Audio stream for download not found.',
+      'access_denied_403': 'Access denied (403). Please try again.',
+      'source_error_try_again':
+          'Source error. Song could not be loaded, please try again or select another song.',
+      'source_error_format_or_network':
+          'Could not access song source. Format not supported or network error.\n(%s)',
+      'resuming': 'Resuming...',
+      'waiting_for_connection': 'Waiting for connection...',
+      'server_no_response':
+          'Server did not respond or access was denied. Please try again.',
+      'download_failed_generic': 'Download failed.',
+      'mp4_not_supported': 'MP4 download is not supported for this content.',
+      'mp4_download_success_message':
+          'MP4 Downloaded: Saved to Downloads folder.',
+      'mp4_download_failed': 'MP4 download failed.',
+      'mp4_muxed_restricted':
+          'Combined MP4 (Video+Audio) format is restricted by YouTube for this music video.',
+      'storage_permission_denied_for_save':
+          'Could not save to your device because storage permission was not granted.',
+      'connection_lost_or_timed_out':
+          'Internet connection was lost or timed out.',
+      'video_restricted_age_or_copyright':
+          'This video cannot be downloaded due to age or copyright restrictions.',
+      'calculating_size': 'Calculating size...',
+      'resume': 'Resume',
+      'pause': 'Pause',
+      'download_paused': 'Download Paused',
+      'download_completed_title': 'Download Completed',
+      'song_downloaded_successfully': '%s downloaded successfully.',
+      'delete_failed_permission':
+          'Could not delete. Storage permission restriction may apply.',
+      'playing_list': 'Playing list.',
+      'shuffle_on': 'Shuffle play is on.',
+      'shuffle_off': 'Shuffle play is off.',
+      'daily_login_reward': 'Daily login reward: You earned +1 Coin! 🎁',
+      'daily_login_reward_reason': 'Daily Login Reward',
+      'coins_earned': 'Coins Earned',
+      'coins_spent': 'Coins Spent',
+      'welcome_gift': 'Welcome Gift',
+      'mp3_download_reason': 'MP3 Download: %s',
+      'mp4_download_reason': 'MP4 Download: %s',
+      'new_release_body': 'Check out "%s2" by %s1!',
+      'evening_notif_1':
+          'Evening vibes on OYN Music! Your favorite songs are waiting. 🛋️',
+      'evening_notif_2':
+          'Relieve the day\'s stress with music. Start listening now! 🍃',
+      'evening_notif_3':
+          'Good evening! Check out the mixes we prepared for you. 🔮',
+      'evening_notif_4':
+          'Music is food for the soul. Evening mood songs are here. 🌙',
+      'good_evening_notif': 'Good Evening! 🌆',
+      'inactivity_title': 'We Missed You! 🎧',
+      'inactivity_body':
+          'Your favorite songs are waiting. Return to the app and feel the rhythm!',
+      'audio_stream_not_found': 'Audio stream not found',
+      'video_stream_not_found': 'Video stream not found',
+      'song_stream_not_found': 'Song stream could not be retrieved.',
+      'successful_percent': '%100 • Successful',
+      'add_artist': 'Add Artist',
     },
     'tr': {
+      'done': 'Bitti',
+      'followed_artists_updated': 'Takip edilen sanatçılar güncellendi.',
+      'add_artist': 'Sanatçı Ekle',
       'settings': 'Ayarlar',
       'language': 'Dil',
       'appearance': 'Görünüm',
@@ -384,7 +457,7 @@ class LanguageProvider with ChangeNotifier {
       'duration': 'Süre',
       'most_played': 'En Çok',
       'most_played_artists': 'En Sık Dinlediğin Sanatçılar',
-      'recently_played': 'Son Dinlenenler',
+      'recently_played': 'Müzik Geçmişi',
       'my_playlists': 'Çalma Listelerim',
       'sign_out': 'Çıkış Yap',
       'create_new_list': 'Yeni Liste Oluştur',
@@ -395,6 +468,7 @@ class LanguageProvider with ChangeNotifier {
       'songs': 'Parçalar',
       'artists': 'Sanatçılar',
       'collections': 'Koleksiyonlar',
+      'discoveries': 'Keşifler',
       'recent_searches': 'Son Aramalar',
       'clear': 'Temizle',
       'all': 'Tümü',
@@ -507,6 +581,7 @@ class LanguageProvider with ChangeNotifier {
       'no_history_desc': 'Dinlediğiniz parçalar burada görünecek.',
       'theme_color_desc': 'Uygulamanın ana vurgu rengini kişiselleştirin',
       'data_saver_desc': 'Düşük kaliteli ses kullanarak tasarruf sağlar',
+      'days_ago': '%d gün önce',
       'equalizer_desc': 'Ses frekanslarını kişiselleştirin',
       'clear_search_cache': 'Arama Önbelleğini Temizle',
       'clear_search_cache_desc': 'Arama ve Trendler sonuçlarını günceller.',
@@ -661,8 +736,78 @@ class LanguageProvider with ChangeNotifier {
           'Reklam hazırlanıyor, lütfen biraz bekleyip tekrar deneyin.',
       'earned_4_coins': '+4 Jeton kazandınız!',
       'no_transactions': 'Henüz bir hareket bulunmuyor.',
+      'artist_unfollowed': '%s takipten çıkarıldı.',
+      'artist_followed_snack': '%s takip ediliyor.',
+      'good_morning': 'Günaydın',
+      'good_afternoon': 'Tünaydın',
+      'good_evening': 'İyi Akşamlar',
+      'good_night': 'İyi Geceler',
+      'update_message_default':
+          'Uygulamanın en son sürümüne güncelleyerek yeni özelliklerden ve iyileştirmelerden yararlanın.',
+      'songs_could_not_be_loaded': 'Şarkılar yüklenemedi: %s',
+      'stream_not_found_for_download': 'İndirme için ses akışı bulunamadı.',
+      'access_denied_403': 'Erişim reddedildi (403). Lütfen tekrar deneyin.',
+      'source_error_try_again':
+          'Kaynak hatası. Şarkı yüklenemedi, lütfen tekrar deneyin veya başka bir şarkı seçin.',
+      'source_error_format_or_network':
+          'Şarkı kaynağına erişilemedi. Format desteklenmiyor veya ağ hatası.\n(%s)',
+      'resuming': 'Devam ediliyor...',
+      'waiting_for_connection': 'Bağlantı bekleniyor...',
+      'server_no_response':
+          'Sunucu yanıt vermedi veya erişim reddedildi. Lütfen tekrar deneyin.',
+      'download_failed_generic': 'İndirme başarısız oldu.',
+      'mp4_not_supported': 'Bu içerik için MP4 indirme desteklenmiyor.',
+      'mp4_download_success_message':
+          'MP4 İndirildi: İndirilenler klasörüne kaydedildi.',
+      'mp4_download_failed': 'MP4 indirme başarısız oldu.',
+      'mp4_muxed_restricted':
+          'Bu müzik klibi için birleşik MP4 (Görüntü+Ses) formatı YouTube tarafından kısıtlanmış.',
+      'storage_permission_denied_for_save':
+          'Depolama izni verilmediği için cihazınıza kaydedilemedi.',
+      'connection_lost_or_timed_out':
+          'İnternet bağlantısı koptu veya zaman aşımına uğradı.',
+      'video_restricted_age_or_copyright':
+          'Bu video yaş kısıtlamasına veya telif haklarına sahip olduğu için indirilemiyor.',
+      'calculating_size': 'Boyut hesaplanıyor...',
+      'resume': 'Devam Et',
+      'pause': 'Durdur',
+      'download_paused': 'İndirme Duraklatıldı',
+      'download_completed_title': 'İndirme Tamamlandı',
+      'song_downloaded_successfully': '%s başarıyla indirildi.',
+      'delete_failed_permission':
+          'Silinemedi. Depolama izni kısıtlaması olabilir.',
+      'playing_list': 'Liste oynatılıyor.',
+      'shuffle_on': 'Karışık çalma açık.',
+      'shuffle_off': 'Karışık çalma kapalı.',
+      'daily_login_reward': 'Günlük giriş ödülü: +1 Jeton kazandınız! 🎁',
+      'daily_login_reward_reason': 'Günlük Giriş Ödülü',
+      'coins_earned': 'Jeton Kazanıldı',
+      'coins_spent': 'Jeton Harcandı',
+      'welcome_gift': 'Hoş Geldin Hediyesi',
+      'mp3_download_reason': 'MP3 İndirme: %s',
+      'mp4_download_reason': 'MP4 İndirme: %s',
+      'new_release_body': '%s1 sanatçısından "%s2" parçasına göz atın!',
+      'evening_notif_1':
+          'Akşam keyfi OYN Music\'te! Favori şarkıların seni bekliyor. 🛋️',
+      'evening_notif_2':
+          'Günün yorgunluğunu müzikle at. Hemen dinlemeye başla! 🍃',
+      'evening_notif_3':
+          'İyi akşamlar! Senin için hazırladığımız mix\'lere göz at. 🔮',
+      'evening_notif_4':
+          'Müzik ruhun gıdasıdır. Akşam moduna uygun şarkılar burada. 🌙',
+      'good_evening_notif': 'İyi Akşamlar! 🌆',
+      'inactivity_title': 'Seni Özledik! 🎧',
+      'inactivity_body':
+          'Favori şarkıların seni bekliyor. Uygulamaya dön ve müziğin ritmini hisset!',
+      'audio_stream_not_found': 'Ses akışı bulunamadı',
+      'video_stream_not_found': 'Video akışı bulunamadı',
+      'song_stream_not_found': 'Şarkı akışı alınamadı.',
+      'successful_percent': '%100 • Başarılı',
     },
     'fr': {
+      'done': 'Terminé',
+      'followed_artists_updated': 'Artistes suivis mis à jour.',
+      'add_artist': 'Ajouter un artiste',
       'settings': 'Paramètres',
       'they_will_play_next': 'Ils joueront ensuite',
       'language': 'Langue',
@@ -699,7 +844,7 @@ class LanguageProvider with ChangeNotifier {
       'duration': 'Durée',
       'most_played': 'Les Plus Écoutés',
       'most_played_artists': 'Artistes les plus écoutés',
-      'recently_played': 'Écoutés Récemment',
+      'recently_played': 'Historique d\'écoute',
       'my_playlists': 'Mes Playlists',
       'sign_out': 'Se Déconnecter',
       'create_new_list': 'Créer Une Liste',
@@ -710,6 +855,7 @@ class LanguageProvider with ChangeNotifier {
       'songs': 'Chansons',
       'artists': 'Artistes',
       'collections': 'Collections',
+      'discoveries': 'Découvertes',
       'recent_searches': 'Recherches Récentes',
       'clear': 'Effacer',
       'all': 'Tous',
@@ -823,6 +969,7 @@ class LanguageProvider with ChangeNotifier {
       'theme_color_desc': 'Personnaliser la couleur d\'accentuation',
       'data_saver_desc':
           'Économise les données avec un son de qualité inférieure',
+      'days_ago': 'il y a %d jours',
       'equalizer_desc': 'Personnaliser les fréquences audio',
       'clear_search_cache': 'Vider le cache de recherche',
       'clear_search_cache_desc':
@@ -978,8 +1125,82 @@ class LanguageProvider with ChangeNotifier {
           'La publicité se prépare, veuillez patienter et réessayer.',
       'earned_4_coins': 'Vous avez gagné +4 pièces !',
       'no_transactions': 'Aucune transaction pour le moment.',
+      'artist_unfollowed': '%s n\'est plus suivi.',
+      'artist_followed_snack': 'Abonné à %s.',
+      'good_morning': 'Bonjour',
+      'good_afternoon': 'Bon après-midi',
+      'good_evening': 'Bonsoir',
+      'good_night': 'Bonne nuit',
+      'update_message_default':
+          'Mettez à jour vers la dernière version pour profiter des nouvelles fonctionnalités et améliorations.',
+      'songs_could_not_be_loaded':
+          'Les chansons n\'ont pas pu être chargées: %s',
+      'stream_not_found_for_download':
+          'Flux audio pour le téléchargement introuvable.',
+      'access_denied_403': 'Accès refusé (403). Veuillez réessayer.',
+      'source_error_try_again':
+          'Erreur de source. La chanson n\'a pas pu être chargée, veuillez réessayer ou sélectionner une autre chanson.',
+      'source_error_format_or_network':
+          'Impossible d\'accéder à la source de la chanson. Format non pris en charge ou erreur réseau.\n(%s)',
+      'resuming': 'Reprise...',
+      'waiting_for_connection': 'En attente de connexion...',
+      'server_no_response':
+          'Le serveur n\'a pas répondu ou l\'accès a été refusé. Veuillez réessayer.',
+      'download_failed_generic': 'Le téléchargement a échoué.',
+      'mp4_not_supported':
+          'Le téléchargement MP4 n\'est pas pris en charge pour ce contenu.',
+      'mp4_download_success_message':
+          'MP4 téléchargé : Enregistré dans le dossier Téléchargements.',
+      'mp4_download_failed': 'Le téléchargement MP4 a échoué.',
+      'mp4_muxed_restricted':
+          'Le format MP4 combiné (Vidéo+Audio) est restreint par YouTube pour ce clip.',
+      'storage_permission_denied_for_save':
+          'Impossible d\'enregistrer car l\'autorisation de stockage n\'a pas été accordée.',
+      'connection_lost_or_timed_out':
+          'La connexion Internet a été perdue ou a expiré.',
+      'video_restricted_age_or_copyright':
+          'Cette vidéo ne peut pas être téléchargée en raison de restrictions d\'âge ou de droits d\'auteur.',
+      'calculating_size': 'Calcul de la taille...',
+      'resume': 'Reprendre',
+      'pause': 'Pause',
+      'download_paused': 'Téléchargement en pause',
+      'download_completed_title': 'Téléchargement terminé',
+      'song_downloaded_successfully': '%s téléchargé avec succès.',
+      'delete_failed_permission':
+          'Impossible de supprimer. Une restriction d\'autorisation de stockage peut s\'appliquer.',
+      'playing_list': 'Lecture de la liste.',
+      'shuffle_on': 'Lecture aléatoire activée.',
+      'shuffle_off': 'Lecture aléatoire désactivée.',
+      'daily_login_reward':
+          'Récompense de connexion quotidienne : Vous avez gagné +1 pièce ! 🎁',
+      'daily_login_reward_reason': 'Récompense de connexion quotidienne',
+      'coins_earned': 'Pièces gagnées',
+      'coins_spent': 'Pièces dépensées',
+      'welcome_gift': 'Cadeau de bienvenue',
+      'mp3_download_reason': 'Téléchargement MP3 : %s',
+      'mp4_download_reason': 'Téléchargement MP4 : %s',
+      'new_release_body': 'Découvrez "%s2" par %s1 !',
+      'evening_notif_1':
+          'Ambiance du soir sur OYN Music ! Vos chansons préférées attendent. 🛋️',
+      'evening_notif_2':
+          'Soulagez le stress de la journée avec la musique. Écoutez maintenant ! 🍃',
+      'evening_notif_3':
+          'Bonsoir ! Découvrez les mix que nous avons préparés pour vous. 🔮',
+      'evening_notif_4':
+          'La musique nourrit l\'âme. Les chansons pour le soir sont ici. 🌙',
+      'good_evening_notif': 'Bonsoir ! 🌆',
+      'inactivity_title': 'Tu nous manques ! 🎧',
+      'inactivity_body':
+          'Vos chansons préférées vous attendent. Revenez et ressentez le rythme !',
+      'audio_stream_not_found': 'Flux audio introuvable',
+      'video_stream_not_found': 'Flux vidéo introuvable',
+      'song_stream_not_found': 'Impossible de récupérer le flux de la chanson.',
+      'successful_percent': '%100 • Réussi',
     },
     'de': {
+      'done': 'Fertig',
+      'followed_artists_updated': 'Gefolgte Künstler aktualisiert.',
+      'add_artist': 'Künstler hinzufügen',
       'settings': 'Einstellungen',
       'they_will_play_next': 'Sie werden als Nächstes abgespielt',
       'language': 'Sprache',
@@ -1016,7 +1237,7 @@ class LanguageProvider with ChangeNotifier {
       'duration': 'Dauer',
       'most_played': 'Meistgespielt',
       'most_played_artists': 'Am häufigsten gehörte Künstler',
-      'recently_played': 'Zuletzt gespielt',
+      'recently_played': 'Hörverlauf',
       'my_playlists': 'Meine Playlists',
       'sign_out': 'Abmelden',
       'create_new_list': 'Neue Liste',
@@ -1027,6 +1248,7 @@ class LanguageProvider with ChangeNotifier {
       'songs': 'Lieder',
       'artists': 'Künstler',
       'collections': 'Kollektionen',
+      'discoveries': 'Entdeckungen',
       'recent_searches': 'Letzte Suchanfragen',
       'clear': 'Löschen',
       'all': 'Alle',
@@ -1140,6 +1362,7 @@ class LanguageProvider with ChangeNotifier {
       'theme_color_desc': 'Passen Sie die Hauptakzentfarbe an',
       'data_saver_desc':
           'Spart Daten durch Verwendung von Audio geringerer Qualität',
+      'days_ago': 'vor %d Tagen',
       'equalizer_desc': 'Audiofrequenzen anpassen',
       'clear_search_cache': 'Such-Cache leeren',
       'clear_search_cache_desc': 'Aktualisiert die Such- und Trend-Ergebnisse.',
@@ -1295,8 +1518,81 @@ class LanguageProvider with ChangeNotifier {
       'ad_preparing': 'Anzeige wird vorbereitet, bitte warte einen Moment.',
       'earned_4_coins': 'Du hast +4 Münzen verdient!',
       'no_transactions': 'Noch keine Transaktionen.',
+      'artist_unfollowed': '%s nicht mehr gefolgt.',
+      'artist_followed_snack': 'Folge %s.',
+      'good_morning': 'Guten Morgen',
+      'good_afternoon': 'Guten Tag',
+      'good_evening': 'Guten Abend',
+      'good_night': 'Gute Nacht',
+      'update_message_default':
+          'Aktualisieren Sie auf die neueste Version, um neue Funktionen und Verbesserungen zu genießen.',
+      'songs_could_not_be_loaded': 'Lieder konnten nicht geladen werden: %s',
+      'stream_not_found_for_download':
+          'Audiostream für den Download nicht gefunden.',
+      'access_denied_403': 'Zugriff verweigert (403). Bitte erneut versuchen.',
+      'source_error_try_again':
+          'Quellenfehler. Lied konnte nicht geladen werden, bitte erneut versuchen oder ein anderes Lied auswählen.',
+      'source_error_format_or_network':
+          'Auf die Liedquelle konnte nicht zugegriffen werden. Format nicht unterstützt oder Netzwerkfehler.\n(%s)',
+      'resuming': 'Wird fortgesetzt...',
+      'waiting_for_connection': 'Warte auf Verbindung...',
+      'server_no_response':
+          'Server hat nicht geantwortet oder Zugriff wurde verweigert. Bitte erneut versuchen.',
+      'download_failed_generic': 'Download fehlgeschlagen.',
+      'mp4_not_supported':
+          'MP4-Download wird für diesen Inhalt nicht unterstützt.',
+      'mp4_download_success_message':
+          'MP4 heruntergeladen: Im Download-Ordner gespeichert.',
+      'mp4_download_failed': 'MP4-Download fehlgeschlagen.',
+      'mp4_muxed_restricted':
+          'Das kombinierte MP4-Format (Video+Audio) ist von YouTube für dieses Musikvideo eingeschränkt.',
+      'storage_permission_denied_for_save':
+          'Speichern nicht möglich, da keine Speicherberechtigung erteilt wurde.',
+      'connection_lost_or_timed_out':
+          'Internetverbindung unterbrochen oder Zeitüberschreitung.',
+      'video_restricted_age_or_copyright':
+          'Dieses Video kann aufgrund von Alters- oder Urheberrechtsbeschränkungen nicht heruntergeladen werden.',
+      'calculating_size': 'Größe wird berechnet...',
+      'resume': 'Fortsetzen',
+      'pause': 'Pause',
+      'download_paused': 'Download pausiert',
+      'download_completed_title': 'Download abgeschlossen',
+      'song_downloaded_successfully': '%s erfolgreich heruntergeladen.',
+      'delete_failed_permission':
+          'Löschen fehlgeschlagen. Möglicherweise gilt eine Speicherberechtigungseinschränkung.',
+      'playing_list': 'Liste wird abgespielt.',
+      'shuffle_on': 'Zufallswiedergabe ist an.',
+      'shuffle_off': 'Zufallswiedergabe ist aus.',
+      'daily_login_reward':
+          'Tägliche Anmeldebelohnung: Du hast +1 Münze verdient! 🎁',
+      'daily_login_reward_reason': 'Tägliche Anmeldebelohnung',
+      'coins_earned': 'Münzen verdient',
+      'coins_spent': 'Münzen ausgegeben',
+      'welcome_gift': 'Willkommensgeschenk',
+      'mp3_download_reason': 'MP3-Download: %s',
+      'mp4_download_reason': 'MP4-Download: %s',
+      'new_release_body': 'Schau dir "%s2" von %s1 an!',
+      'evening_notif_1':
+          'Abendstimmung auf OYN Music! Deine Lieblingssongs warten. 🛋️',
+      'evening_notif_2':
+          'Bau den Stress des Tages mit Musik ab. Jetzt anhören! 🍃',
+      'evening_notif_3':
+          'Guten Abend! Schau dir die Mixe an, die wir für dich vorbereitet haben. 🔮',
+      'evening_notif_4':
+          'Musik ist Balsam für die Seele. Abendsongs sind hier. 🌙',
+      'good_evening_notif': 'Guten Abend! 🌆',
+      'inactivity_title': 'Wir haben dich vermisst! 🎧',
+      'inactivity_body':
+          'Deine Lieblingssongs warten. Komm zurück und spüre den Rhythmus!',
+      'audio_stream_not_found': 'Audiostream nicht gefunden',
+      'video_stream_not_found': 'Videostream nicht gefunden',
+      'song_stream_not_found': 'Lied-Stream konnte nicht abgerufen werden.',
+      'successful_percent': '%100 • Erfolgreich',
     },
     'es': {
+      'done': 'Hecho',
+      'followed_artists_updated': 'Artistas seguidos actualizados.',
+      'add_artist': 'Añadir artista',
       'settings': 'Ajustes',
       'they_will_play_next': 'Se reproducirán a continuación',
       'language': 'Idioma',
@@ -1333,7 +1629,7 @@ class LanguageProvider with ChangeNotifier {
       'duration': 'Duración',
       'most_played': 'Más Escuchados',
       'most_played_artists': 'Artistas más escuchados',
-      'recently_played': 'Escuchados Recientemente',
+      'recently_played': 'Historial de Escucha',
       'my_playlists': 'Mis Listas',
       'sign_out': 'Cerrar Sesión',
       'create_new_list': 'Crear Nueva Lista',
@@ -1344,6 +1640,7 @@ class LanguageProvider with ChangeNotifier {
       'songs': 'Canciones',
       'artists': 'Artistas',
       'collections': 'Colecciones',
+      'discoveries': 'Descubrimientos',
       'recent_searches': 'Búsquedas Recientes',
       'clear': 'Borrar',
       'all': 'Todo',
@@ -1456,6 +1753,7 @@ class LanguageProvider with ChangeNotifier {
       'no_history_desc': 'Las canciones que escuches aparecerán aquí.',
       'theme_color_desc': 'Personaliza el color de acento principal',
       'data_saver_desc': 'Ahorra datos usando audio de menor calidad',
+      'days_ago': 'hace %d días',
       'equalizer_desc': 'Personalizar frecuencias de audio',
       'clear_search_cache': 'Borrar caché de búsqueda',
       'clear_search_cache_desc':
@@ -1610,8 +1908,82 @@ class LanguageProvider with ChangeNotifier {
           'El anuncio se está preparando, por favor espera un momento.',
       'earned_4_coins': '¡Has ganado +4 monedas!',
       'no_transactions': 'Aún no hay transacciones.',
+      'artist_unfollowed': 'Dejaste de seguir a %s.',
+      'artist_followed_snack': 'Siguiendo a %s.',
+      'good_morning': 'Buenos días',
+      'good_afternoon': 'Buenas tardes',
+      'good_evening': 'Buenas noches',
+      'good_night': 'Buenas noches',
+      'update_message_default':
+          'Actualiza a la última versión para disfrutar de nuevas funciones y mejoras.',
+      'songs_could_not_be_loaded': 'No se pudieron cargar las canciones: %s',
+      'stream_not_found_for_download':
+          'No se encontró el flujo de audio para la descarga.',
+      'access_denied_403':
+          'Acceso denegado (403). Por favor, inténtalo de nuevo.',
+      'source_error_try_again':
+          'Error de fuente. No se pudo cargar la canción, inténtalo de nuevo o selecciona otra canción.',
+      'source_error_format_or_network':
+          'No se pudo acceder a la fuente de la canción. Formato no compatible o error de red.\n(%s)',
+      'resuming': 'Reanudando...',
+      'waiting_for_connection': 'Esperando conexión...',
+      'server_no_response':
+          'El servidor no respondió o se denegó el acceso. Por favor, inténtalo de nuevo.',
+      'download_failed_generic': 'Descarga fallida.',
+      'mp4_not_supported':
+          'La descarga de MP4 no es compatible con este contenido.',
+      'mp4_download_success_message':
+          'MP4 descargado: Guardado en la carpeta de descargas.',
+      'mp4_download_failed': 'La descarga de MP4 falló.',
+      'mp4_muxed_restricted':
+          'El formato MP4 combinado (Video+Audio) está restringido por YouTube para este video musical.',
+      'storage_permission_denied_for_save':
+          'No se pudo guardar en tu dispositivo porque no se concedió el permiso de almacenamiento.',
+      'connection_lost_or_timed_out':
+          'Se perdió la conexión a Internet o se agotó el tiempo de espera.',
+      'video_restricted_age_or_copyright':
+          'Este video no se puede descargar debido a restricciones de edad o derechos de autor.',
+      'calculating_size': 'Calculando tamaño...',
+      'resume': 'Reanudar',
+      'pause': 'Pausa',
+      'download_paused': 'Descarga en pausa',
+      'download_completed_title': 'Descarga completada',
+      'song_downloaded_successfully': '%s descargado con éxito.',
+      'delete_failed_permission':
+          'No se pudo eliminar. Puede aplicarse una restricción de permiso de almacenamiento.',
+      'playing_list': 'Reproduciendo lista.',
+      'shuffle_on': 'Reproducción aleatoria activada.',
+      'shuffle_off': 'Reproducción aleatoria desactivada.',
+      'daily_login_reward':
+          'Recompensa de inicio de sesión diario: ¡Has ganado +1 moneda! 🎁',
+      'daily_login_reward_reason': 'Recompensa de inicio de sesión diario',
+      'coins_earned': 'Monedas ganadas',
+      'coins_spent': 'Monedas gastadas',
+      'welcome_gift': 'Regalo de bienvenida',
+      'mp3_download_reason': 'Descarga de MP3: %s',
+      'mp4_download_reason': 'Descarga de MP4: %s',
+      'new_release_body': '¡Echa un vistazo a "%s2" de %s1!',
+      'evening_notif_1':
+          '¡Ambiente nocturno en OYN Music! Tus canciones favoritas te esperan. 🛋️',
+      'evening_notif_2':
+          'Alivia el estrés del día con música. ¡Escucha ahora! 🍃',
+      'evening_notif_3':
+          '¡Buenas noches! Mira las mezclas que preparamos para ti. 🔮',
+      'evening_notif_4':
+          'La música alimenta el alma. Las canciones para la noche están aquí. 🌙',
+      'good_evening_notif': '¡Buenas noches! 🌆',
+      'inactivity_title': '¡Te extrañamos! 🎧',
+      'inactivity_body':
+          'Tus canciones favoritas te esperan. ¡Vuelve y siente el ritmo!',
+      'audio_stream_not_found': 'Flujo de audio no encontrado',
+      'video_stream_not_found': 'Flujo de video no encontrado',
+      'song_stream_not_found': 'No se pudo recuperar el flujo de la canción.',
+      'successful_percent': '%100 • Exitoso',
     },
     'ar': {
+      'done': 'تم',
+      'followed_artists_updated': 'تم تحديث الفنانين المتابعين.',
+      'add_artist': 'إضافة فنان',
       'settings': 'الإعدادات',
       'they_will_play_next': 'سيتم تشغيلها بعد ذلك',
       'language': 'اللغة',
@@ -1648,7 +2020,7 @@ class LanguageProvider with ChangeNotifier {
       'duration': 'المدة',
       'most_played': 'الأكثر استماعاً',
       'most_played_artists': 'الفنانون الأكثر استماعاً',
-      'recently_played': 'تم تشغيله مؤخراً',
+      'recently_played': 'سجل الاستماع',
       'my_playlists': 'قوائم التشغيل الخاصة بي',
       'sign_out': 'تسجيل الخروج',
       'create_new_list': 'إنشاء قائمة جديدة',
@@ -1659,6 +2031,7 @@ class LanguageProvider with ChangeNotifier {
       'songs': 'الأغاني',
       'artists': 'الفنانين',
       'collections': 'المجموعات',
+      'discoveries': 'الاكتشافات',
       'recent_searches': 'عمليات البحث الأخيرة',
       'clear': 'مسح',
       'all': 'الكل',
@@ -1768,6 +2141,7 @@ class LanguageProvider with ChangeNotifier {
       'no_history_desc': 'ستظهر الأغاني التي تستمع إليها هنا.',
       'theme_color_desc': 'تخصيص لون التمييز الرئيسي للتطبيق',
       'data_saver_desc': 'يوفر البيانات باستخدام صوت بجودة أقل',
+      'days_ago': 'قبل %d أيام',
       'equalizer_desc': 'تخصيص الترددات الصوتية',
       'clear_search_cache': 'مسح ذاكرة التخزين المؤقت للبحث',
       'clear_search_cache_desc': 'يحدث نتائج البحث والاتجاهات.',
@@ -1916,6 +2290,69 @@ class LanguageProvider with ChangeNotifier {
           'يتم تحضير الإعلان، يرجى الانتظار قليلاً والمحاولة مرة أخرى.',
       'earned_4_coins': 'لقد كسبت +4 عملات!',
       'no_transactions': 'لا توجد حركات بعد.',
+      'artist_unfollowed': 'تم إلغاء متابعة %s.',
+      'artist_followed_snack': 'تتابع %s.',
+      'good_morning': 'صباح الخير',
+      'good_afternoon': 'مساء الخير',
+      'good_evening': 'مساء الخير',
+      'good_night': 'تصبح على خير',
+      'update_message_default':
+          'قم بالتحديث إلى أحدث إصدار للاستمتاع بالميزات والتحسينات الجديدة.',
+      'songs_could_not_be_loaded': 'تعذر تحميل الأغاني: %s',
+      'stream_not_found_for_download': 'لم يتم العثور على بث الصوت للتنزيل.',
+      'access_denied_403': 'تم رفض الوصول (403). يرجى المحاولة مرة أخرى.',
+      'source_error_try_again':
+          'خطأ في المصدر. تعذر تحميل الأغنية، يرجى المحاولة مرة أخرى أو تحديد أغنية أخرى.',
+      'source_error_format_or_network':
+          'تعذر الوصول إلى مصدر الأغنية. التنسيق غير مدعوم أو خطأ في الشبكة.\n(%s)',
+      'resuming': 'جارٍ الاستئناف...',
+      'waiting_for_connection': 'في انتظار الاتصال...',
+      'server_no_response':
+          'لم يستجب الخادم أو تم رفض الوصول. يرجى المحاولة مرة أخرى.',
+      'download_failed_generic': 'فشل التنزيل.',
+      'mp4_not_supported': 'تنزيل MP4 غير مدعوم لهذا المحتوى.',
+      'mp4_download_success_message':
+          'تم تنزيل MP4: تم الحفظ في مجلد التنزيلات.',
+      'mp4_download_failed': 'فشل تنزيل MP4.',
+      'mp4_muxed_restricted':
+          'تنسيق MP4 المدمج (فيديو + صوت) مقيد بواسطة YouTube لهذا الفيديو الموسيقي.',
+      'storage_permission_denied_for_save':
+          'تعذر الحفظ على جهازك لأنه لم يتم منح إذن التخزين.',
+      'connection_lost_or_timed_out':
+          'انقطع الاتصال بالإنترنت أو انتهت المهلة.',
+      'video_restricted_age_or_copyright':
+          'لا يمكن تنزيل هذا الفيديو بسبب قيود العمر أو حقوق النشر.',
+      'calculating_size': 'جارٍ حساب الحجم...',
+      'resume': 'استئناف',
+      'pause': 'إيقاف مؤقت',
+      'download_paused': 'تم إيقاف التنزيل مؤقتًا',
+      'download_completed_title': 'اكتمل التنزيل',
+      'song_downloaded_successfully': 'تم تنزيل %s بنجاح.',
+      'delete_failed_permission': 'تعذر الحذف. قد يتم تطبيق قيود إذن التخزين.',
+      'playing_list': 'جارٍ تشغيل القائمة.',
+      'shuffle_on': 'التشغيل العشوائي قيد التشغيل.',
+      'shuffle_off': 'التشغيل العشوائي متوقف.',
+      'daily_login_reward': 'مكافأة تسجيل الدخول اليومي: لقد ربحت +1 عملة! 🎁',
+      'daily_login_reward_reason': 'مكافأة تسجيل الدخول اليومي',
+      'coins_earned': 'العملات المكتسبة',
+      'coins_spent': 'العملات التي تم إنفاقها',
+      'welcome_gift': 'هدية ترحيبية',
+      'mp3_download_reason': 'تنزيل MP3: %s',
+      'mp4_download_reason': 'تنزيل MP4: %s',
+      'new_release_body': 'تفقد "%s2" من %s1!',
+      'evening_notif_1':
+          'أجواء المساء على OYN Music! أغانيك المفضلة بانتظارك. 🛋️',
+      'evening_notif_2': 'تخلص من ضغوط اليوم مع الموسيقى. استمع الآن! 🍃',
+      'evening_notif_3': 'مساء الخير! تفقد المقاطع التي أعددناها لك. 🔮',
+      'evening_notif_4': 'الموسيقى غذاء الروح. أغاني المساء هنا. 🌙',
+      'good_evening_notif': 'مساء الخير! 🌆',
+      'inactivity_title': 'لقد افتقدناك! 🎧',
+      'inactivity_body':
+          'أغانيك المفضلة بانتظارك. عد إلى التطبيق واشعر بالإيقاع!',
+      'audio_stream_not_found': 'لم يتم العثور على بث الصوت',
+      'video_stream_not_found': 'لم يتم العثور على بث الفيديو',
+      'song_stream_not_found': 'تعذر استرداد بث الأغنية.',
+      'successful_percent': 'ناجح • %100',
     },
   };
 

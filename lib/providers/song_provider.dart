@@ -676,7 +676,7 @@ class SongProvider with ChangeNotifier {
   /// Kullanıcıyı uygulamaya geri çağırmak için periyodik hatırlatıcı kurar (Retention)
   Future<void> _scheduleRetentionNotification() async {
     final prefs = await SharedPreferences.getInstance();
-    final lang = prefs.getString('language_code') ?? 'en';
+    final langProvider = LanguageProvider(prefs);
 
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
@@ -690,34 +690,12 @@ class SongProvider with ChangeNotifier {
     const NotificationDetails platformChannelSpecifics = NotificationDetails(
       android: androidPlatformChannelSpecifics,
     );
-
-    final Map<String, String> titles = {
-      'tr': 'OYN Music Seni Bekliyor! 🚀🎧',
-      'fr': 'OYN Music vous attend ! 🚀🎧',
-      'de': 'OYN Music wartet auf dich! 🚀🎧',
-      'es': '¡OYN Music te espera! 🚀🎧',
-      'ar': 'OYN Music بانتظارك! 🚀🎧',
-    };
-
-    final Map<String, String> bodies = {
-      'tr':
-          'Haftalık en çok dinlediğin şarkılar ve sana özel yeni keşifler hazır. Hemen dinlemeye başla!',
-      'fr':
-          'Vos chansons les plus écoutées et de nouvelles découvertes sont prêtes. Écoutez maintenant !',
-      'de':
-          'Deine meistgespielten Songs und neue Entdeckungen sind bereit. Jetzt anhören!',
-      'es':
-          'Tus canciones más escuchadas y nuevos descubrimientos están listos. ¡Escucha ahora!',
-      'ar': 'أغانيك الأكثر استماعاً واكتشافات جديدة جاهزة. استمع الآن!',
-    };
-
     try {
       // Her hafta tekrarlayan bir bildirim planlar
       await _notificationsPlugin.periodicallyShow(
         999, // Sabit Bildirim ID'si
-        titles[lang] ?? 'OYN Music is Waiting for You! 🚀🎧',
-        bodies[lang] ??
-            'Your weekly most played songs and new discoveries are ready. Start listening now!',
+        langProvider.t('retention_title'),
+        langProvider.t('retention_body'),
         RepeatInterval.weekly, // Haftalık tekrar (daily de yapılabilir)
         platformChannelSpecifics,
         payload: 'retention_notification',
@@ -730,8 +708,7 @@ class SongProvider with ChangeNotifier {
   /// Kullanıcıyı her gün "Günün Şarkısı" için uygulamaya davet eder
   Future<void> _scheduleDailyNotification() async {
     final prefs = await SharedPreferences.getInstance();
-    final lang = prefs.getString('language_code') ?? 'en';
-
+    final langProvider = LanguageProvider(prefs);
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
       'daily_channel', // Kanal ID
@@ -743,34 +720,12 @@ class SongProvider with ChangeNotifier {
     const NotificationDetails platformChannelSpecifics = NotificationDetails(
       android: androidPlatformChannelSpecifics,
     );
-
-    final Map<String, String> titles = {
-      'tr': 'Günün Şarkısı Hazır! 💎',
-      'fr': 'La chanson du jour est prête ! 💎',
-      'de': 'Song des Tages ist bereit! 💎',
-      'es': '¡La canción del día está lista! 💎',
-      'ar': 'أغنية اليوم جاهزة! 💎',
-    };
-
-    final Map<String, String> bodies = {
-      'tr':
-          'Bugün senin için seçtiğimiz harika şarkıyı keşfetmek için hemen dinle!',
-      'fr':
-          'Écoutez maintenant pour découvrir la superbe chanson choisie pour vous !',
-      'de':
-          'Hör jetzt rein und entdecke den tollen Song, den wir für dich ausgewählt haben!',
-      'es':
-          '¡Escucha ahora para descubrir la gran canción que elegimos para ti hoy!',
-      'ar': 'استمع الآن لاكتشاف الأغنية الرائعة التي اخترناها لك اليوم!',
-    };
-
     try {
       // Her gün tekrarlayan bir bildirim planlar
       await _notificationsPlugin.periodicallyShow(
         998, // Sabit Bildirim ID'si
-        titles[lang] ?? 'Song of the Day is Ready! 💎',
-        bodies[lang] ??
-            'Listen now to discover the great song we picked for you today!',
+        langProvider.t('daily_song_title'),
+        langProvider.t('daily_song_body'),
         RepeatInterval.daily,
         platformChannelSpecifics,
         payload: 'daily_notification',
@@ -783,60 +738,15 @@ class SongProvider with ChangeNotifier {
   /// Gelecek 7 gün için 18:00 - 22:00 saatleri arasında rastgele bildirimler planlar
   Future<void> _scheduleEveningNotifications() async {
     final prefs = await SharedPreferences.getInstance();
-    final lang = prefs.getString('language_code') ?? 'en';
+    final langProvider = LanguageProvider(prefs);
     final random = Random();
-
-    final Map<String, List<String>> allMessages = {
-      'tr': [
-        "Akşam keyfi OYN Music'te! Favori şarkıların seni bekliyor. 🛋️",
-        "Günün yorgunluğunu müzikle at. Hemen dinlemeye başla! 🍃",
-        "İyi akşamlar! Senin için hazırladığımız mix'lere göz at. 🔮",
-        "Müzik ruhun gıdasıdır. Akşam moduna uygun şarkılar burada. 🌙",
-      ],
-      'fr': [
-        "Ambiance du soir sur OYN Music ! Vos chansons préférées attendent. 🛋️",
-        "Soulagez le stress de la journée avec la musique. Écoutez maintenant ! 🍃",
-        "Bonsoir ! Découvrez les mix que nous avons préparés pour vous. 🔮",
-        "La musique nourrit l'âme. Les chansons pour le soir sont ici. 🌙",
-      ],
-      'de': [
-        "Abendstimmung auf OYN Music! Deine Lieblingssongs warten. 🛋️",
-        "Bau den Stress des Tages mit Musik ab. Jetzt anhören! 🍃",
-        "Guten Abend! Schau dir die Mixe an, die wir für dich vorbereitet haben. 🔮",
-        "Musik ist Balsam für die Seele. Abendsongs sind hier. 🌙",
-      ],
-      'es': [
-        "¡Ambiente nocturno en OYN Music! Tus canciones favoritas te esperan. 🛋️",
-        "Alivia el estrés del día con música. ¡Escucha ahora! 🍃",
-        "¡Buenas noches! Mira las mezclas que preparamos para ti. 🔮",
-        "La música alimenta el alma. Las canciones para la noche están aquí. 🌙",
-      ],
-      'ar': [
-        "أجواء المساء على OYN Music! أغانيك المفضلة بانتظارك. 🛋️",
-        "تخلص من ضغوط اليوم مع الموسيقى. استمع الآن! 🍃",
-        "مساء الخير! تفقد المقاطع التي أعددناها لك. 🔮",
-        "الموسيقى غذاء الروح. أغاني المساء هنا. 🌙",
-      ],
-    };
-
-    final Map<String, String> titles = {
-      'tr': 'İyi Akşamlar! 🌆',
-      'fr': 'Bonsoir ! 🌆',
-      'de': 'Guten Abend! 🌆',
-      'es': '¡Buenas tardes! 🌆',
-      'ar': 'مساء الخير! 🌆',
-    };
-
-    final messages = allMessages[lang] ??
-        allMessages['en'] ??
-        [
-          "Evening vibes on OYN Music! Your favorite songs are waiting. 🛋️",
-          "Relieve the day's stress with music. Start listening now! 🍃",
-          "Good evening! Check out the mixes we prepared for you. 🔮",
-          "Music is food for the soul. Evening mood songs are here. 🌙",
-        ];
-    final title = titles[lang] ?? 'Good Evening! 🌆';
-
+    final messages = [
+      langProvider.t('evening_notif_1'),
+      langProvider.t('evening_notif_2'),
+      langProvider.t('evening_notif_3'),
+      langProvider.t('evening_notif_4'),
+    ];
+    final title = langProvider.t('good_evening_notif');
     // Uygulama her açıldığında bu döngü çalışır ve bugünden itibaren 7 günlük planı tazeler
     for (int i = 0; i < 7; i++) {
       final now = tz.TZDateTime.now(tz.local);
@@ -890,8 +800,7 @@ class SongProvider with ChangeNotifier {
   /// Kullanıcı uygulamaya 12 saat boyunca hiç girmezse tetiklenecek akıllı bildirim
   Future<void> _schedule12HourReminderNotification() async {
     final prefs = await SharedPreferences.getInstance();
-    final lang = prefs.getString('language_code') ?? 'en';
-
+    final langProvider = LanguageProvider(prefs);
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
       'inactivity_channel', // Kanal ID
@@ -904,38 +813,15 @@ class SongProvider with ChangeNotifier {
     const NotificationDetails platformChannelSpecifics = NotificationDetails(
       android: androidPlatformChannelSpecifics,
     );
-
-    final Map<String, String> titles = {
-      'tr': 'Seni Özledik! 🎧',
-      'en': 'We Missed You! 🎧',
-      'fr': 'Tu nous manques ! 🎧',
-      'de': 'Wir haben dich vermisst! 🎧',
-      'es': '¡Te extrañamos! 🎧',
-      'ar': 'لقد افتقدناك! 🎧',
-    };
-
-    final Map<String, String> bodies = {
-      'tr':
-          'Favori şarkıların seni bekliyor. Uygulamaya dön ve müziğin ritmini hisset!',
-      'en':
-          'Your favorite songs are waiting. Return to the app and feel the rhythm!',
-      'fr':
-          'Vos chansons préférées vous attendent. Revenez et ressentez le rythme !',
-      'de': 'Deine Lieblingssongs warten. Komm zurück und spüre den Rhythmus!',
-      'es': 'Tus canciones favoritas te esperan. ¡Vuelve y siente el ritmo!',
-      'ar': 'أغانيك المفضلة بانتظارك. عد إلى التطبيق واشعر بالإيقاع!',
-    };
-
     try {
       // Eski 12 saatlik bildirimi iptal et ve şu andan itibaren yeni bir 12 saat kur
       await _notificationsPlugin.cancel(997);
       final scheduledDate =
           tz.TZDateTime.now(tz.local).add(const Duration(hours: 12));
-
       await _notificationsPlugin.zonedSchedule(
         997, // Sabit ID, her seferinde iptal edilip baştan kurulur
-        titles[lang] ?? titles['en']!,
-        bodies[lang] ?? bodies['en']!,
+        langProvider.t('inactivity_title'),
+        langProvider.t('inactivity_body'),
         scheduledDate,
         platformChannelSpecifics,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
@@ -1274,10 +1160,17 @@ class SongProvider with ChangeNotifier {
   }) async {
     _currentGenre = genre;
     _currentTimeRange = timeRange;
-
     if (!_hasConnection) {
       _isLoading = false;
-      _errorMessage = "İnternet bağlantısı yok";
+      if (navigatorKey.currentContext != null) {
+        final langProvider = Provider.of<LanguageProvider>(
+          navigatorKey.currentContext!,
+          listen: false,
+        );
+        _errorMessage = langProvider.t('no_connection');
+      } else {
+        _errorMessage = "No Internet Connection";
+      }
       notifyListeners();
       return;
     }
@@ -1342,8 +1235,18 @@ class SongProvider with ChangeNotifier {
       }
     } catch (e) {
       debugPrint("Şarkı çekme hatası: $e");
-      _errorMessage =
-          "Şarkılar yüklenemedi: ${e.toString().replaceAll('Exception:', '').trim()}";
+      if (navigatorKey.currentContext != null) {
+        final langProvider = Provider.of<LanguageProvider>(
+          navigatorKey.currentContext!,
+          listen: false,
+        );
+        _errorMessage = langProvider
+            .t('songs_could_not_be_loaded')
+            .replaceAll('%s', e.toString().replaceAll('Exception:', '').trim());
+      } else {
+        _errorMessage =
+            "Could not load songs: ${e.toString().replaceAll('Exception:', '').trim()}";
+      }
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -2539,8 +2442,9 @@ class SongProvider with ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final lang = prefs.getString('language_code') ?? 'tr';
 
-    String title =
-        lang == 'tr' ? 'Yeni Parça Keşfi! 🎵' : 'New Release Discovery! 🎵';
+    String title = lang == 'tr'
+        ? 'Yeni Parça Keşfi, Hemen dinle!'
+        : 'New Release Discovery, Listen Now!';
     String body = lang == 'tr'
         ? '$artist sanatçısından "${song.title}" parçasına göz atın!'
         : 'Check out "${song.title}" by $artist!';
@@ -2578,7 +2482,7 @@ class SongProvider with ChangeNotifier {
   Future<void> addCoins(int amount, {String? reason}) async {
     _coins += amount;
     _lastCoinUpdateTime = DateTime.now();
-    _addTransaction(amount, reason ?? "Jeton Kazanıldı", true);
+    _addTransaction(amount, reason ?? _lang.t('coins_earned'), true);
     notifyListeners();
     await _saveSettingsToLocal();
     _updateFirestoreCoins();
@@ -2588,7 +2492,7 @@ class SongProvider with ChangeNotifier {
     if (_coins >= amount) {
       _coins -= amount;
       _lastCoinUpdateTime = DateTime.now();
-      _addTransaction(amount, reason ?? "Jeton Harcandı", false);
+      _addTransaction(amount, reason ?? _lang.t('coins_spent'), false);
       notifyListeners();
       await _saveSettingsToLocal();
       _updateFirestoreCoins();
@@ -2613,7 +2517,7 @@ class SongProvider with ChangeNotifier {
     _receivedInitialCoins = true;
     _coins += 10;
     _lastCoinUpdateTime = DateTime.now();
-    _addTransaction(10, "Hoş Geldin Hediyesi", true);
+    _addTransaction(10, _lang.t('welcome_gift'), true);
     notifyListeners();
     await _saveSettingsToLocal();
     _updateFirestoreCoins();
@@ -2630,19 +2534,10 @@ class SongProvider with ChangeNotifier {
       await prefs.setString('last_daily_reward_date', today);
       await addCoins(1, reason: "Günlük Giriş Ödülü");
 
-      if (navigatorKey.currentContext != null) {
-        final langProvider = Provider.of<LanguageProvider>(
-          navigatorKey.currentContext!,
-          listen: false,
-        );
-        final msg = langProvider.currentLanguage == 'tr'
-            ? "Günlük giriş ödülü: +1 Jeton kazandınız! 🎁"
-            : "Daily login reward: You earned +1 Coin! 🎁";
-        CustomSnackBar.showSuccess(
-          context: navigatorKey.currentContext!,
-          message: msg,
-        );
-      }
+      CustomSnackBar.showSuccess(
+        context: navigatorKey.currentContext!,
+        message: _lang.t('daily_login_reward'),
+      );
     }
   }
 
@@ -2735,10 +2630,7 @@ class SongProvider with ChangeNotifier {
       final connectivityResult = await Connectivity().checkConnectivity();
       if (!connectivityResult.contains(ConnectivityResult.wifi)) {
         if (navigatorKey.currentContext != null) {
-          final langProvider = Provider.of<LanguageProvider>(
-            navigatorKey.currentContext!,
-            listen: false,
-          );
+          final langProvider = _lang;
           CustomSnackBar.showInfo(
             context: navigatorKey.currentContext!,
             message: langProvider.t('wifi_required_for_download'),
@@ -2762,15 +2654,11 @@ class SongProvider with ChangeNotifier {
     if (!isResuming) {
       _downloadProgress[song.id] =
           null; // Belirsiz ilerleme için null ile başla
-      if (_downloadProgressNotifiers.containsKey(song.id)) {
-        _downloadProgressNotifiers[song.id]!.value = null;
-      }
+      getDownloadProgressNotifier(song.id).value = null;
     }
     _downloadDetails[song.id] =
-        isResuming ? "Devam ediliyor..." : "Hazırlanıyor...";
-    if (_downloadDetailsNotifiers.containsKey(song.id)) {
-      _downloadDetailsNotifiers[song.id]!.value = _downloadDetails[song.id]!;
-    }
+        isResuming ? _lang.t('resuming') : _lang.t('preparing');
+    getDownloadDetailsNotifier(song.id).value = _downloadDetails[song.id]!;
     final cancelToken = CancelToken();
     _downloadCancelTokens[song.id] = cancelToken;
     notifyListeners();
@@ -2811,11 +2699,9 @@ class SongProvider with ChangeNotifier {
           !_pausedDownloads.contains(song.id)) {
         // 1. İnternet kesikse bekle
         if (!_hasConnection) {
-          _downloadDetails[song.id] = "Bağlantı bekleniyor...";
-          if (_downloadDetailsNotifiers.containsKey(song.id)) {
-            _downloadDetailsNotifiers[song.id]!.value =
-                "Bağlantı bekleniyor...";
-          }
+          _downloadDetails[song.id] = _lang.t('waiting_for_connection');
+          getDownloadDetailsNotifier(song.id).value =
+              _lang.t('waiting_for_connection');
           notifyListeners();
 
           // Bağlantı gelene veya iptal edilene kadar bekle
@@ -2828,11 +2714,8 @@ class SongProvider with ChangeNotifier {
           if (_cancelingDownloads.contains(song.id) ||
               _pausedDownloads.contains(song.id)) break;
 
-          _downloadDetails[song.id] = "İndirme devam ediyor...";
-          if (_downloadDetailsNotifiers.containsKey(song.id)) {
-            _downloadDetailsNotifiers[song.id]!.value =
-                "İndirme devam ediyor...";
-          }
+          _downloadDetails[song.id] = _lang.t('downloading');
+          getDownloadDetailsNotifier(song.id).value = _lang.t('downloading');
           notifyListeners();
         }
 
@@ -2864,7 +2747,7 @@ class SongProvider with ChangeNotifier {
               }
             } catch (e) {
               debugPrint("Youtube Explode İndirme Hatası: $e");
-              throw Exception("İndirme için ses akışı alınamadı.");
+              throw Exception(_lang.t('stream_not_found_for_download'));
             }
           }
 
@@ -2918,19 +2801,14 @@ class SongProvider with ChangeNotifier {
               if (totalBytes > 0) {
                 final progressVal = currentTotal / totalBytes;
                 _downloadProgress[song.id] = progressVal;
-                if (_downloadProgressNotifiers.containsKey(song.id)) {
-                  _downloadProgressNotifiers[song.id]!.value = progressVal;
-                }
-
+                getDownloadProgressNotifier(song.id).value = progressVal;
                 // MB Detay
                 final double receivedMB = currentTotal / (1024 * 1024);
                 final double totalMB = totalBytes / (1024 * 1024);
                 final detailStr =
                     "${receivedMB.toStringAsFixed(1)} MB / ${totalMB.toStringAsFixed(1)} MB";
                 _downloadDetails[song.id] = detailStr;
-                if (_downloadDetailsNotifiers.containsKey(song.id)) {
-                  _downloadDetailsNotifiers[song.id]!.value = detailStr;
-                }
+                getDownloadDetailsNotifier(song.id).value = detailStr;
 
                 // UI Güncelleme
                 int currentPercent =
@@ -2981,9 +2859,7 @@ class SongProvider with ChangeNotifier {
           // Eğer üst üste 3 kere hata verirse sonsuz döngüyü kır ve iptal et
           retryCount++;
           if (retryCount >= 3) {
-            throw Exception(
-              "Sunucu yanıt vermedi veya erişim reddedildi. Lütfen tekrar deneyin.",
-            );
+            throw Exception(_lang.t('server_no_response'));
           }
 
           debugPrint(
@@ -3040,8 +2916,7 @@ class SongProvider with ChangeNotifier {
       song.dateAdded = DateTime.now();
       _downloadedSongs.add(song);
       await spendCoins(2,
-          reason:
-              "MP3 İndirme: ${song.title}"); // Müzik İndirme: Başarılı olunca 2 Jeton kes
+          reason: _lang.t('mp3_download_reason').replaceAll('%s', song.title));
       await _saveDownloadedSongs();
 
       notifyListeners(); // Arayüzün İndirildi animasyonunu anında başlatması için tetikle!
@@ -3059,7 +2934,7 @@ class SongProvider with ChangeNotifier {
       if (e is DioException && CancelToken.isCancel(e)) {
         if (_pausedDownloads.contains(song.id)) {
           debugPrint("İndirme duraklatıldı: ${song.title}");
-          _downloadDetails[song.id] = "Duraklatıldı";
+          _downloadDetails[song.id] = _lang.t('paused');
           notifyListeners();
           // Duraklatıldı bildirimini ekranda tutmayı garantile
           _showDownloadProgressNotification(song, -1, -1);
@@ -3074,13 +2949,9 @@ class SongProvider with ChangeNotifier {
           if (await file.exists()) await file.delete();
 
           if (navigatorKey.currentContext != null) {
-            final langProvider = Provider.of<LanguageProvider>(
-              navigatorKey.currentContext!,
-              listen: false,
-            );
             CustomSnackBar.showError(
               context: navigatorKey.currentContext!,
-              message: langProvider.t('download_canceled'),
+              message: _lang.t('download_canceled'),
             );
           }
         }
@@ -3090,7 +2961,7 @@ class SongProvider with ChangeNotifier {
         _cancelNotification(song.id);
 
         debugPrint("İndirme hatası: $e");
-        _playbackError = "İndirme başarısız oldu.";
+        _playbackError = _lang.t('download_failed_generic');
         rethrow; // Hatayı fırlat ki UI (TrendPage vb.) yakalayabilsin
       }
     } finally {
@@ -3110,9 +2981,8 @@ class SongProvider with ChangeNotifier {
     if (song.audioUrl.contains('audius.co')) {
       if (navigatorKey.currentContext != null) {
         CustomSnackBar.showError(
-          context: navigatorKey.currentContext!,
-          message: "Bu içerik için MP4 indirme desteklenmiyor.",
-        );
+            context: navigatorKey.currentContext!,
+            message: _lang.t('mp4_not_supported'));
       }
       return;
     }
@@ -3121,10 +2991,7 @@ class SongProvider with ChangeNotifier {
       final connectivityResult = await Connectivity().checkConnectivity();
       if (!connectivityResult.contains(ConnectivityResult.wifi)) {
         if (navigatorKey.currentContext != null) {
-          final langProvider = Provider.of<LanguageProvider>(
-            navigatorKey.currentContext!,
-            listen: false,
-          );
+          final langProvider = _lang;
           CustomSnackBar.showInfo(
             context: navigatorKey.currentContext!,
             message: langProvider.t('wifi_required_for_download'),
@@ -3138,9 +3005,8 @@ class SongProvider with ChangeNotifier {
     final detailsNotifier = getVideoDownloadDetailsNotifier(song.id);
 
     if (notifier.value != null && notifier.value! < 1.0) return; // Zaten iniyor
-
     notifier.value = 0.0;
-    detailsNotifier.value = "Hazırlanıyor...";
+    detailsNotifier.value = _lang.t('preparing');
 
     if (navigatorKey.currentContext != null) {
       CustomSnackBar.showDownloadProgress(
@@ -3291,17 +3157,16 @@ class SongProvider with ChangeNotifier {
       }
 
       notifier.value = 1.0; // Bittiğini belirt
-      detailsNotifier.value = "%100 • Başarılı";
+      detailsNotifier.value = _lang.t('successful_percent');
       await spendCoins(3,
-          reason:
-              "MP4 İndirme: ${song.title}"); // Video İndirme: Başarılı olunca 3 Jeton kes
+          reason: _lang.t('mp4_download_reason').replaceAll('%s', song.title));
 
       loadDownloadedVideos(); // Video listesini tazele
 
       if (navigatorKey.currentContext != null) {
         CustomSnackBar.showSuccess(
           context: navigatorKey.currentContext!,
-          message: "MP4 İndirildi: İndirilenler klasörüne kaydedildi.",
+          message: _lang.t('mp4_download_success_message'),
         );
       }
     } catch (e) {
@@ -3310,24 +3175,22 @@ class SongProvider with ChangeNotifier {
       detailsNotifier.value = "";
       CustomSnackBar.hideCurrent();
       if (navigatorKey.currentContext != null) {
-        String errorMsg = "MP4 indirme başarısız oldu.";
+        String errorMsg = _lang.t('mp4_download_failed');
         if (e.toString().contains("no_muxed")) {
-          errorMsg =
-              "Bu müzik klibi için birleşik MP4 (Görüntü+Ses) formatı YouTube tarafından kısıtlanmış.";
+          errorMsg = _lang.t('mp4_muxed_restricted');
         } else if (e.toString().contains("Permission") ||
             e.toString().contains("EACCES") ||
             e.toString().contains("denied") ||
             e.toString().contains("OS Error: Read-only file system")) {
-          errorMsg = "Depolama izni verilmediği için cihazınıza kaydedilemedi.";
+          errorMsg = _lang.t('storage_permission_denied_for_save');
         } else if (e.toString().contains("SocketException") ||
             e.toString().contains("HandshakeException") ||
             e.toString().contains("DioExceptionType.connectionTimeout") ||
             e.toString().contains("Connection closed")) {
-          errorMsg = "İnternet bağlantısı koptu veya zaman aşımına uğradı.";
+          errorMsg = _lang.t('connection_lost_or_timed_out');
         } else if (e.toString().contains("VideoUnplayableException") ||
             e.toString().contains("restricted")) {
-          errorMsg =
-              "Bu video yaş kısıtlamasına veya telif haklarına sahip olduğu için indirilemiyor.";
+          errorMsg = _lang.t('video_restricted_age_or_copyright');
         }
 
         CustomSnackBar.showError(
@@ -3340,6 +3203,7 @@ class SongProvider with ChangeNotifier {
 
   /// İndirme tamamlandı bildirimi gösterir
   Future<void> _showDownloadNotification(Song song) async {
+    final langProvider = _lang;
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
       'download_channel', // Kanal ID
@@ -3356,8 +3220,10 @@ class SongProvider with ChangeNotifier {
     // Şarkı ID'sinin hash kodunu bildirim ID'si olarak kullanıyoruz (benzersiz olması için)
     await _notificationsPlugin.show(
       song.id.hashCode,
-      'İndirme Tamamlandı',
-      '${song.title} başarıyla indirildi.',
+      langProvider.t('download_completed_title'),
+      langProvider
+          .t('song_downloaded_successfully')
+          .replaceAll('%s', song.title),
       platformChannelSpecifics,
     );
   }
@@ -3368,6 +3234,7 @@ class SongProvider with ChangeNotifier {
     int received,
     int total,
   ) async {
+    final langProvider = _lang;
     int progress = 0;
     String sizeInfo = "";
     bool indeterminate = false;
@@ -3377,7 +3244,7 @@ class SongProvider with ChangeNotifier {
       if (pDouble != null) {
         progress = (pDouble * 100).toInt();
       }
-      sizeInfo = _downloadDetails[song.id] ?? "Duraklatıldı";
+      sizeInfo = _downloadDetails[song.id] ?? langProvider.t('paused');
     } else if (total > 0) {
       progress = ((received / total) * 100).toInt();
       final double receivedMB = received / (1024 * 1024);
@@ -3386,20 +3253,20 @@ class SongProvider with ChangeNotifier {
           "${receivedMB.toStringAsFixed(1)} MB / ${totalMB.toStringAsFixed(1)} MB";
     } else {
       indeterminate = true;
-      sizeInfo = "Boyut hesaplanıyor...";
+      sizeInfo = langProvider.t('calculating_size');
     }
 
     final isPaused = _pausedDownloads.contains(song.id);
     final List<AndroidNotificationAction> actions = [
       AndroidNotificationAction(
         isPaused ? 'resume' : 'pause',
-        isPaused ? 'Devam Et' : 'Durdur',
+        isPaused ? langProvider.t('resume') : langProvider.t('pause'),
         cancelNotification: false,
         showsUserInterface: false,
       ),
       const AndroidNotificationAction(
         'cancel',
-        'İptal Et',
+        'İptal', // 'cancel' anahtarı zaten var
         cancelNotification: true,
         showsUserInterface: false,
       ),
@@ -3429,7 +3296,9 @@ class SongProvider with ChangeNotifier {
 
     await _notificationsPlugin.show(
       song.id.hashCode,
-      isPaused ? 'İndirme Duraklatıldı' : 'İndiriliyor...',
+      isPaused
+          ? langProvider.t('download_paused')
+          : langProvider.t('downloading'),
       song.title,
       platformChannelSpecifics,
       payload: payload,
@@ -3446,8 +3315,8 @@ class SongProvider with ChangeNotifier {
     if (_downloadProgress.containsKey(songId) &&
         !_pausedDownloads.contains(songId)) {
       _pausedDownloads.add(songId);
-      _downloadDetails[songId] = "Duraklatıldı";
-      getDownloadDetailsNotifier(songId).value = "Duraklatıldı";
+      _downloadDetails[songId] = _lang.t('paused');
+      getDownloadDetailsNotifier(songId).value = _lang.t('paused');
       notifyListeners();
 
       if (_downloadCancelTokens.containsKey(songId)) {
@@ -3482,11 +3351,7 @@ class SongProvider with ChangeNotifier {
       if (await oldFile.exists()) await oldFile.delete();
 
       if (navigatorKey.currentContext != null) {
-        final langProvider = Provider.of<LanguageProvider>(
-          navigatorKey.currentContext!,
-          listen: false,
-        );
-        CustomSnackBar.hideCurrent();
+        final langProvider = _lang;
         CustomSnackBar.showError(
           context: navigatorKey.currentContext!,
           message: langProvider.t('download_canceled'),
@@ -3516,8 +3381,7 @@ class SongProvider with ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint("Cihaz müziği silinirken hata: $e");
-      throw Exception(
-          "Silinemedi. Android depolama izni kısıtlaması olabilir.");
+      throw Exception(_lang.t('delete_failed_permission'));
     }
   }
 
@@ -3661,10 +3525,7 @@ class SongProvider with ChangeNotifier {
     notifyListeners();
 
     if (navigatorKey.currentContext != null) {
-      final langProvider = Provider.of<LanguageProvider>(
-        navigatorKey.currentContext!,
-        listen: false,
-      );
+      final langProvider = _lang;
       CustomSnackBar.showInfo(
         context: navigatorKey.currentContext!,
         message: "${song.title} ${langProvider.t('added_to_queue')}",
@@ -3710,10 +3571,7 @@ class SongProvider with ChangeNotifier {
 
     if (showSnackbar) {
       if (navigatorKey.currentContext != null) {
-        final langProvider = Provider.of<LanguageProvider>(
-          navigatorKey.currentContext!,
-          listen: false,
-        );
+        final langProvider = _lang;
         CustomSnackBar.showInfo(
           context: navigatorKey.currentContext!,
           message: "${songs.length} ${langProvider.t('songs_added_to_queue')}",
@@ -3823,8 +3681,7 @@ class SongProvider with ChangeNotifier {
         _resolvingTasks.remove(cacheKey);
         return url;
       }
-
-      throw Exception("Ses akışı bulunamadı");
+      throw Exception(_lang.t('audio_stream_not_found'));
     }).catchError((Object e) {
       _resolvingTasks.remove(cacheKey);
       throw e;
@@ -3983,7 +3840,7 @@ class SongProvider with ChangeNotifier {
             streamUrl = await _resolveYoutubeStreamUrl(song.id);
           } catch (e) {
             debugPrint("Youtube Explode Akış Hatası: $e");
-            throw Exception("Şarkı akışı alınamadı.");
+            throw Exception(_lang.t('song_stream_not_found'));
           }
         }
 
@@ -4010,14 +3867,14 @@ class SongProvider with ChangeNotifier {
         if (errorStr.contains('PlayerException') ||
             errorStr.contains('Source error')) {
           if (errorStr.contains('403')) {
-            _playbackError = "Erişim reddedildi (403). Lütfen tekrar deneyin.";
+            _playbackError = _lang.t('access_denied_403');
           } else if (errorStr.contains('Source error') &&
               errorStr.contains('0')) {
-            _playbackError =
-                "Kaynak hatası. Şarkı yüklenemedi, lütfen tekrar deneyin veya başka bir şarkı seçin.";
+            _playbackError = _lang.t('source_error_try_again');
           } else {
-            _playbackError =
-                "Şarkı kaynağına erişilemedi. Format desteklenmiyor veya ağ hatası.\n($errorStr)";
+            _playbackError = _lang
+                .t('source_error_format_or_network')
+                .replaceAll('%s', errorStr);
           }
         } else {
           _playbackError =
@@ -4137,7 +3994,6 @@ class SongProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Uyku zamanlayıcısını ayarlar
   void setSleepTimer(int minutes) {
     cancelSleepTimer(notify: false); // Varsa öncekini sessizce iptal et
 
@@ -4154,7 +4010,6 @@ class SongProvider with ChangeNotifier {
     });
   }
 
-  /// Uyku zamanlayıcısını iptal eder
   void cancelSleepTimer({bool notify = true}) {
     if (_sleepTimer != null) {
       _sleepTimer!.cancel();
@@ -4252,5 +4107,13 @@ class SongProvider with ChangeNotifier {
       _audioHandler.stop();
     }
     super.dispose();
+  }
+
+  LanguageProvider get _lang {
+    if (navigatorKey.currentContext != null) {
+      return Provider.of<LanguageProvider>(navigatorKey.currentContext!,
+          listen: false);
+    }
+    throw Exception("LanguageProvider could not be accessed.");
   }
 }

@@ -246,7 +246,7 @@ class _SearchPageState extends State<SearchPage> {
                       padding: const EdgeInsets.all(12.0),
                       child: CustomIcons.svgIcon(
                         CustomIcons.search,
-                        color: Colors.black,
+                        color: Colors.black.withOpacity(0.8),
                         size: 28,
                       ),
                     ),
