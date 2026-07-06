@@ -60,6 +60,7 @@ class SongProvider with ChangeNotifier {
   int? _currentSongIndex;
   String _searchText = '';
   String? _currentGenre; // Şu anki kategoriyi tutar
+  List<String> _searchSuggestions = [];
   String?
       _currentTimeRange; // Şu anki zaman aralığını tutar (week, month, year, allTime)
   List<Song> _searchResults = [];
@@ -283,6 +284,7 @@ class SongProvider with ChangeNotifier {
   List<Song> get suggestedAlbums => _suggestedAlbums;
   bool get isSuggestionsLoading => _isSuggestionsLoading;
   List<String> get followedArtists => _followedArtists;
+  List<String> get searchSuggestions => _searchSuggestions;
   String? getArtistAvatar(String artistName) => _artistAvatars[artistName];
   bool get isSyncingUserData => _isSyncingUserData;
   bool get seenInitialArtists => _seenInitialArtists;
@@ -1697,9 +1699,64 @@ class SongProvider with ChangeNotifier {
     await prefs.remove('recently_played');
   }
 
+  Future<void> fetchSearchSuggestions(String query) async {
+    if (query.trim().isEmpty) {
+      if (_searchSuggestions.isNotEmpty) {
+        _searchSuggestions = [];
+        notifyListeners();
+      }
+      return;
+    }
+
+    try {
+      final dio = Dio();
+      final response = await dio.get(
+        'https://suggestqueries.google.com/complete/search',
+        queryParameters: {
+          'client': 'firefox',
+          'ds': 'yt',
+          'q': query,
+          'hl': 'tr', // Dilin Türkçe olduğunu belirtiyoruz
+          'ie': 'utf-8', // Giriş kodlaması UTF-8
+          'oe': 'utf-8', // Çıkış (bize gelen yanıt) kodlaması UTF-8
+        },
+      );
+
+      // Google API artık bize temiz bir UTF-8 veri gönderiyor,
+      // byte decode işlemlerine gerek kalmadı.
+      dynamic responseData = response.data;
+      if (responseData is String) {
+        try {
+          responseData = jsonDecode(responseData);
+        } catch (e) {
+          debugPrint("JSON Parse hatası: $e");
+        }
+      }
+
+      if (response.statusCode == 200 && responseData is List) {
+        if (responseData.length > 1 && responseData[1] is List) {
+          // Gelen önerileri String listesine çevir
+          _searchSuggestions = List<String>.from(responseData[1]);
+        } else {
+          _searchSuggestions = [];
+        }
+      } else {
+        _searchSuggestions = [];
+      }
+    } catch (e) {
+      debugPrint("Arama önerileri alınamadı: $e");
+      _searchSuggestions = [];
+    } finally {
+      notifyListeners();
+    }
+  }
+
   void updateSearchText(String text) {
     if (_searchDebounce?.isActive ?? false) _searchDebounce!.cancel();
     _searchText = text;
+
+    // Arama önerilerini anında çek
+    fetchSearchSuggestions(text);
 
     if (text.isEmpty) {
       _searchResults = [];
@@ -2532,7 +2589,7 @@ class SongProvider with ChangeNotifier {
 
     if (lastDate != today) {
       await prefs.setString('last_daily_reward_date', today);
-      await addCoins(1, reason: "Günlük Giriş Ödülü");
+      await addCoins(1, reason: _lang.t('daily_login_reward_reason'));
 
       CustomSnackBar.showSuccess(
         context: navigatorKey.currentContext!,

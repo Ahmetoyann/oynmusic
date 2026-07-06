@@ -309,14 +309,16 @@ class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
                                             });
                                             CustomSnackBar.showSuccess(
                                               context: context,
-                                              message:
-                                                  '${controller.text} ${langProvider.t('create')}d.',
+                                              message: langProvider
+                                                  .t('list_created')
+                                                  .replaceAll(
+                                                      '%s', controller.text),
                                             );
                                           } else {
                                             CustomSnackBar.showError(
                                               context: context,
-                                              message:
-                                                  'Lütfen bir liste adı girin.',
+                                              message: langProvider
+                                                  .t('enter_list_name_warning'),
                                             );
                                           }
                                         },
@@ -587,8 +589,9 @@ class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
                                     });
                                     CustomSnackBar.showSuccess(
                                       context: context,
-                                      message:
-                                          'Şarkılar ${folder.name} listesine eklendi.',
+                                      message: langProvider
+                                          .t('songs_added_to_list')
+                                          .replaceAll('%s', folder.name),
                                     );
                                   },
                                 ),
@@ -670,7 +673,7 @@ class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
             Navigator.pop(context);
             CustomSnackBar.showError(
               context: context,
-              message: 'Silinemedi. Depolama izni gerekebilir.',
+              message: langProvider.t('delete_failed_permission'),
             );
           }
         }
@@ -724,8 +727,9 @@ class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
         if (failedCount > 0) {
           CustomSnackBar.showError(
             context: context,
-            message:
-                '$failedCount dosya silinemedi (İzin kısıtlaması olabilir).',
+            message: langProvider
+                .t('delete_failed_count')
+                .replaceAll('%d', failedCount.toString()),
           );
         } else {
           CustomSnackBar.showError(
@@ -1154,7 +1158,9 @@ class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
           title: null,
           titleWidget: _isSelectionMode
               ? Text(
-                  '${_selectedSongs.length} Seçildi',
+                  langProvider
+                      .t('items_selected')
+                      .replaceAll('%d', _selectedSongs.length.toString()),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 20,
@@ -1253,7 +1259,7 @@ class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
                                   size: 20,
                                 ),
                                 const SizedBox(width: 12),
-                                Text("MP3 Ses",
+                                Text(langProvider.t('mp3_audio'),
                                     style: TextStyle(
                                         color: !_showVideos
                                             ? Theme.of(context).primaryColor
@@ -1276,7 +1282,7 @@ class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
                                   size: 20,
                                 ),
                                 const SizedBox(width: 12),
-                                Text("MP4 Video",
+                                Text(langProvider.t('mp4_video'),
                                     style: TextStyle(
                                         color: _showVideos
                                             ? Theme.of(context).primaryColor
@@ -1452,7 +1458,8 @@ class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
                                           size: 20,
                                           color: Theme.of(context).primaryColor,
                                         ),
-                                        text: 'Tarihe Göre (En Yeni)',
+                                        text:
+                                            langProvider.t('sort_date_newest'),
                                       ),
                                       CustomDropdownItem.build<SortOption>(
                                         context: context,
@@ -1462,7 +1469,8 @@ class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
                                           size: 20,
                                           color: Theme.of(context).primaryColor,
                                         ),
-                                        text: 'Tarihe Göre (En Eski)',
+                                        text:
+                                            langProvider.t('sort_date_oldest'),
                                       ),
                                       CustomDropdownItem.build<SortOption>(
                                         context: context,
@@ -1472,7 +1480,7 @@ class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
                                           size: 20,
                                           color: Theme.of(context).primaryColor,
                                         ),
-                                        text: 'İsme Göre (A-Z)',
+                                        text: langProvider.t('sort_name_az'),
                                       ),
                                       CustomDropdownItem.build<SortOption>(
                                         context: context,
@@ -1482,7 +1490,7 @@ class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
                                           size: 20,
                                           color: Theme.of(context).primaryColor,
                                         ),
-                                        text: 'İsme Göre (Z-A)',
+                                        text: langProvider.t('sort_name_za'),
                                       ),
                                     ],
                                   ),
@@ -1634,8 +1642,8 @@ class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
                                               );
                                               CustomSnackBar.showInfo(
                                                 context: context,
-                                                message:
-                                                    "İndirilenler karışık çalınıyor.",
+                                                message: langProvider.t(
+                                                    'playing_downloads_shuffled'),
                                                 icon: const Icon(
                                                   Icons.shuffle_rounded,
                                                   color: Colors.white,
@@ -1723,8 +1731,8 @@ class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
                                               );
                                               CustomSnackBar.showInfo(
                                                 context: context,
-                                                message:
-                                                    "İndirilenler oynatılıyor.",
+                                                message: langProvider
+                                                    .t('playing_downloads'),
                                                 icon: CustomIcons.svgIcon(
                                                   CustomIcons.playArrow,
                                                   color: Colors.white,
@@ -1858,7 +1866,7 @@ class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
                                           ),
                                           const SizedBox(width: 12),
                                           Text(
-                                            'Cihazı Tara',
+                                            langProvider.t('scan_device'),
                                             style: TextStyle(
                                               color: Theme.of(context)
                                                   .primaryColor,
@@ -1961,7 +1969,7 @@ class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
                                 Text(
                                   _selectedTabIndex == 0
                                       ? langProvider.t('no_downloads')
-                                      : 'Cihazda Müzik Bulunamadı',
+                                      : langProvider.t('no_device_music'),
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 22,
@@ -1976,7 +1984,8 @@ class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
                                   child: Text(
                                     _selectedTabIndex == 0
                                         ? langProvider.t('no_downloads_desc')
-                                        : 'Cihazınızda oynatılabilir bir müzik dosyası bulunamadı.',
+                                        : langProvider
+                                            .t('no_device_music_desc'),
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       color: Colors.grey.shade400,

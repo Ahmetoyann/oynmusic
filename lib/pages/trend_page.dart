@@ -38,7 +38,7 @@ class _TrendPageState extends State<TrendPage> {
   String _selectedFilter = 'all';
   final List<String> _filterKeys = ['all', 'songs', 'collections'];
   ScrollController? _primaryScrollController;
-  int _visibleArtistCount = 4;
+  int _visibleArtistCount = 3;
   int _latestArtistCount = 0;
   bool _isIncrementingLocal = false;
 
@@ -314,7 +314,7 @@ class _TrendPageState extends State<TrendPage> {
         color: Theme.of(context).primaryColor,
         backgroundColor: Colors.grey.shade900,
         onRefresh: () async {
-          setState(() => _visibleArtistCount = 4);
+          setState(() => _visibleArtistCount = 3);
           await provider.fetchSongsFromApi(forceRefresh: true);
         },
         child: LayoutBuilder(
@@ -359,7 +359,7 @@ class _TrendPageState extends State<TrendPage> {
         color: Theme.of(context).primaryColor,
         backgroundColor: Colors.grey.shade900,
         onRefresh: () async {
-          setState(() => _visibleArtistCount = 4);
+          setState(() => _visibleArtistCount = 3);
           await provider.fetchSongsFromApi(forceRefresh: true);
         },
         child: LayoutBuilder(
@@ -378,7 +378,7 @@ class _TrendPageState extends State<TrendPage> {
       color: Theme.of(context).primaryColor,
       backgroundColor: Colors.grey.shade900,
       onRefresh: () async {
-        setState(() => _visibleArtistCount = 4);
+        setState(() => _visibleArtistCount = 3);
         await provider.fetchSongsFromApi(forceRefresh: true);
       },
       child: _buildArtistList(context, songs),
@@ -433,7 +433,7 @@ class _TrendPageState extends State<TrendPage> {
     final langProvider = context.read<LanguageProvider>();
     return OutlinedButton.icon(
       onPressed: () {
-        setState(() => _visibleArtistCount = 4);
+        setState(() => _visibleArtistCount = 3);
         provider.fetchSongsFromApi(forceRefresh: true);
       },
       icon: const Icon(Icons.refresh_rounded, color: Colors.white),
@@ -490,8 +490,8 @@ class _TrendPageState extends State<TrendPage> {
     final sortedArtists = sortedEntries.map((e) => e.key).toList();
     _latestArtistCount = sortedArtists.length;
 
-    // Eğer filtreleme sonrasında ekranda 4'ten az sanatçı kaldıysa otomatik daha fazla yükle
-    if (sortedArtists.length < 4 &&
+    // Eğer filtreleme sonrasında ekranda 3'ten az sanatçı kaldıysa otomatik daha fazla yükle
+    if (sortedArtists.length < 3 &&
         !isLoadingMore &&
         songs.isNotEmpty &&
         songs.length < 150) {
@@ -669,13 +669,13 @@ class _TrendPageState extends State<TrendPage> {
                     final provider = context.read<SongProvider>();
                     if (_visibleArtistCount < _latestArtistCount) {
                       setState(() {
-                        _visibleArtistCount += 4;
+                        _visibleArtistCount += 3;
                       });
                     } else if (!provider.isLoadingMore) {
                       provider.loadMoreSongs().then((_) {
                         if (mounted) {
                           setState(() {
-                            _visibleArtistCount += 4;
+                            _visibleArtistCount += 3;
                           });
                         }
                       }).catchError((e) {
@@ -862,6 +862,7 @@ class _TrendPageState extends State<TrendPage> {
                   fit: BoxFit.cover,
                   width: double.infinity,
                   height: double.infinity,
+                  cacheWidth: 300, // EKLENDİ (Performans için)
                 );
               } else if (song.coverUrl.isEmpty) {
                 imageWidget = DeviceCoverPlaceholder(
@@ -874,6 +875,8 @@ class _TrendPageState extends State<TrendPage> {
                   fit: BoxFit.cover,
                   width: double.infinity,
                   height: double.infinity,
+                  memCacheWidth: 300, // EKLENDİ (Performans için)
+                  fadeInDuration: const Duration(milliseconds: 150), // EKLENDİ
                   errorWidget: (context, url, error) => DeviceCoverPlaceholder(
                     logoColor: Theme.of(context).primaryColor,
                     borderRadius: 4,
@@ -1178,12 +1181,14 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget> {
                       ? Image.file(
                           File(song.localImagePath!),
                           fit: BoxFit.cover,
-                          cacheHeight: 300,
+                          cacheWidth: 400, // EKLENDİ (Performans için)
                         )
                       : CachedNetworkImage(
                           imageUrl: song.coverUrl,
                           fit: BoxFit.cover,
-                          memCacheHeight: 300,
+                          memCacheWidth: 400, // EKLENDİ (Performans için)
+                          fadeInDuration:
+                              const Duration(milliseconds: 150), // EKLENDİ
                           errorWidget: (context, url, error) =>
                               DeviceCoverPlaceholder(
                             width: double.infinity,
@@ -1267,12 +1272,14 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget> {
                     ? Image.file(
                         File(song.localImagePath!),
                         fit: BoxFit.cover,
-                        cacheHeight: 150,
+                        cacheWidth: 150, // EKLENDİ (Performans için)
                       )
                     : CachedNetworkImage(
                         imageUrl: song.coverUrl,
                         fit: BoxFit.cover,
-                        memCacheHeight: 150,
+                        memCacheWidth: 150, // EKLENDİ (Performans için)
+                        fadeInDuration:
+                            const Duration(milliseconds: 150), // EKLENDİ
                         errorWidget: (context, url, error) =>
                             DeviceCoverPlaceholder(
                           width: 71,
@@ -1412,6 +1419,12 @@ class _SmallArtistAvatarState extends State<_SmallArtistAvatar> {
                     ? avatarUrl
                     : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(widget.artistName)}&background=random&color=fff&size=100',
                 fit: BoxFit.cover,
+                memCacheWidth:
+                    150, // EKLENDİ (Performans için resim RAM'de küçük işlensin)
+                memCacheHeight: 150, // EKLENDİ
+                fadeInDuration: const Duration(
+                    milliseconds:
+                        150), // EKLENDİ (Animasyon beklemesini engeller)
                 placeholder: (context, url) => DeviceCoverPlaceholder(
                   width: 36,
                   height: 36,
@@ -1533,7 +1546,9 @@ class _DailySongCardState extends State<DailySongCard> {
                         width: 112,
                         height: 63,
                         fit: BoxFit.cover,
-                        memCacheHeight: 250,
+                        memCacheWidth: 250, // EKLENDİ (Performans için)
+                        fadeInDuration:
+                            const Duration(milliseconds: 150), // EKLENDİ
                         errorWidget: (context, url, error) =>
                             DeviceCoverPlaceholder(
                           width: 112,

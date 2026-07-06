@@ -34,6 +34,8 @@ class _SearchPageState extends State<SearchPage> {
   bool _speechEnabled = false;
   bool _isListening = false;
   bool _isHistoryExpanded = false; // Geçmişin açık/kapalı durumu
+  bool _showSuggestions =
+      true; // Önerilerin gösterilip gösterilmeyeceğini kontrol eder
 
   @override
   void initState() {
@@ -121,6 +123,59 @@ class _SearchPageState extends State<SearchPage> {
       context.read<SongProvider>().updateSearchText(result.trim());
       context.read<SongProvider>().addToSearchHistory(result.trim());
     }
+  }
+
+  /// Yazılan metne göre arama önerilerini listeleyen widget.
+  Widget _buildKeywordSuggestions(BuildContext context) {
+    // `watch` kullanarak öneri listesi güncellendiğinde UI'ın yeniden çizilmesini sağlıyoruz.
+    final songProvider = context.watch<SongProvider>();
+    final suggestions = songProvider.searchSuggestions;
+    final aramaMetni = _searchController.text.trim();
+
+    // Arama metni boşsa veya öneri yoksa boş bir widget döndür.
+    if (aramaMetni.isEmpty || suggestions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // Önerileri bir ListView içinde göster.
+    return ListView.builder(
+      padding: const EdgeInsets.only(top: 16.0),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      itemCount: suggestions.length,
+      itemBuilder: (context, index) {
+        final suggestion = suggestions[index];
+        return InkWell(
+          onTap: () {
+            // Öneriye tıklandığında arama çubuğunu güncelle ve aramayı başlat.
+            _searchController.text = suggestion;
+            _searchController.selection = TextSelection.fromPosition(
+              TextPosition(offset: suggestion.length),
+            );
+            songProvider.searchSongs(suggestion); // Aramayı hemen yap
+            songProvider.addToSearchHistory(suggestion);
+            FocusScope.of(context).unfocus(); // Klavyeyi kapat
+            setState(() => _showSuggestions = false); // Önerileri gizle
+          },
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(vertical: 14.0, horizontal: 8.0),
+            child: Row(
+              children: [
+                Icon(Icons.north_west_rounded,
+                    size: 20, color: Colors.white.withOpacity(0.7)),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(suggestion,
+                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -267,12 +322,20 @@ class _SearchPageState extends State<SearchPage> {
                         : null,
                     onChanged: (value) {
                       songProvider.updateSearchText(value);
+                      if (!_showSuggestions) {
+                        setState(() {
+                          _showSuggestions = true;
+                        });
+                      }
                     },
                     onSubmitted: (value) {
                       if (value.isNotEmpty) {
                         songProvider.addToSearchHistory(value);
                       }
                       FocusScope.of(context).unfocus();
+                      setState(() {
+                        _showSuggestions = false;
+                      });
                     },
                   ),
                 ),
@@ -355,11 +418,14 @@ class _SearchPageState extends State<SearchPage> {
                     )
                   : const SizedBox(width: double.infinity, height: 0),
             ),
-            const SizedBox(height: 16),
 
             // Sonuçları veya başlangıç ekranını gösteren bölüm
             Expanded(
-              child: _buildResultsBody(context, aramaMetni, arananSarkilar),
+              child: aramaMetni.isNotEmpty &&
+                      _showSuggestions &&
+                      songProvider.searchSuggestions.isNotEmpty
+                  ? _buildKeywordSuggestions(context)
+                  : _buildResultsBody(context, aramaMetni, arananSarkilar),
             ),
           ],
         ),

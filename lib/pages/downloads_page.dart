@@ -326,14 +326,16 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                             });
                                             CustomSnackBar.showSuccess(
                                               context: context,
-                                              message:
-                                                  '${controller.text} ${langProvider.t('create')}d.',
+                                              message: langProvider
+                                                  .t('list_created')
+                                                  .replaceAll(
+                                                      '%s', controller.text),
                                             );
                                           } else {
                                             CustomSnackBar.showError(
                                               context: context,
-                                              message:
-                                                  'Lütfen bir liste adı girin.',
+                                              message: langProvider
+                                                  .t('enter_list_name_warning'),
                                             );
                                           }
                                         },
@@ -604,8 +606,9 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                     });
                                     CustomSnackBar.showSuccess(
                                       context: context,
-                                      message:
-                                          'Şarkılar ${folder.name} listesine eklendi.',
+                                      message: langProvider
+                                          .t('songs_added_to_list')
+                                          .replaceAll('%s', folder.name),
                                     );
                                   },
                                 ),
@@ -1162,7 +1165,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
           songProvider.playSong(songToPlay, filteredSongs);
           CustomSnackBar.showInfo(
             context: context,
-            message: "İndirilenler oynatılıyor.",
+            message: langProvider.t('playing_downloads'),
             icon: CustomIcons.svgIcon(
               CustomIcons.playArrow,
               color: Colors.white,
@@ -1198,7 +1201,9 @@ class _DownloadsPageState extends State<DownloadsPage> {
               title: null,
               titleWidget: _isSelectionMode
                   ? Text(
-                      '${_selectedSongs.length} Seçildi',
+                      langProvider
+                          .t('items_selected')
+                          .replaceAll('%d', _selectedSongs.length.toString()),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 20,
@@ -1298,7 +1303,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                       size: 20,
                                     ),
                                     const SizedBox(width: 12),
-                                    Text("MP3 Ses",
+                                    Text(langProvider.t('mp3_audio'),
                                         style: TextStyle(
                                             color: !_showVideos
                                                 ? Theme.of(context).primaryColor
@@ -1321,7 +1326,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                       size: 20,
                                     ),
                                     const SizedBox(width: 12),
-                                    Text("MP4 Video",
+                                    Text(langProvider.t('mp4_video'),
                                         style: TextStyle(
                                             color: _showVideos
                                                 ? Theme.of(context).primaryColor
@@ -1464,7 +1469,8 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                           size: 20,
                                           color: Theme.of(context).primaryColor,
                                         ),
-                                        text: 'Tarihe Göre (En Yeni)',
+                                        text:
+                                            langProvider.t('sort_date_newest'),
                                       ),
                                       CustomDropdownItem.build<SortOption>(
                                         context: context,
@@ -1474,7 +1480,8 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                           size: 20,
                                           color: Theme.of(context).primaryColor,
                                         ),
-                                        text: 'Tarihe Göre (En Eski)',
+                                        text:
+                                            langProvider.t('sort_date_oldest'),
                                       ),
                                       CustomDropdownItem.build<SortOption>(
                                         context: context,
@@ -1484,7 +1491,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                           size: 20,
                                           color: Theme.of(context).primaryColor,
                                         ),
-                                        text: 'İsme Göre (A-Z)',
+                                        text: langProvider.t('sort_name_az'),
                                       ),
                                       CustomDropdownItem.build<SortOption>(
                                         context: context,
@@ -1494,7 +1501,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                           size: 20,
                                           color: Theme.of(context).primaryColor,
                                         ),
-                                        text: 'İsme Göre (Z-A)',
+                                        text: langProvider.t('sort_name_za'),
                                       ),
                                     ],
                                   ),
@@ -1638,8 +1645,10 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                                 context: context,
                                                 message: songProvider
                                                         .isShuffleEnabled
-                                                    ? "Karışık çalma açık."
-                                                    : "Karışık çalma kapalı.",
+                                                    ? langProvider
+                                                        .t('shuffle_on')
+                                                    : langProvider
+                                                        .t('shuffle_off'),
                                                 icon: const Icon(
                                                   Icons.shuffle_rounded,
                                                   color: Colors.white,
@@ -1896,7 +1905,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                 Text(
                                   _selectedTabIndex == 0
                                       ? langProvider.t('no_downloads')
-                                      : 'Cihazda Müzik Bulunamadı',
+                                      : langProvider.t('no_device_music'),
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 22,
@@ -1911,7 +1920,8 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                   child: Text(
                                     _selectedTabIndex == 0
                                         ? langProvider.t('no_downloads_desc')
-                                        : 'Cihazınızda oynatılabilir bir müzik dosyası bulunamadı.',
+                                        : langProvider
+                                            .t('no_device_music_desc'),
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       color: Colors.grey.shade400,
@@ -2009,7 +2019,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                               ),
                                               const SizedBox(width: 12),
                                               Text(
-                                                'Cihazı Tara',
+                                                langProvider.t('scan_device'),
                                                 style: TextStyle(
                                                   color: Theme.of(context)
                                                       .primaryColor,

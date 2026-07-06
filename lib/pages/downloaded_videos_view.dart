@@ -18,6 +18,7 @@ class DownloadedVideosView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<SongProvider>();
+    final langProvider = context.watch<LanguageProvider>();
     final videos = provider.downloadedVideos;
 
     if (videos.isEmpty) {
@@ -38,9 +39,8 @@ class DownloadedVideosView extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-            const Text(
-              'Video Bulunamadı',
-              style: TextStyle(
+            Text(langProvider.t('no_downloaded_videos'),
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
@@ -50,7 +50,7 @@ class DownloadedVideosView extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 48),
               child: Text(
-                'İndirdiğiniz MP4 formatındaki videolar burada listelenir.',
+                langProvider.t('no_downloaded_videos_desc'),
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.grey.shade400,

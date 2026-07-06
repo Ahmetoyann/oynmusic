@@ -174,8 +174,8 @@ class CustomWinningAd {
                                         CustomWinningAd.instance.showAd(
                                           onEarnedReward: () {
                                             provider.addCoins(4,
-                                                reason:
-                                                    "Reklam İzleme"); // +4 Jeton Ekle
+                                              reason:
+                                                langProvider.t('ad_viewed')); // +4 Jeton Ekle
                                             CustomSnackBar.showSuccess(
                                                 context: pageContext,
                                                 message: langProvider
