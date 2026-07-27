@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:muzik_app/providers/song_provider.dart';
 import 'package:muzik_app/providers/language_provider.dart';
@@ -39,7 +40,8 @@ class DownloadedVideosView extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-            Text(langProvider.t('no_downloaded_videos'),
+            Text(
+              langProvider.t('no_downloaded_videos'),
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 22,

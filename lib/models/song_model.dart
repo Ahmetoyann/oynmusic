@@ -1,4 +1,5 @@
 // lib/models/song_model.dart
+import 'package:flutter/foundation.dart';
 
 // Bu dosya, uygulama genelinde kullanılacak veri modellerini ve ilgili uzantıları içerir.
 
@@ -11,9 +12,21 @@ class Song {
   final String id;
   final String title;
   final String artist;
-  final String coverUrl;
-  final String audioUrl;
+  final String _coverUrl;
+  final String _audioUrl;
+
+  String get coverUrl => _getProxiedUrl(_coverUrl);
+  String get audioUrl => _getProxiedUrl(_audioUrl);
+
+  static String _getProxiedUrl(String url) {
+    if (kIsWeb && url.startsWith('http') && !url.contains('localhost:5000')) {
+      return 'http://localhost:5000/proxy?url=${Uri.encodeComponent(url)}';
+    }
+    return url;
+  }
+
   int? duration; // Şarkı süresi (saniye cinsinden)
+  int? viewCount; // İzlenme sayısı
   String? lyrics;
   String? localPath; // İndirilen dosyanın yerel yolu
   String? localImagePath; // İndirilen kapak resminin yerel yolu
@@ -24,15 +37,17 @@ class Song {
     required this.id,
     required this.title,
     required this.artist,
-    required this.coverUrl,
-    required this.audioUrl,
+    required String coverUrl,
+    required String audioUrl,
     this.duration,
+    this.viewCount,
     this.lyrics,
     this.localPath,
     this.localImagePath,
     this.lastPlayed,
     this.dateAdded,
-  });
+  }) : _coverUrl = coverUrl,
+       _audioUrl = audioUrl;
 
   /// Deezer API'den gelen JSON verisini bir Song nesnesine dönüştüren fabrika metodu.
   /// Çalma listesi (playlist) API'sinin formatına göre güncellendi.
@@ -50,7 +65,7 @@ class Song {
       // Eğer bu alanlar boş (null) gelirse, varsayılan bir yer tutucu resim kullanıyoruz.
       coverUrl: albumInfo?['cover_small'] ??
           albumInfo?['cover_medium'] ??
-          'https://via.placeholder.com/250',
+          '',
 
       // Önizleme ses URL'sini alıyoruz.
       audioUrl: json['preview'] ?? '',
@@ -71,7 +86,7 @@ class Song {
     final String pictureId = json['picture_id']?.toString() ?? '';
     final String thumbnailUrl = pictureId.isNotEmpty
         ? 'https://i.vimeocdn.com/video/${pictureId}_640x360.jpg'
-        : 'https://via.placeholder.com/250';
+        : '';
 
     return Song(
       id: json['id'].toString(),
@@ -90,7 +105,7 @@ class Song {
       id: json['id'].toString(),
       title: json['tags'] ?? 'İsimsiz Müzik',
       artist: json['user'] ?? 'Pixabay Sanatçısı',
-      coverUrl: json['userImageURL'] ?? 'https://via.placeholder.com/250',
+      coverUrl: json['userImageURL'] ?? '',
       audioUrl: json['preview'] ?? '',
       duration: json['duration'] ?? 0,
       lyrics: null,
@@ -103,7 +118,7 @@ class Song {
       id: json['id'].toString(),
       title: json['name'] ?? 'İsimsiz Şarkı',
       artist: json['artist_name'] ?? 'Bilinmeyen Sanatçı',
-      coverUrl: json['image'] ?? 'https://via.placeholder.com/250',
+      coverUrl: json['image'] ?? '',
       audioUrl: json['audio'] ?? '',
       duration: json['duration'] ?? 0,
       lyrics: null,
@@ -123,7 +138,7 @@ class Song {
       coverUrl: snippet['thumbnails']['medium']?['url'] ??
           snippet['thumbnails']['default']?['url'] ??
           snippet['thumbnails']['high']?['url'] ??
-          'https://via.placeholder.com/250',
+          '',
       // Not: Bu URL doğrudan oynatılamaz. youtube_explode_dart gibi bir paket ile stream URL'ine çevrilmelidir.
       audioUrl: 'https://www.youtube.com/watch?v=$videoId',
       duration: 0, // Search endpoint süre bilgisi döndürmez
@@ -144,7 +159,7 @@ class Song {
       coverUrl: snippet['thumbnails']['medium']?['url'] ??
           snippet['thumbnails']['default']?['url'] ??
           snippet['thumbnails']['high']?['url'] ??
-          'https://via.placeholder.com/250',
+          '',
       audioUrl: 'https://www.youtube.com/watch?v=$videoId',
       duration: _parseDuration(contentDetails['duration']),
       lyrics: null,
@@ -163,7 +178,7 @@ class Song {
       artist: user['name'] ?? 'Bilinmeyen Sanatçı',
       coverUrl: artwork['150x150'] ??
           artwork['480x480'] ??
-          'https://via.placeholder.com/250',
+          '',
       audioUrl: 'https://discoveryprovider.audius.co/v1/tracks/$trackId/stream',
       duration: json['duration'] ?? 0,
       lyrics: null,
@@ -192,9 +207,10 @@ class Song {
       'id': id,
       'title': title,
       'artist': artist,
-      'coverUrl': coverUrl,
-      'audioUrl': audioUrl,
+      'coverUrl': _coverUrl,
+      'audioUrl': _audioUrl,
       'duration': duration,
+      'viewCount': viewCount,
       'lyrics': lyrics,
       'localPath': localPath,
       'localImagePath': localImagePath,
@@ -212,6 +228,7 @@ class Song {
       coverUrl: map['coverUrl'],
       audioUrl: map['audioUrl'],
       duration: map['duration'],
+      viewCount: map['viewCount'],
       lyrics: map['lyrics'],
       localPath: map['localPath'],
       localImagePath: map['localImagePath'],

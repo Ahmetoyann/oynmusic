@@ -12,6 +12,8 @@ import 'package:muzik_app/providers/language_provider.dart';
 import 'package:muzik_app/providers/auth_provider.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/widgets/custom_search_bar.dart';
+import 'package:youtube_explode_dart/youtube_explode_dart.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class InitialArtistsPage extends StatefulWidget {
   final VoidCallback onCompleted;
@@ -50,6 +52,48 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
     super.dispose();
   }
 
+  Future<void> _fetchRealArtistCovers(List<Song> currentResults) async {
+    final yt = YoutubeExplode();
+    try {
+      for (int i = 0; i < currentResults.length; i++) {
+        // Arama sorgusu değiştiyse işlemi durdur
+        if (!mounted ||
+            _searchResults.isEmpty ||
+            _searchResults.length <= i ||
+            _searchResults[i].artist != currentResults[i].artist) return;
+
+        final artistName = currentResults[i].artist;
+        try {
+          final searchResults = await yt.search.search(artistName);
+          if (searchResults.isNotEmpty) {
+            final firstVideo = searchResults.first;
+            final channel = await yt.channels.get(firstVideo.channelId);
+
+            if (mounted) {
+              setState(() {
+                final index =
+                    _searchResults.indexWhere((s) => s.artist == artistName);
+                if (index != -1) {
+                  _searchResults[index] = Song(
+                    id: _searchResults[index].id,
+                    title: _searchResults[index].title,
+                    artist: _searchResults[index].artist,
+                    coverUrl: channel.logoUrl,
+                    audioUrl: _searchResults[index].audioUrl,
+                  );
+                }
+              });
+            }
+          }
+        } catch (e) {
+          debugPrint("Kanal resmi çekilemedi: $artistName");
+        }
+      }
+    } finally {
+      yt.close();
+    }
+  }
+
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
     setState(() {
@@ -77,12 +121,23 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
         final Map<String, Song> uniqueArtists = {};
         for (var song in results) {
           if (!uniqueArtists.containsKey(song.artist)) {
-            uniqueArtists[song.artist] = song;
+            // Geçici olarak ui-avatars kullan, sonra asıl resmi çekeceğiz
+            uniqueArtists[song.artist] = Song(
+              id: song.id,
+              title: song.title,
+              artist: song.artist,
+              coverUrl:
+                  'https://ui-avatars.com/api/?name=${Uri.encodeComponent(song.artist)}&background=random&color=fff&size=200',
+              audioUrl: song.audioUrl,
+            );
           }
         }
         if (mounted) {
           setState(() => _searchResults = uniqueArtists.values.toList());
         }
+
+        // Asıl kanal resimlerini arkaplanda çek
+        _fetchRealArtistCovers(uniqueArtists.values.toList());
       } catch (e) {
         debugPrint("Sanatçı arama hatası: $e");
       } finally {
@@ -177,16 +232,31 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
                   const SizedBox(height: 20),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                    child: Text(
-                      langProvider
-                          .t('who_do_you_listen')
-                          .replaceAll('?', '?\n'),
-                      style: const TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        height: 1.2,
-                      ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            langProvider
+                                .t('who_do_you_listen')
+                                .replaceAll('?', '?\n'),
+                            style: const TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              height: 1.2,
+                            ),
+                          ),
+                        ),
+                        if (widget.isOptionalSelection)
+                          IconButton(
+                            icon: const Icon(Icons.close,
+                                color: Colors.white, size: 28),
+                            padding: EdgeInsets.zero,
+                            alignment: Alignment.topRight,
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -212,17 +282,43 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
                         filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
                         child: Container(
                           color: Colors.grey.shade800.withOpacity(0.5),
-                          child: CustomSearchBar(
+                          child: TextField(
                             controller: _searchController,
-                            hintText: langProvider.t('search_artist'),
-                            fillColor: Colors.transparent,
-                            contentPadding:
-                                const EdgeInsets.symmetric(vertical: 15),
-                            showClearButton: _searchQuery.isNotEmpty,
-                            onClear: () {
-                              _onSearchChanged('');
-                            },
                             onChanged: _onSearchChanged,
+                            style: const TextStyle(color: Colors.black),
+                            cursorColor: Colors.black,
+                            decoration: InputDecoration(
+                              hintText: langProvider.t('search_artist'),
+                              hintStyle: const TextStyle(color: Colors.black),
+                              prefixIcon: Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: CustomIcons.svgIcon(
+                                  CustomIcons.search,
+                                  color: Colors.black.withOpacity(0.8),
+                                  size: 28,
+                                ),
+                              ),
+                              suffixIcon: _searchQuery.isNotEmpty
+                                  ? IconButton(
+                                      icon: CustomIcons.svgIcon(
+                                        CustomIcons.clear,
+                                        color: Colors.grey,
+                                        size: 24,
+                                      ),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        _onSearchChanged('');
+                                      },
+                                    )
+                                  : null,
+                              filled: true,
+                              fillColor: Colors.white,
+                              contentPadding:
+                                  const EdgeInsets.symmetric(vertical: 15),
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                            ),
                           ),
                         ),
                       ),
@@ -340,7 +436,8 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
                                     },
                                     child: Column(
                                       children: [
-                                        Expanded(
+                                        AspectRatio(
+                                          aspectRatio: 1.0,
                                           child: AnimatedContainer(
                                             duration: const Duration(
                                                 milliseconds: 300),
@@ -370,15 +467,24 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
                                                 children: [
                                                   // Kapak Resmi
                                                   artist.coverUrl.isNotEmpty
-                                                      ? Image.network(
-                                                          artist.coverUrl,
+                                                      ? CachedNetworkImage(
+                                                          imageUrl:
+                                                              artist.coverUrl,
                                                           fit: BoxFit.cover,
-                                                          errorBuilder: (c, e,
-                                                                  s) =>
+                                                          memCacheWidth:
+                                                              250, // Performans için çok önemli!
+                                                          errorWidget: (context,
+                                                                  url, error) =>
                                                               Container(
                                                                   color: Colors
                                                                       .grey
                                                                       .shade800),
+                                                          placeholder: (context,
+                                                                  url) =>
+                                                              Container(
+                                                                  color: Colors
+                                                                      .grey
+                                                                      .shade900),
                                                         )
                                                       : Container(
                                                           color: Colors.white
@@ -497,7 +603,7 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
             child: TextButton(
               onPressed: _finishSelection,
               style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                 ),
@@ -526,10 +632,12 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
   }
 
   Widget _buildDoneButton(bool canContinue, LanguageProvider langProvider) {
-    return _buildMainButton(
-      canContinue: canContinue,
-      text: langProvider.t('done'),
-      onTap: _finishSelection,
+    return Center(
+      child: _buildMainButton(
+        canContinue: canContinue,
+        text: langProvider.t('done'),
+        onTap: _finishSelection,
+      ),
     );
   }
 
@@ -538,7 +646,7 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
       required String text,
       required VoidCallback onTap}) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(36),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
@@ -546,7 +654,7 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
             color: canContinue
                 ? Theme.of(context).primaryColor.withOpacity(0.2)
                 : Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(36),
             border: Border.all(
               color: canContinue
                   ? Theme.of(context).primaryColor.withOpacity(0.5)
@@ -567,10 +675,12 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
             color: Colors.transparent,
             child: InkWell(
               onTap: canContinue ? onTap : null,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(36),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 12, horizontal: 32),
                 child: Center(
+                  widthFactor: 1.0,
                   child: Text(
                     text,
                     style: TextStyle(

@@ -332,6 +332,26 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                 songProvider.sleepTimerEndTime!,
                               ),
                             const SizedBox(width: 8),
+                            if (songProvider.connectedBluetoothDevice !=
+                                null) ...[
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.bluetooth,
+                                      color: Colors.green, size: 22),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    songProvider.connectedBluetoothDevice!,
+                                    style: const TextStyle(
+                                      color: Colors.green,
+                                      fontSize: 7,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(width: 8),
+                            ],
                             // En Sağ: Oynat / Durdur İkonu
                             if (isLoading)
                               const SizedBox(
@@ -392,7 +412,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
                               }
                               return LinearProgressIndicator(
                                 value: value,
-                                minHeight: 1,
+                                minHeight: 2.5,
                                 backgroundColor: Colors.transparent,
                                 valueColor: AlwaysStoppedAnimation<Color>(
                                   Colors.white,
@@ -633,6 +653,22 @@ class _FloatingMiniPlayerState extends State<_FloatingMiniPlayer> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               children: [
+                                if (provider.connectedBluetoothDevice != null)
+                                  Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(Icons.bluetooth_connected,
+                                          color: Colors.green, size: 18),
+                                      Text(
+                                        provider.connectedBluetoothDevice!,
+                                        style: const TextStyle(
+                                          color: Colors.green,
+                                          fontSize: 9,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 if (isLoading)
                                   const Padding(
                                     padding: EdgeInsets.all(4.0),

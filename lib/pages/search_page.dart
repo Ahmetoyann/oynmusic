@@ -12,6 +12,7 @@ import 'package:muzik_app/widgets/custom_app_bar.dart';
 import 'package:muzik_app/pages/player_page.dart';
 import 'package:muzik_app/pages/artist_detail_page.dart';
 import 'package:muzik_app/widgets/song_grid_card.dart';
+import 'package:muzik_app/pages/top_artists_page.dart';
 import 'package:muzik_app/providers/language_provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:speech_to_text/speech_recognition_result.dart';
@@ -55,9 +56,15 @@ class _SearchPageState extends State<SearchPage> {
       }
     });
 
-    // Sayfa açıldığında önerilen şarkıları yükle
+    // Sayfa açıldığında önerilen şarkıları ve popüler sanatçıları yükle
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<SongProvider>().fetchSuggestedSongs();
+      final songProvider = context.read<SongProvider>();
+      songProvider.fetchSuggestedSongs();
+      
+      // Sanatçı resimlerinin kaydırmadan yüklenmesi için önden tetikle
+      for (var artist in songProvider.popularArtists) {
+        songProvider.fetchArtistAvatar(artist);
+      }
     });
 
     _initSpeech();
@@ -197,13 +204,24 @@ class _SearchPageState extends State<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    // `watch` ile provider'daki tüm değişiklikleri dinliyoruz.
-    final songProvider = context.watch<SongProvider>();
+    // Sadece ihtiyaç duyulan alanları dinleyerek performansı artırıyoruz
+    final songProvider = context.read<SongProvider>();
     final authProvider = context.watch<AuthProvider>();
     final langProvider = context.watch<LanguageProvider>();
-    final arananSarkilar = songProvider.searchedSongs;
+    final arananSarkilar =
+        context.select<SongProvider, List<Song>>((p) => p.searchedSongs);
     final aramaMetni = _searchController.text;
-    final selectedTab = songProvider.searchFilter;
+    final selectedTab =
+        context.select<SongProvider, String>((p) => p.searchFilter);
+    final isSearching =
+        context.select<SongProvider, bool>((p) => p.isSearching);
+    final searchHistory =
+        context.select<SongProvider, List<String>>((p) => p.searchHistory);
+    final isSuggestionsLoading =
+        context.select<SongProvider, bool>((p) => p.isSuggestionsLoading);
+
+    final currentSongId =
+        context.select<SongProvider, String?>((p) => p.currentSong?.id);
     final tabKeys = ['songs', 'artists', 'collections'];
 
     return Scaffold(
@@ -289,37 +307,12 @@ class _SearchPageState extends State<SearchPage> {
                 filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
                 child: Container(
                   color: Colors.white,
-                  child: CustomSearchBar(
+                  child: TextField(
                     controller: _searchController,
-                    textStyle: const TextStyle(
+                    style: const TextStyle(
                         color: Colors.black,
                         fontWeight: FontWeight.bold,
                         fontSize: 14),
-                    hintStyle: const TextStyle(color: Colors.black),
-                    hintText: langProvider.t('what_to_listen'),
-                    prefixIcon: Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: CustomIcons.svgIcon(
-                        CustomIcons.search,
-                        color: Colors.black.withOpacity(0.8),
-                        size: 28,
-                      ),
-                    ),
-                    fillColor: Colors.transparent,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 15),
-                    showClearButton: aramaMetni.isNotEmpty,
-                    onClear: () {
-                      songProvider.updateSearchText('');
-                      if (_isListening) _stopListening();
-                    },
-                    extraSuffix: _speechEnabled
-                        ? _PulsingMic(
-                            isListening: _isListening,
-                            onTap:
-                                _isListening ? _stopListening : _startListening,
-                            color: Theme.of(context).primaryColor,
-                          )
-                        : null,
                     onChanged: (value) {
                       songProvider.updateSearchText(value);
                       if (!_showSuggestions) {
@@ -337,6 +330,52 @@ class _SearchPageState extends State<SearchPage> {
                         _showSuggestions = false;
                       });
                     },
+                    cursorColor: Colors.black,
+                    decoration: InputDecoration(
+                      hintText: langProvider.t('what_to_listen'),
+                      hintStyle: const TextStyle(
+                          color: Color.fromARGB(136, 36, 36, 36)),
+                      prefixIcon: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: CustomIcons.svgIcon(
+                          CustomIcons.search,
+                          color: Colors.black.withOpacity(0.8),
+                          size: 28,
+                        ),
+                      ),
+                      filled: true,
+                      fillColor: Colors.transparent,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 15),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      suffixIcon: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (aramaMetni.isNotEmpty)
+                            IconButton(
+                              icon: CustomIcons.svgIcon(
+                                CustomIcons.clear,
+                                color: Colors.grey,
+                                size: 24,
+                              ),
+                              onPressed: () {
+                                _searchController.clear();
+                                songProvider.updateSearchText('');
+                                if (_isListening) _stopListening();
+                              },
+                            ),
+                          if (_speechEnabled)
+                            _PulsingMic(
+                              isListening: _isListening,
+                              onTap: _isListening
+                                  ? _stopListening
+                                  : _startListening,
+                              color: Theme.of(context).primaryColor,
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -439,10 +478,15 @@ class _SearchPageState extends State<SearchPage> {
     String aramaMetni,
     List<Song> sonuclar,
   ) {
-    final songProvider = context.watch<SongProvider>();
+    final songProvider = context.read<SongProvider>();
     final langProvider = context.watch<LanguageProvider>();
-    final double bottomPadding = songProvider.currentSong != null ? 160 : 100;
-    final selectedTab = songProvider.searchFilter;
+    final currentSongId =
+        context.select<SongProvider, String?>((p) => p.currentSong?.id);
+    final isSearchLoadingMore =
+        context.select<SongProvider, bool>((p) => p.isSearchLoadingMore);
+    final double bottomPadding = currentSongId != null ? 160 : 100;
+    final selectedTab =
+        context.select<SongProvider, String>((p) => p.searchFilter);
 
     List<Song> suggestionsToDisplay = [];
     String suggestionTitle = '';
@@ -548,12 +592,19 @@ class _SearchPageState extends State<SearchPage> {
                                   ),
                                   const SizedBox(width: 8),
                                   GestureDetector(
-                                    onTap: () => songProvider
-                                        .removeFromSearchHistory(historyItem),
-                                    child: const Icon(
-                                      Icons.close_rounded,
-                                      size: 16,
-                                      color: Colors.grey,
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () {
+                                      songProvider
+                                          .removeFromSearchHistory(historyItem);
+                                    },
+                                    child: const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                          horizontal: 4.0, vertical: 4.0),
+                                      child: Icon(
+                                        Icons.close_rounded,
+                                        size: 16,
+                                        color: Colors.grey,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -666,7 +717,7 @@ class _SearchPageState extends State<SearchPage> {
               // 1. Önerilen Şarkılar (Üstte 4 adet SongCard)
               if (suggestionsToDisplay.isNotEmpty)
                 ...suggestionsToDisplay.take(4).map((song) {
-                  final isCurrent = songProvider.currentSong?.id == song.id;
+                  final isCurrent = currentSongId == song.id;
                   return SongCard(
                     song: song,
                     isPlaying: isCurrent,
@@ -685,8 +736,8 @@ class _SearchPageState extends State<SearchPage> {
                   );
                 }),
 
-              // 2. Önerilen Sanatçılar (Büyük Küreler)
-              if (songProvider.suggestedArtists.isNotEmpty) ...[
+              // 2. Önerilen Sanatçılar (Büyük Küreler) - Trend Sanatçılar
+              if (songProvider.popularArtists.isNotEmpty) ...[
                 Padding(
                   padding: EdgeInsets.fromLTRB(
                     MediaQuery.of(context).size.width * 0.025,
@@ -711,13 +762,137 @@ class _SearchPageState extends State<SearchPage> {
                     padding: EdgeInsets.symmetric(
                       horizontal: MediaQuery.of(context).size.width * 0.025,
                     ),
-                    itemCount: songProvider.suggestedArtists.length,
+                    itemCount: songProvider.popularArtists.length > 10
+                        ? 11
+                        : songProvider.popularArtists.length,
                     itemBuilder: (context, index) {
-                      final artistSong = songProvider.suggestedArtists[index];
-                      return _buildLargeArtistAvatar(
-                        context,
-                        artistSong,
-                        songProvider,
+                      if (index == 10) {
+                        return GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const TopArtistsPage(),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            width: 110,
+                            margin: const EdgeInsets.only(right: 16),
+                            child: Column(
+                              children: [
+                                Container(
+                                  width: 100,
+                                  height: 100,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Theme.of(context)
+                                        .primaryColor
+                                        .withOpacity(0.1),
+                                    border: Border.all(
+                                      color: Theme.of(context).primaryColor,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    Icons.arrow_forward_ios_rounded,
+                                    color: Theme.of(context).primaryColor,
+                                    size: 30,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  langProvider.t('see_more'),
+                                  maxLines: 1,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      final artistName = songProvider.popularArtists[index];
+                      final coverUrl =
+                          songProvider.getArtistAvatar(artistName) ?? '';
+
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ArtistDetailPage(
+                                artistName: artistName,
+                                songs: const [],
+                              ),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          width: 110,
+                          margin: const EdgeInsets.only(right: 16),
+                          child: Column(
+                            children: [
+                              Container(
+                                width: 100,
+                                height: 100,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: ClipOval(
+                                  child: coverUrl.isNotEmpty
+                                      ? CachedNetworkImage(
+                                          imageUrl: coverUrl,
+                                          fit: BoxFit.cover,
+                                          placeholder: (context, url) =>
+                                              Container(
+                                            color: Colors.grey.shade900,
+                                            child: const Center(
+                                              child: CircularProgressIndicator(
+                                                  strokeWidth: 2),
+                                            ),
+                                          ),
+                                          errorWidget: (context, url, error) =>
+                                              Container(
+                                            color: Colors.grey.shade900,
+                                            child: const Icon(Icons.person,
+                                                color: Colors.white54,
+                                                size: 40),
+                                          ),
+                                        )
+                                      : Container(
+                                          color: Colors.grey.shade900,
+                                          child: const Icon(Icons.person,
+                                              color: Colors.white54, size: 40),
+                                        ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                artistName,
+                                maxLines: 2,
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       );
                     },
                   ),
@@ -770,8 +945,7 @@ class _SearchPageState extends State<SearchPage> {
                       return _buildArtistTile(context, song);
                     }
 
-                    final isCurrentSong =
-                        songProvider.currentSong?.id == song.id;
+                    final isCurrentSong = currentSongId == song.id;
 
                     return SongCard(
                       song: song,
@@ -791,7 +965,7 @@ class _SearchPageState extends State<SearchPage> {
                     );
                   }, childCount: sonuclar.length),
                 ),
-          if (songProvider.isSearchLoadingMore)
+          if (isSearchLoadingMore)
             const SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.all(16),

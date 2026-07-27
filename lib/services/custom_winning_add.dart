@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
 import 'package:muzik_app/providers/song_provider.dart';
@@ -17,9 +18,11 @@ class CustomWinningAd {
   bool _isLoaded = false;
 
   // Google AdMob Test Ödüllü Reklam Kimlikleri (Yayınlarken Kendi ID'nizle Değiştirin)
-  final String _adUnitId = Platform.isAndroid
-      ? 'ca-app-pub-7993140773979821/7182113331'
-      : 'ca-app-pub-7993140773979821/7182113331';
+  final String _adUnitId = kIsWeb
+      ? ''
+      : (Platform.isAndroid
+          ? 'ca-app-pub-7993140773979821/7182113331'
+          : 'ca-app-pub-7993140773979821/7182113331');
 
   void loadAd() {
     RewardedAd.load(
@@ -99,8 +102,8 @@ class CustomWinningAd {
                         ),
                       ),
                       const Spacer(),
-                      const Icon(Icons.monetization_on_rounded,
-                          size: 100, color: Colors.amber),
+                      Image.asset('assets/trend_menu_icons/jeton_processed.png',
+                          width: 100, height: 100, fit: BoxFit.contain),
                       const SizedBox(height: 24),
                       Text(
                         langProvider.t('coin_balance'),
@@ -113,8 +116,8 @@ class CustomWinningAd {
                       const SizedBox(height: 12),
                       Text(
                         "${provider.coins} ${langProvider.t('coins')}",
-                        style: const TextStyle(
-                          color: Colors.amber,
+                        style: TextStyle(
+                          color: Theme.of(context).primaryColor,
                           fontSize: 36,
                           fontWeight: FontWeight.w900,
                         ),
@@ -174,12 +177,131 @@ class CustomWinningAd {
                                         CustomWinningAd.instance.showAd(
                                           onEarnedReward: () {
                                             provider.addCoins(4,
-                                              reason:
-                                                langProvider.t('ad_viewed')); // +4 Jeton Ekle
-                                            CustomSnackBar.showSuccess(
+                                                reason: langProvider.t(
+                                                    'ad_viewed')); // +4 Jeton Ekle
+                                            showDialog(
                                                 context: pageContext,
-                                                message: langProvider
-                                                    .t('earned_4_coins'));
+                                                barrierDismissible: false,
+                                                builder: (ctx) {
+                                                  return AlertDialog(
+                                                    backgroundColor:
+                                                        Colors.grey.shade900,
+                                                    shape:
+                                                        RoundedRectangleBorder(
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        20)),
+                                                    content: Column(
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      children: [
+                                                        const Icon(
+                                                            Icons
+                                                                .card_giftcard_rounded,
+                                                            color: Colors.amber,
+                                                            size: 64),
+                                                        const SizedBox(
+                                                            height: 16),
+                                                        Text(
+                                                            langProvider.t(
+                                                                'compliments_coins'),
+                                                            style: const TextStyle(
+                                                                color: Colors
+                                                                    .white,
+                                                                fontSize: 20,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold)),
+                                                        const SizedBox(
+                                                            height: 8),
+                                                        Text(
+                                                            langProvider.t(
+                                                                'earned_4_coins'),
+                                                            textAlign: TextAlign
+                                                                .center,
+                                                            style:
+                                                                const TextStyle(
+                                                                    color: Colors
+                                                                        .white70,
+                                                                    fontSize:
+                                                                        14)),
+                                                        const SizedBox(
+                                                            height: 24),
+                                                        SizedBox(
+                                                          width:
+                                                              double.infinity,
+                                                          height: 50,
+                                                          child: ClipRRect(
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        16),
+                                                            child:
+                                                                BackdropFilter(
+                                                              filter: ImageFilter
+                                                                  .blur(
+                                                                      sigmaX:
+                                                                          10,
+                                                                      sigmaY:
+                                                                          10),
+                                                              child: InkWell(
+                                                                onTap: () {
+                                                                  Navigator.pop(
+                                                                      ctx);
+                                                                },
+                                                                borderRadius:
+                                                                    BorderRadius
+                                                                        .circular(
+                                                                            16),
+                                                                child:
+                                                                    Container(
+                                                                  decoration:
+                                                                      BoxDecoration(
+                                                                    color: Theme.of(
+                                                                            context)
+                                                                        .primaryColor
+                                                                        .withOpacity(
+                                                                            0.2),
+                                                                    borderRadius:
+                                                                        BorderRadius.circular(
+                                                                            16),
+                                                                    border:
+                                                                        Border
+                                                                            .all(
+                                                                      color: Theme.of(
+                                                                              context)
+                                                                          .primaryColor
+                                                                          .withOpacity(
+                                                                              0.5),
+                                                                      width:
+                                                                          1.5,
+                                                                    ),
+                                                                  ),
+                                                                  child: Center(
+                                                                    child: Text(
+                                                                      langProvider
+                                                                          .t('ok'),
+                                                                      style:
+                                                                          TextStyle(
+                                                                        fontSize:
+                                                                            16,
+                                                                        fontWeight:
+                                                                            FontWeight.bold,
+                                                                        color: Theme.of(context)
+                                                                            .primaryColor,
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  );
+                                                });
                                           },
                                           onAdClosed: () {
                                             setState(() => isLoadingAd = false);
@@ -189,38 +311,43 @@ class CustomWinningAd {
                                 borderRadius: BorderRadius.circular(16),
                                 child: Container(
                                   decoration: BoxDecoration(
-                                    color: Colors.amber.withOpacity(0.2),
+                                    color: Theme.of(context)
+                                        .primaryColor
+                                        .withOpacity(0.2),
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
-                                      color: Colors.amber.withOpacity(0.5),
+                                      color: Theme.of(context)
+                                          .primaryColor
+                                          .withOpacity(0.5),
                                       width: 1.5,
                                     ),
                                   ),
                                   child: Center(
                                     child: isLoadingAd
-                                        ? const SizedBox(
+                                        ? SizedBox(
                                             width: 24,
                                             height: 24,
                                             child: CircularProgressIndicator(
-                                                color: Colors.amber,
+                                                color: Theme.of(context)
+                                                    .primaryColor,
                                                 strokeWidth: 2.5),
                                           )
                                         : Row(
                                             mainAxisAlignment:
                                                 MainAxisAlignment.center,
                                             children: [
-                                              Icon(
-                                                  Icons
-                                                      .play_circle_outline_rounded,
-                                                  color: Colors.amber,
+                                              Icon(Icons.smart_display_rounded,
+                                                  color: Theme.of(context)
+                                                      .primaryColor,
                                                   size: 24),
-                                              SizedBox(width: 8),
+                                              const SizedBox(width: 8),
                                               Text(
                                                 langProvider.t('watch_ad_btn'),
-                                                style: const TextStyle(
+                                                style: TextStyle(
                                                   fontSize: 16,
                                                   fontWeight: FontWeight.bold,
-                                                  color: Colors.amber,
+                                                  color: Theme.of(context)
+                                                      .primaryColor,
                                                 ),
                                               ),
                                             ],

@@ -65,7 +65,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                     child: ListView(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       children:
-                          ['en', 'tr', 'fr', 'de', 'es', 'ar'].map((langCode) {
+                          ['en', 'tr', 'fr', 'de', 'es', 'ar', 'pt', 'ja', 'ko', 'ru'].map((langCode) {
                         final provider = context.read<LanguageProvider>();
                         final isSelected = provider.currentLanguage == langCode;
                         String langName = '';
@@ -94,6 +94,22 @@ class _OnboardingPageState extends State<OnboardingPage> {
                           case 'ar':
                             langName = 'العربية';
                             flag = '🇸🇦';
+                            break;
+                          case 'pt':
+                            langName = 'Português';
+                            flag = '🇧🇷';
+                            break;
+                          case 'ja':
+                            langName = '日本語';
+                            flag = '🇯🇵';
+                            break;
+                          case 'ko':
+                            langName = '한국어';
+                            flag = '🇰🇷';
+                            break;
+                          case 'ru':
+                            langName = 'Русский';
+                            flag = '🇷🇺';
                             break;
                         }
                         return Container(

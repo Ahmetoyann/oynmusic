@@ -110,10 +110,7 @@ class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
     });
   }
 
-  String _formatDate(DateTime? date) {
-    if (date == null) return '';
-    return "${date.day}.${date.month}.${date.year}";
-  }
+
 
   String _getFileSizeString(String? path) {
     if (path == null) return '';
@@ -2139,7 +2136,7 @@ class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
                                                         const SizedBox(
                                                             height: 4),
                                                         Text(
-                                                          "${song.artist}\n${_formatDate(song.dateAdded)}",
+                                                          song.artist,
                                                           maxLines: 2,
                                                           overflow: TextOverflow
                                                               .ellipsis,
@@ -2205,7 +2202,7 @@ class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
                                             imageUrl: song.coverUrl,
                                             title: song.title,
                                             subtitle:
-                                                "${song.artist}\n${_formatDate(song.dateAdded)}",
+                                                song.artist,
                                             showFavorite: false,
                                           ),
                                           if (_isSelectionMode)
@@ -2276,10 +2273,8 @@ class _OfflineDownloadsPageState extends State<OfflineDownloadsPage> {
                               String sizeStr =
                                   _getFileSizeString(song.localPath);
                               String artistText =
-                                  "${song.artist} • ${_formatDate(song.dateAdded)}";
-                              if (sizeStr.isNotEmpty) {
-                                artistText += " • $sizeStr";
-                              }
+                                  song.artist;
+
 
                               final displaySong = Song(
                                 id: song.id,

@@ -35,6 +35,101 @@ import 'package:muzik_app/pages/login_page.dart';
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
+  static void showFollowedArtists(BuildContext context, SongProvider provider) {
+    final langProvider = context.read<LanguageProvider>();
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (pageContext, animation, secondaryAnimation) {
+          return Scaffold(
+            backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
+            body: SafeArea(
+              child: Consumer<SongProvider>(
+                builder: (context, songProvider, child) {
+                  return Column(
+                    children: [
+                      Align(
+                        alignment: Alignment.topRight,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: IconButton(
+                            icon: const Icon(Icons.close_rounded,
+                                color: Colors.white, size: 32),
+                            onPressed: () => Navigator.pop(pageContext),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            const SizedBox(height: 8),
+                            Text(
+                              langProvider.t('following'),
+                              style: TextStyle(
+                                color: Theme.of(context).primaryColor,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            if (songProvider.followedArtists.isEmpty)
+                              Padding(
+                                padding: const EdgeInsets.all(32.0),
+                                child: Text(
+                                  langProvider.t('no_followed_artists'),
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              )
+                            else
+                              Expanded(
+                                child: GridView.builder(
+                                  shrinkWrap: true,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16),
+                                  gridDelegate:
+                                      const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 3,
+                                    childAspectRatio: 0.8,
+                                    crossAxisSpacing: 16,
+                                    mainAxisSpacing: 16,
+                                  ),
+                                  itemCount:
+                                      songProvider.followedArtists.length,
+                                  itemBuilder: (context, index) {
+                                    final artistName =
+                                        songProvider.followedArtists[index];
+
+                                    return _FollowedArtistTile(
+                                      artistName: artistName,
+                                      songProvider: songProvider,
+                                    );
+                                  },
+                                ),
+                              ),
+                            const SizedBox(height: 24),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 1.0);
+          const end = Offset.zero;
+          const curve = Curves.easeOutCubic;
+          var tween =
+              Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          return SlideTransition(
+              position: animation.drive(tween), child: child);
+        },
+      ),
+    );
+  }
+
   @override
   State<ProfilePage> createState() => _ProfilePageState();
 }
@@ -143,37 +238,68 @@ class _ProfilePageState extends State<ProfilePage>
               child: GestureDetector(
                 onTap: () => CustomWinningAd.showCoinScreen(context),
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.amber.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: Colors.amber.withOpacity(0.5), width: 1.5),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.monetization_on_rounded,
-                          color: Colors.amber, size: 16),
-                      const SizedBox(width: 4),
-                      TweenAnimationBuilder<double>(
-                        tween: Tween<double>(
-                            begin: songProvider.coins.toDouble(),
-                            end: songProvider.coins.toDouble()),
-                        duration: const Duration(milliseconds: 1200),
-                        curve: Curves.easeOutExpo,
-                        builder: (context, value, child) {
-                          return Text(
-                            '${value.toInt()}',
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13),
-                          );
-                        },
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Theme.of(context).primaryColor.withOpacity(0.15),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
                     ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.white.withOpacity(0.25),
+                              Colors.white.withOpacity(0.1),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.2),
+                            width: 1.0,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TweenAnimationBuilder<double>(
+                              tween: Tween<double>(
+                                  begin: songProvider.coins.toDouble(),
+                                  end: songProvider.coins.toDouble()),
+                              duration: const Duration(milliseconds: 1200),
+                              curve: Curves.easeOutExpo,
+                              builder: (context, value, child) {
+                                return Text(
+                                  '${value.toInt()}',
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.5,
+                                      fontSize: 14),
+                                );
+                              },
+                            ),
+                            const SizedBox(width: 6),
+                            Image.asset(
+                                'assets/trend_menu_icons/jeton_processed.png',
+                                width: 18,
+                                height: 18,
+                                fit: BoxFit.contain),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -719,7 +845,7 @@ class _ProfilePageState extends State<ProfilePage>
                                 Theme.of(context).primaryColor,
                                 BorderRadius.circular(24),
                                 false, // isLeftAlignment (Sağdaki kutu için sağ kenarlar)
-                                () => _showFollowedArtistsBottomSheet(
+                                () => ProfilePage.showFollowedArtists(
                                   context,
                                   songProvider,
                                 ),
@@ -1750,6 +1876,25 @@ class _ProfilePageState extends State<ProfilePage>
                                               width: 71, height: 40),
                                     ),
                                   ),
+                                  title: Text(
+                                    song.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    song.artist,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 12,
+                                    ),
+                                  ),
                                   trailing: Text(
                                     durationString,
                                     style: TextStyle(
@@ -2186,104 +2331,6 @@ class _ProfilePageState extends State<ProfilePage>
                                           pageContext,
                                         ); // Şarkıyı açtığında bottomsheet'i kapatır
                                       },
-                                    );
-                                  },
-                                ),
-                              ),
-                            const SizedBox(height: 24),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          );
-        },
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          const begin = Offset(0.0, 1.0);
-          const end = Offset.zero;
-          const curve = Curves.easeOutCubic;
-          var tween =
-              Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-          return SlideTransition(
-              position: animation.drive(tween), child: child);
-        },
-      ),
-    );
-  }
-
-  void _showFollowedArtistsBottomSheet(
-    BuildContext context,
-    SongProvider provider,
-  ) {
-    final langProvider = context.read<LanguageProvider>();
-    Navigator.push(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (pageContext, animation, secondaryAnimation) {
-          return Scaffold(
-            backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
-            body: SafeArea(
-              child: Consumer<SongProvider>(
-                builder: (context, songProvider, child) {
-                  return Column(
-                    children: [
-                      Align(
-                        alignment: Alignment.topRight,
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: IconButton(
-                            icon: const Icon(Icons.close_rounded,
-                                color: Colors.white, size: 32),
-                            onPressed: () => Navigator.pop(pageContext),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            const SizedBox(height: 8),
-                            Text(
-                              langProvider.t('following'),
-                              style: TextStyle(
-                                color: Theme.of(context).primaryColor,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            if (songProvider.followedArtists.isEmpty)
-                              Padding(
-                                padding: const EdgeInsets.all(32.0),
-                                child: Text(
-                                  langProvider.t('no_followed_artists'),
-                                  style: TextStyle(color: Colors.grey),
-                                ),
-                              )
-                            else
-                              Expanded(
-                                child: GridView.builder(
-                                  shrinkWrap: true,
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16),
-                                  gridDelegate:
-                                      const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 3,
-                                    childAspectRatio: 0.8,
-                                    crossAxisSpacing: 16,
-                                    mainAxisSpacing: 16,
-                                  ),
-                                  itemCount:
-                                      songProvider.followedArtists.length,
-                                  itemBuilder: (context, index) {
-                                    final artistName =
-                                        songProvider.followedArtists[index];
-
-                                    return _FollowedArtistTile(
-                                      artistName: artistName,
-                                      songProvider: songProvider,
                                     );
                                   },
                                 ),

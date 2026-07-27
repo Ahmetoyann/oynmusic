@@ -164,8 +164,17 @@ class SongCard extends StatelessWidget {
       return _buildPlaceholder(context, w, h);
     }
 
+    // Performans İyileştirmesi: Liste elemanlarında 1080p kapak resimleri
+    // kasmaya neden olduğundan, YT resimlerini düşük çözünürlüklü olarak isteyelim.
+    String optimizedUrl = song.coverUrl;
+    if (optimizedUrl.contains('ytimg.com')) {
+      optimizedUrl =
+          optimizedUrl.replaceAll('maxresdefault.jpg', 'mqdefault.jpg');
+      optimizedUrl = optimizedUrl.replaceAll('hqdefault.jpg', 'mqdefault.jpg');
+    }
+
     return CachedNetworkImage(
-      imageUrl: song.coverUrl,
+      imageUrl: optimizedUrl,
       width: w,
       height: h,
       memCacheHeight: 200,
@@ -370,7 +379,7 @@ class SongCard extends StatelessWidget {
                               child: InkWell(
                                 onTap: () {
                                   Navigator.pop(pageContext);
-                                  _showCreatePlaylistBottomSheet(context, song);
+                                  showCreatePlaylistBottomSheet(context, song);
                                 },
                                 borderRadius: BorderRadius.circular(16),
                                 child: Padding(
@@ -570,7 +579,7 @@ class SongCard extends StatelessWidget {
     );
   }
 
-  static void _showCreatePlaylistBottomSheet(BuildContext context, Song song) {
+  static void showCreatePlaylistBottomSheet(BuildContext context, Song song) {
     final TextEditingController controller = TextEditingController();
     String? selectedImagePath;
 
@@ -859,12 +868,39 @@ class SongCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
+                  if (song.viewCount != null && song.viewCount! > 0) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.remove_red_eye_rounded,
+                            color: Colors.white, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          () {
+                            int count = song.viewCount!;
+                            if (count >= 1000000) {
+                              return '${(count / 1000000).toStringAsFixed(1).replaceAll(".0", "")} Mn';
+                            } else if (count >= 1000) {
+                              return '${(count / 1000).toStringAsFixed(1).replaceAll(".0", "")} B';
+                            }
+                            return '$count';
+                          }(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   // Şarkı Kapak Resmi (Boyutu biraz büyütüldü tam ekran uyumu için)
                   Container(
                     width: 288,
                     height: 162,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(8),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.5),
@@ -875,7 +911,7 @@ class SongCard extends StatelessWidget {
                       ],
                     ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(8),
                       child: (song.localImagePath != null &&
                               File(song.localImagePath!).existsSync())
                           ? Image.file(
@@ -925,6 +961,23 @@ class SongCard extends StatelessWidget {
                               fontSize: 14,
                             ),
                           ),
+                          if (song.dateAdded != null || song.localPath != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8.0),
+                              child: Text(
+                                [
+                                  if (song.dateAdded != null)
+                                    "${song.dateAdded!.day}.${song.dateAdded!.month}.${song.dateAdded!.year}",
+                                  if (song.localPath != null &&
+                                      File(song.localPath!).existsSync())
+                                    "${(File(song.localPath!).lengthSync() / (1024 * 1024)).toStringAsFixed(2)} MB"
+                                ].join('   '),
+                                style: const TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -1090,11 +1143,11 @@ class SongCard extends StatelessWidget {
                                                           fontWeight:
                                                               FontWeight.bold,
                                                           fontSize: 14)),
-                                                  const Icon(
-                                                      Icons
-                                                          .monetization_on_rounded,
-                                                      color: Colors.amber,
-                                                      size: 18),
+                                                  Image.asset(
+                                                      'assets/trend_menu_icons/jeton_processed.png',
+                                                      width: 18,
+                                                      height: 18,
+                                                      fit: BoxFit.contain),
                                                 ],
                                               )
                                             : null,
@@ -1204,11 +1257,11 @@ class SongCard extends StatelessWidget {
                                                           fontWeight:
                                                               FontWeight.bold,
                                                           fontSize: 14)),
-                                                  const Icon(
-                                                      Icons
-                                                          .monetization_on_rounded,
-                                                      color: Colors.amber,
-                                                      size: 18),
+                                                  Image.asset(
+                                                      'assets/trend_menu_icons/jeton_processed.png',
+                                                      width: 18,
+                                                      height: 18,
+                                                      fit: BoxFit.contain),
                                                 ],
                                               )
                                             : null,

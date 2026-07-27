@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 class CustomBannerAd extends StatefulWidget {
@@ -14,9 +15,9 @@ class _CustomBannerAdState extends State<CustomBannerAd> {
   bool _isLoaded = false;
 
   // Google AdMob Banner Reklam ID'leri
-  final String _adUnitId = Platform.isAndroid
+  final String _adUnitId = kIsWeb ? '' : (Platform.isAndroid
       ? 'ca-app-pub-7993140773979821/5474809257' // Gerçek Android Banner ID
-      : 'ca-app-pub-3940256099942544/2934735716'; // iOS Test ID
+      : 'ca-app-pub-3940256099942544/2934735716'); // iOS Test ID
 
   @override
   void initState() {

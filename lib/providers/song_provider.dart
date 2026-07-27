@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:muzik_app/main.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:muzik_app/services/audio_handler.dart';
 import 'package:muzik_app/services/audius_service.dart'; // Dosya adı aynı kaldı ama sınıf YoutubeService oldu
@@ -246,6 +247,91 @@ class SongProvider with ChangeNotifier {
   ];
 
   List<Song> get allSongs => _allSongs;
+  static const Map<String, List<String>> _popularArtistsByCountry = {
+    'tr': [
+      'Sezen Aksu',
+      'Tarkan',
+      'Ati242',
+      'Ahmet Kaya',
+      'İbrahim Tatlıses',
+      'Mustafa Ceceli',
+      'Duman',
+      'Hadise',
+      'Reynmen',
+      'Sefo'
+    ],
+    'en': [
+      'Taylor Swift',
+      'Billie Eilish',
+      'Justin Bieber',
+      'Ariana Grande',
+      'Dua Lipa',
+      'Katy Perry',
+      'Rihanna',
+      'Bruno Mars',
+      'Eminem',
+      'Maroon 5'
+    ],
+    'es': [
+      'Bad Bunny',
+      'Shakira',
+      'Daddy Yankee',
+      'J Balvin',
+      'Ozuna',
+      'HammAli & Navai',
+      'MACAN',
+      'Slava Marlow'
+    ],
+  };
+
+  String _currentLanguage = 'en';
+
+  void updateLanguage(String languageCode) {
+    if (_currentLanguage != languageCode) {
+      _currentLanguage = languageCode;
+      notifyListeners();
+    }
+  }
+
+  List<String> get popularArtists =>
+      _popularArtistsByCountry[_currentLanguage] ??
+      _popularArtistsByCountry['en']!;
+
+  String? connectedBluetoothDevice;
+
+  void _initBluetoothListener() async {
+    final session = await AudioSession.instance;
+    final devices = await session.getDevices();
+    _updateBluetoothDevice(devices);
+
+    session.devicesChangedEventStream.listen((event) {
+      _checkCurrentBluetoothDevice();
+    });
+  }
+
+  Future<void> _checkCurrentBluetoothDevice() async {
+    final session = await AudioSession.instance;
+    final devices = await session.getDevices();
+    _updateBluetoothDevice(devices);
+  }
+
+  void _updateBluetoothDevice(Iterable<AudioDevice> devices) {
+    String? bluetoothDeviceName;
+    for (var device in devices) {
+      if (device.type == AudioDeviceType.bluetoothA2dp ||
+          device.type == AudioDeviceType.bluetoothSco ||
+          device.type == AudioDeviceType.bluetoothLe) {
+        bluetoothDeviceName = device.name;
+        break;
+      }
+    }
+
+    if (connectedBluetoothDevice != bluetoothDeviceName) {
+      connectedBluetoothDevice = bluetoothDeviceName;
+      notifyListeners();
+    }
+  }
+
   List<Song> get favoriteSongs =>
       _favoriteSongs; // Artık doğrudan favori listesini döndürüyoruz
   List<Song> get deviceSongs => _deviceSongs;
@@ -399,6 +485,7 @@ class SongProvider with ChangeNotifier {
     _scheduleEveningNotifications(); // Akşam hatırlatıcılarını başlat
     _schedule12HourReminderNotification(); // 12 Saatlik hareketsizlik bildirimi
     _startListeningTimer(); // Dinleme süresi takibini başlat
+    _initBluetoothListener(); // Bluetooth durumunu dinle
 
     // Ödüllü reklam sistemini de arka planda hazırla
     CustomWinningAd.instance.loadAd();
@@ -3653,7 +3740,7 @@ class SongProvider with ChangeNotifier {
     }
 
     final future =
-        _yt.videos.streamsClient.getManifest(songId).then((manifest) {
+        _yt.videos.streamsClient.getManifest(songId, ytClients: const [YoutubeApiClient.androidVr]).then((manifest) {
       String getUrlFromStreams(Iterable<StreamInfo> streams) {
         final sortedList = streams.sortByBitrate().toList();
         if (isDownload && !isVideoDownload) {

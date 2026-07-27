@@ -140,11 +140,13 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
     final langProvider = context.watch<LanguageProvider>();
     // Favori durumlarını dinlemek için watch kullanıyoruz
     final songProvider = context.watch<SongProvider>();
-    String coverUrl = _songs.isNotEmpty ? _songs.first.coverUrl : '';
+    String coverUrl = '';
 
-    if (!widget.isCollection) {
+    if (widget.isCollection) {
+      coverUrl = _songs.isNotEmpty ? _songs.first.coverUrl : '';
+    } else {
       final artistAvatar = songProvider.getArtistAvatar(widget.artistName);
-      if (artistAvatar != null && artistAvatar.isNotEmpty) {
+      if (artistAvatar != null) {
         coverUrl = artistAvatar;
       }
     }
@@ -351,34 +353,35 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
                             ),
                             const Spacer(),
                             Center(
-                              child: coverUrl.isNotEmpty
-                                  ? AnimatedContainer(
-                                      duration:
-                                          const Duration(milliseconds: 300),
-                                      curve: Curves.easeOutCubic,
-                                      width: widget.isCollection
-                                          ? (_showSearchBar
-                                              ? 192
-                                              : 288) // 16:9 genişlik
-                                          : (_showSearchBar ? 160 : 220),
-                                      height: widget.isCollection
-                                          ? (_showSearchBar
-                                              ? 108
-                                              : 162) // 16:9 yükseklik
-                                          : (_showSearchBar ? 160 : 220),
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.rectangle,
-                                        borderRadius: BorderRadius.circular(8),
-                                        boxShadow: [
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeOutCubic,
+                                width: widget.isCollection
+                                    ? (_showSearchBar
+                                        ? 192
+                                        : 288) // 16:9 genişlik
+                                    : (_showSearchBar ? 160 : 220),
+                                height: widget.isCollection
+                                    ? (_showSearchBar
+                                        ? 108
+                                        : 162) // 16:9 yükseklik
+                                    : (_showSearchBar ? 160 : 220),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.rectangle,
+                                  borderRadius: BorderRadius.circular(8),
+                                  boxShadow: coverUrl.isNotEmpty
+                                      ? [
                                           BoxShadow(
                                             color:
                                                 Colors.black.withOpacity(0.5),
                                             blurRadius: 20,
                                             offset: const Offset(0, 10),
                                           ),
-                                        ],
-                                      ),
-                                      child: ClipRRect(
+                                        ]
+                                      : null,
+                                ),
+                                child: coverUrl.isNotEmpty
+                                    ? ClipRRect(
                                         borderRadius: BorderRadius.circular(8),
                                         child: Transform.scale(
                                           scale: (!widget.isCollection &&
@@ -414,9 +417,9 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
                                             ),
                                           ),
                                         ),
-                                      ),
-                                    )
-                                  : const SizedBox(),
+                                      )
+                                    : const SizedBox(),
+                              ),
                             ),
                             const Spacer(),
                             Padding(

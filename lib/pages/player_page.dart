@@ -175,7 +175,8 @@ class PlayerPage extends StatefulWidget {
                             onTap: () {
                               Navigator.pop(pageContext); // Mevcut ekranı kapat
                               // Yeni liste oluşturma ekranını aç
-                              SongCard.showModernMenu(context, song);
+                              SongCard.showCreatePlaylistBottomSheet(
+                                  context, song);
                             },
                             borderRadius: BorderRadius.circular(16),
                             child: Padding(
@@ -318,63 +319,175 @@ class _PlayerPageState extends State<PlayerPage> {
       child: Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         extendBodyBehindAppBar: true, // AppBar'ın arkasına içerik taşsın
-        appBar: AppBar(
-          backgroundColor:
-              Colors.white.withOpacity(0.0001), // Düz hafif beyaz şeffaflık
-          scrolledUnderElevation: 0, // Material 3 kaydırma efektini kapatır
-          surfaceTintColor:
-              Colors.transparent, // Primary rengin sızmasını engeller
-          elevation: 0,
-          centerTitle: true,
-          leading: IconButton(
-            icon: CustomIcons.svgIcon(
-              CustomIcons.keyboardArrowDownRounded,
-              size: 28,
-              color: Colors.white,
-            ),
-            onPressed: () => Navigator.pop(context),
-          ),
-          title: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                langProvider.t('song_playing_title').toUpperCase(),
-                style: TextStyle(
-                  fontSize: 10,
-                  letterSpacing: 1.5,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white.withOpacity(0.7),
+        appBar: PreferredSize(
+          preferredSize: const Size.fromHeight(kToolbarHeight),
+          child: AnimatedBuilder(
+            animation: _scrollController,
+            builder: (context, child) {
+              final screenHeight = MediaQuery.of(context).size.height;
+              final isScrolled = _scrollController.hasClients &&
+                  _scrollController.offset > screenHeight * 0.65;
+              return AppBar(
+                backgroundColor: isScrolled
+                    ? Color.lerp(Colors.grey.shade900,
+                        (_dominantColor ?? primaryColor), 0.25)
+                    : Colors.white
+                        .withOpacity(0.0001), // Düz hafif beyaz şeffaflık
+                scrolledUnderElevation:
+                    0, // Material 3 kaydırma efektini kapatır
+                surfaceTintColor:
+                    Colors.transparent, // Primary rengin sızmasını engeller
+                elevation: 0,
+                centerTitle: !isScrolled,
+                automaticallyImplyLeading: !isScrolled,
+                leading: isScrolled
+                    ? null
+                    : IconButton(
+                        icon: CustomIcons.svgIcon(
+                          CustomIcons.keyboardArrowDownRounded,
+                          size: 28,
+                          color: Colors.white,
+                        ),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                title: isScrolled
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            currentSong.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            currentSong.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white.withOpacity(0.7),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            langProvider.t('song_playing_title').toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 10,
+                              letterSpacing: 1.5,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white.withOpacity(0.7),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            currentSong.artist,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                actions: isScrolled
+                    ? [
+                        IconButton(
+                          icon: Icon(
+                            currentSong.isFavorite
+                                ? Icons.check_circle_rounded
+                                : Icons.add_circle_outline_rounded,
+                            color: currentSong.isFavorite
+                                ? Colors.greenAccent
+                                : Colors.white.withOpacity(0.7),
+                            size: 26,
+                          ),
+                          onPressed: () =>
+                              songProvider.toggleFavorite(currentSong),
+                        ),
+                        StreamBuilder<bool>(
+                          stream: songProvider.audioPlayer.playingStream,
+                          builder: (context, snapshot) {
+                            final playing = snapshot.data ?? false;
+                            return IconButton(
+                              icon: CustomIcons.svgIcon(
+                                playing
+                                    ? CustomIcons.pauseRounded
+                                    : CustomIcons.playArrowRounded,
+                                color: Colors.white,
+                                size: 28,
+                              ),
+                              onPressed: () {
+                                if (playing) {
+                                  songProvider.audioPlayer.pause();
+                                } else {
+                                  songProvider.audioPlayer.play();
+                                }
+                              },
+                            );
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                      ]
+                    : [
+                        IconButton(
+                          icon: CustomIcons.svgIcon(
+                            CustomIcons.menuRounded,
+                            size: 24,
+                            color: Colors.white,
+                          ),
+                          tooltip: langProvider.t('options'),
+                          onPressed: () {
+                            _showPlayerMenu(
+                              context,
+                              currentSong,
+                              songProvider,
+                              langProvider,
+                            );
+                          },
+                        ),
+                      ],
+                bottom: PreferredSize(
+                  preferredSize: const Size.fromHeight(2.5),
+                  child: isScrolled
+                      ? StreamBuilder<Duration>(
+                          stream: songProvider.audioPlayer.positionStream,
+                          builder: (context, snapshot) {
+                            final position = snapshot.data ?? Duration.zero;
+                            final duration =
+                                songProvider.audioPlayer.duration ??
+                                    Duration.zero;
+                            double value = 0.0;
+                            if (duration.inMilliseconds > 0) {
+                              value = (position.inMilliseconds /
+                                      duration.inMilliseconds)
+                                  .clamp(0.0, 1.0);
+                            }
+                            return LinearProgressIndicator(
+                              value: value,
+                              minHeight: 2.5,
+                              backgroundColor: Colors.white.withOpacity(0.3),
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                  Colors.white),
+                            );
+                          },
+                        )
+                      : const SizedBox(height: 2.5),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                currentSong.artist,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ],
+              );
+            },
           ),
-          actions: [
-            IconButton(
-              icon: CustomIcons.svgIcon(
-                CustomIcons.menuRounded,
-                size: 24,
-                color: Colors.white,
-              ),
-              tooltip: langProvider.t('options'),
-              onPressed: () {
-                _showPlayerMenu(
-                  context,
-                  currentSong,
-                  songProvider,
-                  langProvider,
-                );
-              },
-            ),
-          ],
         ),
         body: Stack(
           fit: StackFit.expand,
@@ -415,6 +528,50 @@ class _PlayerPageState extends State<PlayerPage> {
                         children: [
                           const Spacer(),
 
+                          if (songProvider.connectedBluetoothDevice !=
+                              null) ...[
+                            Center(
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 32),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.black87,
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                      color: Colors.grey.withOpacity(0.5),
+                                      width: 1),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: const BoxDecoration(
+                                        color: Colors.green,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.bluetooth,
+                                        color: Colors.white,
+                                        size: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      songProvider.connectedBluetoothDevice!,
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+
                           // Büyük Kapak Resmi (Işıltılı Çerçeve ile)
                           Center(
                             child: RepaintBoundary(
@@ -426,6 +583,29 @@ class _PlayerPageState extends State<PlayerPage> {
                               ),
                             ),
                           ),
+                          if (currentSong.viewCount != null &&
+                              currentSong.viewCount! > 0) ...[
+                            const SizedBox(height: 12),
+                            Center(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.remove_red_eye_outlined,
+                                      color: Colors.white.withOpacity(0.6),
+                                      size: 16),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _formatViewCount(currentSong.viewCount),
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.6),
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                           const Spacer(),
                           // İndirme ve Paylaş Butonları (Aynı Hizada)
                           Row(
@@ -445,15 +625,6 @@ class _PlayerPageState extends State<PlayerPage> {
                                   ],
                                 ),
                               const Spacer(),
-                              if (!isDeviceSong)
-                                IconButton(
-                                  icon: Icon(
-                                    Icons.ios_share,
-                                    color: Colors.white.withOpacity(0.7),
-                                    size: 24,
-                                  ),
-                                  onPressed: () => _shareSong(currentSong),
-                                ),
                             ],
                           ),
                           const SizedBox(height: 20),
@@ -551,6 +722,7 @@ class _PlayerPageState extends State<PlayerPage> {
                                   children: [
                                     SliderTheme(
                                       data: SliderTheme.of(context).copyWith(
+                                        trackShape: const _CustomTrackShape(),
                                         thumbShape: const RoundSliderThumbShape(
                                           enabledThumbRadius: 6,
                                         ),
@@ -585,9 +757,8 @@ class _PlayerPageState extends State<PlayerPage> {
                                         Text(
                                           _formatDuration(position),
                                           style: TextStyle(
-                                            color: Colors.white.withOpacity(
-                                              0.7,
-                                            ),
+                                            color:
+                                                Colors.white.withOpacity(0.7),
                                             fontSize: 12,
                                             fontWeight: FontWeight.w600,
                                           ),
@@ -595,9 +766,8 @@ class _PlayerPageState extends State<PlayerPage> {
                                         Text(
                                           _formatDuration(duration),
                                           style: TextStyle(
-                                            color: Colors.white.withOpacity(
-                                              0.7,
-                                            ),
+                                            color:
+                                                Colors.white.withOpacity(0.7),
                                             fontSize: 12,
                                             fontWeight: FontWeight.w600,
                                           ),
@@ -809,16 +979,19 @@ class _PlayerPageState extends State<PlayerPage> {
                               Expanded(
                                 child: Align(
                                   alignment: Alignment.centerRight,
-                                  child: _PulsingTimerIcon(
-                                    isActive: songProvider.isSleepTimerActive,
-                                    activeColor: primaryColor,
-                                    inactiveColor: Colors.white.withOpacity(
-                                      0.7,
-                                    ),
-                                    tooltip: langProvider.t('sleep_timer'),
-                                    onPressed: () =>
-                                        _showSleepTimerFullScreen(context),
-                                  ),
+                                  child: isDeviceSong
+                                      ? const SizedBox.shrink()
+                                      : IconButton(
+                                          tooltip: langProvider.t('share'),
+                                          icon: Icon(
+                                            Icons.ios_share_rounded,
+                                            color:
+                                                Colors.white.withOpacity(0.7),
+                                            size: 24,
+                                          ),
+                                          onPressed: () =>
+                                              _shareSong(currentSong),
+                                        ),
                                 ),
                               ),
                             ],
@@ -1120,6 +1293,23 @@ class _PlayerPageState extends State<PlayerPage> {
                 );
               },
             ),
+          ListTile(
+            leading: CustomIcons.svgIcon(
+              CustomIcons.timerRounded,
+              color: Colors.white,
+              size: 24,
+            ),
+            title: Text(
+              langProvider.t('sleep_timer'),
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              _showSleepTimerFullScreen(
+                context,
+              );
+            },
+          ),
           const SizedBox(height: 16),
         ],
       ),
@@ -1165,6 +1355,54 @@ class _PlayerPageState extends State<PlayerPage> {
                     ),
                   ),
                   const SizedBox(height: 32),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color:
+                              Theme.of(context).primaryColor.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color:
+                                Theme.of(context).primaryColor.withOpacity(0.5),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () {
+                              Navigator.pop(pageContext); // Mevcut ekranı kapat
+                              // Yeni liste oluşturma ekranını aç
+                              SongCard.showCreatePlaylistBottomSheet(
+                                  context, song);
+                            },
+                            borderRadius: BorderRadius.circular(16),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 16, horizontal: 20),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  CustomIcons.svgIcon(CustomIcons.addRounded,
+                                      color: Colors.white, size: 24),
+                                  const SizedBox(width: 12),
+                                  Text(langProvider.t('create_new_list'),
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                   if (songProvider.folders.isEmpty)
                     Expanded(
                       child: Center(
@@ -1902,6 +2140,16 @@ String _formatDuration(Duration duration) {
       .replaceFirst("00:", "");
 }
 
+String _formatViewCount(int? count) {
+  if (count == null || count == 0) return '';
+  if (count >= 1000000) {
+    return '${(count / 1000000).toStringAsFixed(1).replaceAll(".0", "")} Mn';
+  } else if (count >= 1000) {
+    return '${(count / 1000).toStringAsFixed(1).replaceAll(".0", "")} B';
+  }
+  return '$count';
+}
+
 void _showLoginBottomSheet(BuildContext context) {
   CustomBottomSheet.show(
     context: context,
@@ -2039,8 +2287,8 @@ Widget _buildDownloadButton(
                   ),
                 ),
                 child: Row(
-                  children: const [
-                    Text(
+                  children: [
+                    const Text(
                       '3',
                       style: TextStyle(
                         color: Colors.white,
@@ -2048,11 +2296,12 @@ Widget _buildDownloadButton(
                         fontSize: 14,
                       ),
                     ),
-                    SizedBox(width: 4),
-                    Icon(
-                      Icons.monetization_on_rounded,
-                      color: Colors.amber,
-                      size: 16,
+                    const SizedBox(width: 4),
+                    Image.asset(
+                      'assets/trend_menu_icons/jeton_processed.png',
+                      width: 16,
+                      height: 16,
+                      fit: BoxFit.contain,
                     ),
                   ],
                 ),
@@ -2227,8 +2476,8 @@ Widget _buildDownloadButton(
                 ),
               ),
               child: Row(
-                children: const [
-                  Text(
+                children: [
+                  const Text(
                     '2',
                     style: TextStyle(
                       color: Colors.white,
@@ -2236,11 +2485,12 @@ Widget _buildDownloadButton(
                       fontSize: 14,
                     ),
                   ),
-                  SizedBox(width: 4),
-                  Icon(
-                    Icons.monetization_on_rounded,
-                    color: Colors.amber,
-                    size: 16,
+                  const SizedBox(width: 4),
+                  Image.asset(
+                    'assets/trend_menu_icons/jeton_processed.png',
+                    width: 16,
+                    height: 16,
+                    fit: BoxFit.contain,
                   ),
                 ],
               ),
@@ -2300,4 +2550,23 @@ Widget _buildDownloadButton(
       );
     },
   );
+}
+
+class _CustomTrackShape extends RoundedRectSliderTrackShape {
+  const _CustomTrackShape();
+  @override
+  Rect getPreferredRect({
+    required RenderBox parentBox,
+    Offset offset = Offset.zero,
+    required SliderThemeData sliderTheme,
+    bool isEnabled = false,
+    bool isDiscrete = false,
+  }) {
+    final double trackHeight = sliderTheme.trackHeight ?? 2.0;
+    final double trackLeft = offset.dx;
+    final double trackTop =
+        offset.dy + (parentBox.size.height - trackHeight) / 2;
+    final double trackWidth = parentBox.size.width;
+    return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
+  }
 }

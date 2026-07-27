@@ -8,6 +8,7 @@ import 'package:muzik_app/providers/language_provider.dart';
 import 'package:muzik_app/pages/email_login_page.dart';
 import 'package:muzik_app/pages/register_page.dart';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});

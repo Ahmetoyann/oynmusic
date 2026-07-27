@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
+
 class YoutubeService {
   /// Trend şarkıları çeker (Kota gerektirmeyen YoutubeExplode yöntemi)
   static Future<List<Song>> getTrendingSongs({
@@ -64,6 +65,7 @@ class YoutubeService {
           audioUrl:
               '', // Çalma sırasında SongProvider içinde yt.streamsClient ile çözülecek
           duration: video.duration?.inSeconds,
+          viewCount: video.engagement.viewCount,
         );
       }).toList();
 
@@ -131,6 +133,7 @@ class YoutubeService {
           coverUrl: video.thumbnails.highResUrl,
           audioUrl: '', // Çalma sırasında çözülecek
           duration: video.duration?.inSeconds,
+          viewCount: video.engagement.viewCount,
         );
       }).toList();
 

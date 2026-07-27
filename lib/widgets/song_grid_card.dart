@@ -76,7 +76,11 @@ class SongGridCard extends StatelessWidget {
                             ),
                           )
                         : CachedNetworkImage(
-                            imageUrl: imageUrl,
+                            imageUrl: imageUrl.contains('ytimg.com')
+                                ? imageUrl
+                                    .replaceAll('maxresdefault.jpg', 'mqdefault.jpg')
+                                    .replaceAll('hqdefault.jpg', 'mqdefault.jpg')
+                                : imageUrl,
                             fit: BoxFit.cover,
                             memCacheHeight: 300,
                             errorWidget: (context, url, error) => Container(

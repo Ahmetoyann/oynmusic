@@ -347,7 +347,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 leading: _buildLeadingIcon(
                   Colors.indigoAccent,
                   const Icon(
-                    Icons.high_quality_rounded,
+                    Icons.hd_rounded,
                     color: Colors.indigoAccent,
                     size: 24,
                   ),
@@ -429,11 +429,8 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
 
-          // 4. Hesap Ayarları (Sadece giriş yapmış e-posta kullanıcıları için)
-          if (user != null &&
-              user.email != null &&
-              user.providerData
-                  .any((info) => info.providerId == 'password')) ...[
+          // 4. Hesap Ayarları
+          if (user != null) ...[
             _buildSectionHeader(
               context,
               languageProvider.currentLanguage == 'tr' ? 'Hesap' : 'Account',
@@ -441,21 +438,94 @@ class _SettingsPageState extends State<SettingsPage> {
             _buildSettingsCard(
               context,
               children: [
+                if (user.email != null &&
+                    user.providerData
+                        .any((info) => info.providerId == 'password')) ...[
+                  ListTile(
+                    leading: _buildLeadingIcon(
+                      Colors.blueAccent,
+                      const Icon(
+                        Icons.lock_reset_rounded,
+                        color: Colors.blueAccent,
+                        size: 24,
+                      ),
+                    ),
+                    title: Text(
+                      languageProvider.t('change_password'),
+                      style: const TextStyle(color: textColor),
+                    ),
+                    subtitle: Text(
+                      languageProvider.t('change_password_desc'),
+                      style: TextStyle(color: subTextColor, fontSize: 12),
+                    ),
+                    trailing: Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: Colors.grey.shade600,
+                      size: 14,
+                    ),
+                    onTap: () {
+                      CustomBottomSheet.show(
+                        context: context,
+                        title: languageProvider.t('change_password'),
+                        message: languageProvider.currentLanguage == 'tr'
+                            ? 'Şifre sıfırlama bağlantısı e-posta adresinize (${user.email}) gönderilecektir. Onaylıyor musunuz?'
+                            : 'A password reset link will be sent to your email address (${user.email}). Do you confirm?',
+                        primaryButtonText:
+                            languageProvider.currentLanguage == 'tr'
+                                ? 'Evet, Gönder'
+                                : 'Yes, Send',
+                        primaryButtonColor: Colors.blueAccent,
+                        secondaryButtonText: languageProvider.t('cancel'),
+                        onPrimaryButtonTap: () async {
+                          Navigator.pop(context); // Önce onay penceresini kapat
+                          try {
+                            await authProvider.resetPassword(user.email!);
+                            if (context.mounted) {
+                              CustomSnackBar.showSuccess(
+                                context: context,
+                                message: languageProvider.t('reset_link_sent'),
+                              );
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              CustomSnackBar.showError(
+                                context: context,
+                                message:
+                                    e.toString().replaceAll('Exception: ', ''),
+                              );
+                            }
+                          }
+                        },
+                      );
+                    },
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Divider(
+                      height: 1,
+                      color: Colors.white.withOpacity(0.05),
+                    ),
+                  ),
+                ],
                 ListTile(
                   leading: _buildLeadingIcon(
-                    Colors.blueAccent,
+                    Colors.redAccent,
                     const Icon(
-                      Icons.lock_reset_rounded,
-                      color: Colors.blueAccent,
+                      Icons.person_remove_rounded,
+                      color: Colors.redAccent,
                       size: 24,
                     ),
                   ),
                   title: Text(
-                    languageProvider.t('change_password'),
+                    languageProvider.currentLanguage == 'tr'
+                        ? 'Hesabı Sil'
+                        : 'Delete Account',
                     style: const TextStyle(color: textColor),
                   ),
                   subtitle: Text(
-                    languageProvider.t('change_password_desc'),
+                    languageProvider.currentLanguage == 'tr'
+                        ? 'Hesabınızı ve tüm verilerinizi kalıcı olarak silin'
+                        : 'Permanently delete your account and all data',
                     style: TextStyle(color: subTextColor, fontSize: 12),
                   ),
                   trailing: Icon(
@@ -463,40 +533,20 @@ class _SettingsPageState extends State<SettingsPage> {
                     color: Colors.grey.shade600,
                     size: 14,
                   ),
-                  onTap: () {
-                    CustomBottomSheet.show(
-                      context: context,
-                      title: languageProvider.t('change_password'),
-                      message: languageProvider.currentLanguage == 'tr'
-                          ? 'Şifre sıfırlama bağlantısı e-posta adresinize (${user.email}) gönderilecektir. Onaylıyor musunuz?'
-                          : 'A password reset link will be sent to your email address (${user.email}). Do you confirm?',
-                      primaryButtonText:
-                          languageProvider.currentLanguage == 'tr'
-                              ? 'Evet, Gönder'
-                              : 'Yes, Send',
-                      primaryButtonColor: Colors.blueAccent,
-                      secondaryButtonText: languageProvider.t('cancel'),
-                      onPrimaryButtonTap: () async {
-                        Navigator.pop(context); // Önce onay penceresini kapat
-                        try {
-                          await authProvider.resetPassword(user.email!);
-                          if (context.mounted) {
-                            CustomSnackBar.showSuccess(
-                              context: context,
-                              message: languageProvider.t('reset_link_sent'),
-                            );
-                          }
-                        } catch (e) {
-                          if (context.mounted) {
-                            CustomSnackBar.showError(
-                              context: context,
-                              message:
-                                  e.toString().replaceAll('Exception: ', ''),
-                            );
-                          }
-                        }
-                      },
-                    );
+                  onTap: () async {
+                    final Uri url = Uri.parse(
+                        'https://oynmusic.duckdns.org/hesap_silme.html');
+                    if (!await launchUrl(url,
+                        mode: LaunchMode.externalApplication)) {
+                      if (context.mounted) {
+                        CustomSnackBar.showError(
+                          context: context,
+                          message: languageProvider.currentLanguage == 'tr'
+                              ? 'Bağlantı açılamadı'
+                              : 'Could not launch URL',
+                        );
+                      }
+                    }
                   },
                 ),
               ],
@@ -656,6 +706,10 @@ class _SettingsPageState extends State<SettingsPage> {
                             buildLangOption('de', 'Deutsch', '🇩🇪'),
                             buildLangOption('es', 'Español', '🇪🇸'),
                             buildLangOption('ar', 'العربية', '🇸🇦'),
+                            buildLangOption('pt', 'Português', '🇧🇷'),
+                            buildLangOption('ja', '日本語', '🇯🇵'),
+                            buildLangOption('ko', '한국어', '🇰🇷'),
+                            buildLangOption('ru', 'Русский', '🇷🇺'),
                             const SizedBox(height: 40),
                             SizedBox(
                               width: double.infinity,
@@ -826,8 +880,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Icon(Icons.high_quality_rounded,
-                          size: 64, color: primaryColor),
+                      Icon(Icons.hd_rounded, size: 64, color: primaryColor),
                       const SizedBox(height: 16),
                       Text(
                         langProvider.t('download_quality'),

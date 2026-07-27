@@ -47,6 +47,7 @@ import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 final GlobalKey<MainScreenState> mainScreenKey = GlobalKey<MainScreenState>();
+final GlobalKey<DownloadsPageState> downloadsPageKey = GlobalKey<DownloadsPageState>();
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -482,7 +483,7 @@ class MainScreenState extends State<MainScreen> {
       ),
       PrimaryScrollController(
         controller: _scrollControllers[2],
-        child: const DownloadsPage(),
+        child: DownloadsPage(key: downloadsPageKey),
       ),
       PrimaryScrollController(
         controller: _scrollControllers[3],

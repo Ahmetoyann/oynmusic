@@ -28,13 +28,14 @@ import 'package:on_audio_query/on_audio_query.dart';
 enum SortOption { dateNewest, dateOldest, nameAZ, nameZA }
 
 class DownloadsPage extends StatefulWidget {
-  const DownloadsPage({super.key});
+  final bool showVideosInitially;
+  const DownloadsPage({super.key, this.showVideosInitially = false});
 
   @override
-  State<DownloadsPage> createState() => _DownloadsPageState();
+  State<DownloadsPage> createState() => DownloadsPageState();
 }
 
-class _DownloadsPageState extends State<DownloadsPage> {
+class DownloadsPageState extends State<DownloadsPage> {
   bool _isSelectionMode = false;
   final Set<Song> _selectedSongs = {};
   final TextEditingController _searchController = TextEditingController();
@@ -43,7 +44,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
   bool _isGridMode = false;
   bool _isVideosGridMode = true;
   final ScrollController _scrollController = ScrollController();
-  bool _showVideos = false;
+  late bool _showVideos;
   bool _showStickyPlayButton = false;
   int _selectedTabIndex = 0; // 0: Uygulama İndirmeleri, 1: Cihazımdaki Müzikler
 
@@ -61,6 +62,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
   @override
   void initState() {
     super.initState();
+    _showVideos = widget.showVideosInitially;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context
@@ -98,6 +100,22 @@ class _DownloadsPageState extends State<DownloadsPage> {
     super.dispose();
   }
 
+  void switchToVideos() {
+    if (!_showVideos) {
+      setState(() {
+        _showVideos = true;
+      });
+    }
+  }
+
+  void switchToAudio() {
+    if (_showVideos) {
+      setState(() {
+        _showVideos = false;
+      });
+    }
+  }
+
   void _toggleSelection(Song song) {
     setState(() {
       if (_selectedSongs.contains(song)) {
@@ -111,25 +129,21 @@ class _DownloadsPageState extends State<DownloadsPage> {
     });
   }
 
-  String _formatDate(DateTime? date) {
-    if (date == null) return '';
-    return "${date.day}.${date.month}.${date.year}";
-  }
-
-  String _getFileSizeString(String? path) {
+  Future<String> _getFileSizeStringAsync(String? path) async {
     if (path == null) return '';
     if (_fileSizeCache.containsKey(path)) return _fileSizeCache[path]!;
     try {
       final file = File(path);
-      if (file.existsSync()) {
-        final bytes = file.lengthSync();
+      // Use async methods to avoid blocking the UI thread
+      if (await file.exists()) {
+        final bytes = await file.length();
         final mb = bytes / (1024 * 1024);
         final result = "${mb.toStringAsFixed(1)} MB";
         _fileSizeCache[path] = result;
         return result;
       }
     } catch (e) {
-      // Hata olursa boş dön
+      debugPrint("Error getting file size for $path: $e");
     }
     _fileSizeCache[path] = '';
     return '';
@@ -1078,15 +1092,19 @@ class _DownloadsPageState extends State<DownloadsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final songProvider = context.watch<SongProvider>();
+    final songProvider = context.read<SongProvider>();
     final langProvider = context.watch<LanguageProvider>();
 
-    final downloadedSongs = songProvider.downloadedSongs;
-    final folders = songProvider.folders;
+    final downloadedSongs =
+        context.select<SongProvider, List<Song>>((p) => p.downloadedSongs);
+    final folders =
+        context.select<SongProvider, List<MusicFolder>>((p) => p.folders);
+    final deviceSongs =
+        context.select<SongProvider, List<Song>>((p) => p.deviceSongs);
     final downloadFolders = folders.where((f) => f.isFromDownloads).toList();
-    final currentSongId = songProvider.currentSong?.id;
-    final rawSongs =
-        _selectedTabIndex == 0 ? downloadedSongs : songProvider.deviceSongs;
+    final currentSongId =
+        context.select<SongProvider, String?>((p) => p.currentSong?.id);
+    final rawSongs = _selectedTabIndex == 0 ? downloadedSongs : deviceSongs;
 
     // Arama ve sıralama önbellekleme (Memoization)
     if (_lastListLength != rawSongs.length ||
@@ -2174,7 +2192,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                                         const SizedBox(
                                                             height: 4),
                                                         Text(
-                                                          "${song.artist}\n${_formatDate(song.dateAdded)}",
+                                                          song.artist,
                                                           maxLines: 2,
                                                           overflow: TextOverflow
                                                               .ellipsis,
@@ -2237,8 +2255,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                             song: song,
                                             imageUrl: song.coverUrl,
                                             title: song.title,
-                                            subtitle:
-                                                "${song.artist}\n${_formatDate(song.dateAdded)}",
+                                            subtitle: song.artist,
                                             showFavorite: false,
                                           ),
                                           if (_isSelectionMode)
@@ -2305,31 +2322,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                 SliverChildBuilderDelegate((context, index) {
                               final song = filteredSongs[index];
                               final isSelected = _selectedSongs.contains(song);
-
-                              // Dosya boyutunu hesapla
-                              String sizeStr =
-                                  _getFileSizeString(song.localPath);
-                              String artistText =
-                                  "${song.artist} • ${_formatDate(song.dateAdded)}";
-                              if (sizeStr.isNotEmpty) {
-                                artistText += " • $sizeStr";
-                              }
-
-                              // Tarihi göstermek için geçici bir Song nesnesi oluşturuyoruz
-                              final displaySong = Song(
-                                id: song.id,
-                                title: song.title,
-                                artist: artistText,
-                                coverUrl:
-                                    _selectedTabIndex == 1 ? '' : song.coverUrl,
-                                audioUrl: song.audioUrl,
-                                duration: song.duration,
-                                localPath: song.localPath,
-                                localImagePath: _selectedTabIndex == 1
-                                    ? null
-                                    : song.localImagePath,
-                                dateAdded: song.dateAdded,
-                              );
+                              final artistText = song.artist;
 
                               if (_selectedTabIndex == 1) {
                                 return Container(
@@ -2460,6 +2453,18 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                   ),
                                 );
                               }
+
+                              final displaySong = Song(
+                                id: song.id,
+                                title: song.title,
+                                artist: artistText,
+                                coverUrl: song.coverUrl,
+                                audioUrl: song.audioUrl,
+                                duration: song.duration,
+                                localPath: song.localPath,
+                                localImagePath: song.localImagePath,
+                                dateAdded: song.dateAdded,
+                              );
 
                               return SongCard(
                                 song: displaySong,

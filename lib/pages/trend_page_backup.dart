@@ -25,11 +25,6 @@ import 'package:muzik_app/pages/login_page.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:muzik_app/widgets/device_cover_placeholder.dart';
 import 'package:muzik_app/services/custom_winning_add.dart';
-import 'package:muzik_app/pages/favorites_page.dart';
-import 'package:muzik_app/pages/downloads_page.dart';
-import 'package:muzik_app/pages/recently_played_page.dart';
-import 'package:muzik_app/main.dart';
-import 'package:muzik_app/widgets/playing_equalizer_indicator.dart';
 
 /// Trend şarkıları gösteren ana sayfa widget'ı
 class TrendPage extends StatefulWidget {
@@ -43,7 +38,7 @@ class _TrendPageState extends State<TrendPage> {
   String _selectedFilter = 'all';
   final List<String> _filterKeys = ['all', 'songs', 'collections'];
   ScrollController? _primaryScrollController;
-  int _visibleArtistCount = 2;
+  int _visibleArtistCount = 3;
   int _latestArtistCount = 0;
   bool _isIncrementingLocal = false;
 
@@ -83,8 +78,7 @@ class _TrendPageState extends State<TrendPage> {
 
   @override
   Widget build(BuildContext context) {
-    final songProvider = context.read<SongProvider>();
-    final coins = context.select<SongProvider, int>((p) => p.coins);
+    final songProvider = context.watch<SongProvider>();
     final authProvider = context.watch<AuthProvider>();
     final langProvider = context.watch<LanguageProvider>();
 
@@ -261,68 +255,38 @@ class _TrendPageState extends State<TrendPage> {
               child: GestureDetector(
                 onTap: () => CustomWinningAd.showCoinScreen(context),
                 child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Theme.of(context).primaryColor.withOpacity(0.15),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+                    color: Theme.of(context).primaryColor.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: Theme.of(context).primaryColor.withOpacity(0.5),
+                        width: 1.5),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.monetization_on_rounded,
+                          color: Colors.amber, size: 16),
+                      const SizedBox(width: 4),
+                      TweenAnimationBuilder<double>(
+                        tween: Tween<double>(
+                            begin: songProvider.coins.toDouble(),
+                            end: songProvider.coins.toDouble()),
+                        duration: const Duration(milliseconds: 1200),
+                        curve: Curves.easeOutExpo,
+                        builder: (context, value, child) {
+                          return Text(
+                            '${value.toInt()}',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13),
+                          );
+                        },
                       ),
                     ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.white.withOpacity(0.25),
-                              Colors.white.withOpacity(0.1),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.2),
-                            width: 1.0,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            TweenAnimationBuilder<double>(
-                              tween: Tween<double>(
-                                  begin: songProvider.coins.toDouble(),
-                                  end: songProvider.coins.toDouble()),
-                              duration: const Duration(milliseconds: 1200),
-                              curve: Curves.easeOutExpo,
-                              builder: (context, value, child) {
-                                return Text(
-                                  '${value.toInt()}',
-                                  style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.5,
-                                      fontSize: 14),
-                                );
-                              },
-                            ),
-                            const SizedBox(width: 6),
-                            Image.asset(
-                                'assets/trend_menu_icons/jeton_processed.png',
-                                width: 18,
-                                height: 18,
-                                fit: BoxFit.contain),
-                          ],
-                        ),
-                      ),
-                    ),
                   ),
                 ),
               ),
@@ -470,7 +434,7 @@ class _TrendPageState extends State<TrendPage> {
     final langProvider = context.read<LanguageProvider>();
     return OutlinedButton.icon(
       onPressed: () {
-        setState(() => _visibleArtistCount = 2);
+        setState(() => _visibleArtistCount = 3);
         provider.fetchSongsFromApi(forceRefresh: true);
       },
       icon: const Icon(Icons.refresh_rounded, color: Colors.white),
@@ -528,7 +492,7 @@ class _TrendPageState extends State<TrendPage> {
     _latestArtistCount = sortedArtists.length;
 
     // Eğer filtreleme sonrasında ekranda 3'ten az sanatçı kaldıysa otomatik daha fazla yükle
-    if (sortedArtists.length < 2 &&
+    if (sortedArtists.length < 3 &&
         !isLoadingMore &&
         songs.isNotEmpty &&
         songs.length < 150) {
@@ -570,6 +534,8 @@ class _TrendPageState extends State<TrendPage> {
     final List<Song> displayedCollections;
     if (showAlbumsOnly) {
       displayedCollections = collectionSongs;
+    } else if (showAll) {
+      displayedCollections = collectionSongs.take(10).toList();
     } else {
       displayedCollections = [];
     }
@@ -704,13 +670,13 @@ class _TrendPageState extends State<TrendPage> {
                     final provider = context.read<SongProvider>();
                     if (_visibleArtistCount < _latestArtistCount) {
                       setState(() {
-                        _visibleArtistCount += 2;
+                        _visibleArtistCount += 3;
                       });
                     } else if (!provider.isLoadingMore) {
                       provider.loadMoreSongs().then((_) {
                         if (mounted) {
                           setState(() {
-                            _visibleArtistCount += 2;
+                            _visibleArtistCount += 3;
                           });
                         }
                       }).catchError((e) {
@@ -838,14 +804,10 @@ class _TrendPageState extends State<TrendPage> {
 
   Widget _buildDailySongsList(BuildContext context, List<Song> songs) {
     if (songs.isEmpty) return const SizedBox.shrink();
+    // Listeden sadece ilk şarkıyı alıp "Günün Şarkısı" kartına gönderiyoruz.
+    // İsteğe bağlı olarak Rastgele bir şarkı da seçilebilir (songs..shuffle()).
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        DailySongCard(song: songs.first, playlist: songs),
-        const QuickAccessGrid(),
-      ],
-    );
+    return DailySongCard(song: songs.first, playlist: songs);
   }
 
   Widget _buildYourMixList(BuildContext context, List<Song> mostPlayed) {
@@ -1417,9 +1379,7 @@ class _SmallArtistAvatarState extends State<_SmallArtistAvatar> {
   }
 
   Future<void> _loadAvatar() async {
-    final currentAvatar =
-        widget.songProvider.getArtistAvatar(widget.artistName);
-    if (currentAvatar != null && !currentAvatar.contains('ui-avatars.com')) {
+    if (widget.songProvider.getArtistAvatar(widget.artistName) != null) {
       if (mounted) setState(() => _isLoading = false);
       return;
     }
@@ -1429,14 +1389,23 @@ class _SmallArtistAvatarState extends State<_SmallArtistAvatar> {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).primaryColor;
     final avatarUrl =
         widget.songProvider.getArtistAvatar(widget.artistName) ?? '';
 
     return Container(
       width: 36,
       height: 36,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         shape: BoxShape.circle,
+        border: Border.all(color: primaryColor, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withOpacity(0.5),
+            blurRadius: 8,
+            spreadRadius: 1,
+          ),
+        ],
       ),
       child: ClipOval(
         child: _isLoading && avatarUrl.isEmpty
@@ -1556,14 +1525,14 @@ class _DailySongCardState extends State<DailySongCard> {
             },
             child: Container(
               decoration:
-                  BoxDecoration(borderRadius: BorderRadius.circular(12)),
+                  BoxDecoration(borderRadius: BorderRadius.circular(24)),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(24),
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: Colors.grey.shade900.withOpacity(0.8),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(24),
                     border: Border.all(
                       color: Colors.white.withOpacity(0.1),
                       width: 1.5,
@@ -1572,7 +1541,7 @@ class _DailySongCardState extends State<DailySongCard> {
                   child: Row(children: [
                     // Kapak Resmi
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(5),
+                      borderRadius: BorderRadius.circular(10),
                       child: CachedNetworkImage(
                         imageUrl: widget.song.coverUrl,
                         width: 112,
@@ -1697,310 +1666,5 @@ class _DailySongCardState extends State<DailySongCard> {
             ),
           ),
         ));
-  }
-}
-
-class QuickAccessGrid extends StatelessWidget {
-  const QuickAccessGrid({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final provider = context.watch<SongProvider>();
-
-    final langProvider = context.watch<LanguageProvider>();
-
-    final horizontalPadding = MediaQuery.of(context).size.width * 0.025;
-
-    final recentlyPlayed = provider.recentlyPlayed;
-
-    final followedArtists = provider.followedArtists;
-
-    final mostPlayed = provider.mostPlayed;
-
-    final randomSongs = provider.allSongs.isNotEmpty
-        ? (provider.allSongs.toList()..shuffle())
-        : [];
-
-    Song? recentSong = recentlyPlayed.isNotEmpty
-        ? recentlyPlayed.first
-        : (randomSongs.isNotEmpty ? randomSongs.first : null);
-
-    Song? mostPlayedSong = mostPlayed.isNotEmpty
-        ? mostPlayed.first
-        : (randomSongs.length > 1
-            ? randomSongs[1]
-            : (randomSongs.isNotEmpty ? randomSongs.first : null));
-
-    // Takip edilen sanatçılar yoksa statik bir öneri koyalım
-
-    String artist1 = followedArtists.isNotEmpty
-        ? followedArtists[0]
-        : (provider.popularArtists.isNotEmpty
-            ? provider.popularArtists[0]
-            : 'Sezen Aksu');
-
-    String artist2 = followedArtists.length > 1
-        ? followedArtists[1]
-        : (provider.popularArtists.length > 1
-            ? provider.popularArtists[1]
-            : 'Müslüm Gürses');
-
-    Widget buildBox({
-      required Widget child,
-      required VoidCallback onTap,
-    }) {
-      return GestureDetector(
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.grey.shade800.withOpacity(0.6),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: child,
-        ),
-      );
-    }
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(horizontalPadding, 0, horizontalPadding, 16),
-      child: GridView.count(
-        crossAxisCount: 2,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
-        childAspectRatio: 3.8,
-        padding: EdgeInsets.zero,
-        children: [
-          // 1. Favoriler
-
-          buildBox(
-            onTap: () {
-              Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) => const FavoritesPage()));
-            },
-            child: Row(
-              children: [
-                const SizedBox(width: 12),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.asset(
-                      'assets/trend_menu_icons/favori_processed.png',
-                      width: 24,
-                      height: 24,
-                      fit: BoxFit.contain),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    langProvider.t('favorites'),
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (provider.currentSong != null &&
-                    provider.favoriteSongs
-                        .any((s) => s.id == provider.currentSong!.id))
-                  StreamBuilder<bool>(
-                    stream: provider.audioPlayer.playingStream,
-                    builder: (context, snapshot) {
-                      final isPlaying = snapshot.data ?? false;
-                      if (!isPlaying) return const SizedBox.shrink();
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 30.0),
-                        child: PlayingEqualizerIndicator(
-                          color: Theme.of(context).primaryColor,
-                          width: 14,
-                          height: 14,
-                          isPlaying: true,
-                        ),
-                      );
-                    },
-                  ),
-              ],
-            ),
-          ),
-
-          // 2. En Son
-
-          buildBox(
-            onTap: () {
-              Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) => const RecentlyPlayedPage()));
-            },
-            child: Row(
-              children: [
-                const SizedBox(width: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.asset(
-                      'assets/trend_menu_icons/enson_processed.png',
-                      width: 28,
-                      height: 28,
-                      color: Colors.amberAccent,
-                      fit: BoxFit.contain),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    recentlyPlayed.isNotEmpty
-                        ? langProvider.t('quick_latest')
-                        : langProvider.t('quick_listen'),
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // 3. Çalma Listelerim
-
-          buildBox(
-            onTap: () {
-              mainScreenKey.currentState?.switchToTab(3);
-            },
-            child: Row(
-              children: [
-                const SizedBox(width: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.asset(
-                      'assets/trend_menu_icons/liste_processed.png',
-                      width: 28,
-                      height: 28,
-                      fit: BoxFit.contain),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    langProvider.t('my_playlists'),
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // 4. Takip
-
-          buildBox(
-            onTap: () {
-              ProfilePage.showFollowedArtists(context, provider);
-            },
-            child: Row(
-              children: [
-                const SizedBox(width: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.asset(
-                      'assets/trend_menu_icons/takip_processed.png',
-                      width: 28,
-                      height: 28,
-                      fit: BoxFit.contain),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    langProvider.t('following'),
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // 5. İndirmeler
-
-          buildBox(
-            onTap: () {
-              mainScreenKey.currentState?.switchToTab(2);
-              downloadsPageKey.currentState?.switchToAudio();
-            },
-            child: Row(
-              children: [
-                const SizedBox(width: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.asset(
-                      'assets/trend_menu_icons/indirilenler_processed.png',
-                      width: 28,
-                      height: 28,
-                      fit: BoxFit.contain),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    langProvider.t('downloads'),
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // 6. Videolarım
-
-          buildBox(
-            onTap: () {
-              mainScreenKey.currentState?.switchToTab(2);
-              downloadsPageKey.currentState?.switchToVideos();
-            },
-            child: Row(
-              children: [
-                const SizedBox(width: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.asset(
-                      'assets/trend_menu_icons/videolarim_processed.png',
-                      width: 28,
-                      height: 28,
-                      fit: BoxFit.contain),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    langProvider.t('quick_my_videos'),
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

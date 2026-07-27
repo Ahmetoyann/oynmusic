@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:muzik_app/providers/auth_provider.dart';
 import 'package:muzik_app/providers/language_provider.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
+import 'package:flutter/foundation.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
