@@ -20,6 +20,7 @@ import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:muzik_app/pages/login_page.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:muzik_app/widgets/custom_search_bar.dart';
+import 'package:muzik_app/widgets/hero_loading_indicator.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -56,15 +57,10 @@ class _SearchPageState extends State<SearchPage> {
       }
     });
 
-    // Sayfa açıldığında önerilen şarkıları ve popüler sanatçıları yükle
+    // Sayfa açıldığında önerilen şarkıları yükle
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final songProvider = context.read<SongProvider>();
       songProvider.fetchSuggestedSongs();
-      
-      // Sanatçı resimlerinin kaydırmadan yüklenmesi için önden tetikle
-      for (var artist in songProvider.popularArtists) {
-        songProvider.fetchArtistAvatar(artist);
-      }
     });
 
     _initSpeech();
@@ -502,7 +498,7 @@ class _SearchPageState extends State<SearchPage> {
     }
 
     if (songProvider.isSearchLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: HeroLoadingIndicator());
     }
 
     // Arama kutusu boşsa, bir "keşfet" mesajı göster.
@@ -664,7 +660,7 @@ class _SearchPageState extends State<SearchPage> {
           if (songProvider.isSuggestionsLoading)
             const Padding(
               padding: EdgeInsets.all(32.0),
-              child: Center(child: CircularProgressIndicator()),
+              child: Center(child: HeroLoadingIndicator()),
             )
           else ...[
             if (suggestionsToDisplay.isNotEmpty)
@@ -817,82 +813,99 @@ class _SearchPageState extends State<SearchPage> {
                       }
 
                       final artistName = songProvider.popularArtists[index];
-                      final coverUrl =
-                          songProvider.getArtistAvatar(artistName) ?? '';
 
-                      return GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ArtistDetailPage(
-                                artistName: artistName,
-                                songs: const [],
+                      return Selector<SongProvider, String?>(
+                        selector: (context, provider) =>
+                            provider.getArtistAvatar(artistName),
+                        builder: (context, coverUrl, child) {
+                          final url = coverUrl ?? '';
+
+                          // Profil resmi henüz yüklenmemişse anında yüklenmesini tetikle (kaydırmayı beklemeden)
+                          if (url.isEmpty) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              context
+                                  .read<SongProvider>()
+                                  .fetchArtistAvatar(artistName);
+                            });
+                          }
+
+                          return GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ArtistDetailPage(
+                                    artistName: artistName,
+                                    songs: const [],
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              width: 110,
+                              margin: const EdgeInsets.only(right: 16),
+                              child: Column(
+                                children: [
+                                  Container(
+                                    width: 100,
+                                    height: 100,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.3),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: ClipOval(
+                                      child: url.isNotEmpty
+                                          ? CachedNetworkImage(
+                                              imageUrl: url,
+                                              fit: BoxFit.cover,
+                                              placeholder: (context, url) =>
+                                                  Container(
+                                                color: Colors.grey.shade900,
+                                                child: const Center(
+                                                  child: HeroLoadingIndicator(
+                                                      size: 40),
+                                                ),
+                                              ),
+                                              errorWidget:
+                                                  (context, url, error) =>
+                                                      Container(
+                                                color: Colors.grey.shade900,
+                                                child: const Icon(Icons.person,
+                                                    color: Colors.white54,
+                                                    size: 40),
+                                              ),
+                                            )
+                                          : Container(
+                                              color: Colors.grey.shade900,
+                                              child: const Icon(Icons.person,
+                                                  color: Colors.white54,
+                                                  size: 40),
+                                            ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    artistName,
+                                    maxLines: 2,
+                                    textAlign: TextAlign.center,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           );
                         },
-                        child: Container(
-                          width: 110,
-                          margin: const EdgeInsets.only(right: 16),
-                          child: Column(
-                            children: [
-                              Container(
-                                width: 100,
-                                height: 100,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.3),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: ClipOval(
-                                  child: coverUrl.isNotEmpty
-                                      ? CachedNetworkImage(
-                                          imageUrl: coverUrl,
-                                          fit: BoxFit.cover,
-                                          placeholder: (context, url) =>
-                                              Container(
-                                            color: Colors.grey.shade900,
-                                            child: const Center(
-                                              child: CircularProgressIndicator(
-                                                  strokeWidth: 2),
-                                            ),
-                                          ),
-                                          errorWidget: (context, url, error) =>
-                                              Container(
-                                            color: Colors.grey.shade900,
-                                            child: const Icon(Icons.person,
-                                                color: Colors.white54,
-                                                size: 40),
-                                          ),
-                                        )
-                                      : Container(
-                                          color: Colors.grey.shade900,
-                                          child: const Icon(Icons.person,
-                                              color: Colors.white54, size: 40),
-                                        ),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                artistName,
-                                maxLines: 2,
-                                textAlign: TextAlign.center,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
                       );
                     },
                   ),
@@ -968,8 +981,8 @@ class _SearchPageState extends State<SearchPage> {
           if (isSearchLoadingMore)
             const SliverToBoxAdapter(
               child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Center(child: CircularProgressIndicator()),
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: HeroLoadingIndicator(size: 50)),
               ),
             ),
           const SliverToBoxAdapter(child: SizedBox(height: 16)),

@@ -46,6 +46,8 @@ class LanguageProvider with ChangeNotifier {
 
   static const Map<String, Map<String, String>> _translations = {
     'en': {
+      'loading': 'Loading...',
+      'video': 'Video',
       'quick_latest': 'Latest',
       'quick_listen': 'Listen',
       'quick_most_played': 'Most Played',
@@ -460,6 +462,8 @@ class LanguageProvider with ChangeNotifier {
       'followed_artists_updated': 'Followed artists updated.',
     },
     'tr': {
+      'loading': 'Yükleniyor...',
+      'video': 'Video',
       'compliments_coins': 'Tebrikler',
       'no_downloaded_videos': 'Henüz İndirilen Video Yok',
       'no_downloaded_videos_desc':
@@ -877,6 +881,8 @@ class LanguageProvider with ChangeNotifier {
       'delete_failed_count': '%d dosya silinemedi (İzin kısıtlaması olabilir).',
     },
     'fr': {
+      'loading': 'Chargement...',
+      'video': 'Vidéo',
       'compliments_coins': 'Félicitations',
       'no_downloaded_videos': 'Aucune vidéo téléchargée',
       'ad_viewed': 'Publicité visionnée',
@@ -1303,6 +1309,8 @@ class LanguageProvider with ChangeNotifier {
           '%d fichiers n\'ont pas pu être supprimés (restriction d\'autorisation).',
     },
     'de': {
+      'loading': 'Laden...',
+      'video': 'Video',
       'compliments_coins': 'Glückwuns',
       'no_downloaded_videos': 'Keine heruntergeladenen Videos',
       'no_downloaded_videos_desc':
@@ -1728,6 +1736,8 @@ class LanguageProvider with ChangeNotifier {
           '%d Dateien konnten nicht gelöscht werden (Berechtigungseinschränkung).',
     },
     'es': {
+      'loading': 'Cargando...',
+      'video': 'Video',
       'compliments_coins': 'Felicidades',
       'no_downloaded_videos': 'No hay videos descargados',
       'ad_viewed': 'Anuncio visto',
@@ -2153,6 +2163,8 @@ class LanguageProvider with ChangeNotifier {
           'No se pudieron eliminar %d archivos (restricción de permisos).',
     },
     'ar': {
+      'loading': 'جاري التحميل...',
+      'video': 'فيديو',
       'compliments_coins': 'تهانينا',
       'no_downloaded_videos': 'لا توجد مقاطع فيديو تم تنزيلها',
       'ad_viewed': 'تم عرض الإعلان',
@@ -2557,6 +2569,8 @@ class LanguageProvider with ChangeNotifier {
       'delete_failed_count': 'تعذر حذف %d ملف (قد يكون هناك تقييد في الإذن).',
     },
     'pt': {
+      'loading': 'Carregando...',
+      'video': 'Vídeo',
       'compliments_coins': 'Felicidades',
       'quick_latest': 'Mais recente',
       'quick_listen': 'Ouvir',
@@ -2985,6 +2999,8 @@ class LanguageProvider with ChangeNotifier {
       'followed_artists_updated': 'Artistas seguidos atualizados.',
     },
     'ja': {
+      'loading': '読み込み中...',
+      'video': 'ビデオ',
       'compliments_coins': 'おめでとう',
       'quick_latest': '最新',
       'quick_listen': '聞く',
@@ -3366,6 +3382,8 @@ class LanguageProvider with ChangeNotifier {
       'followed_artists_updated': 'フォローアーティストを更新しました。',
     },
     'ko': {
+      'loading': '로딩 중...',
+      'video': '비디오',
       'compliments_coins': '축하해요',
       'quick_latest': '최신',
       'quick_listen': '듣다',
@@ -3749,6 +3767,8 @@ class LanguageProvider with ChangeNotifier {
       'followed_artists_updated': '팔로우한 아티스트가 업데이트되었습니다.',
     },
     'ru': {
+      'loading': 'Загрузка...',
+      'video': 'Видео',
       'compliments_coins': 'Поздравляю',
       'quick_latest': 'Последний',
       'quick_listen': 'Слушать',

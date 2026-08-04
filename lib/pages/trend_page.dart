@@ -17,6 +17,7 @@ import 'package:muzik_app/services/audius_service.dart';
 import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/widgets/song_card.dart';
 import 'package:muzik_app/widgets/song_grid_card.dart';
+import 'package:muzik_app/widgets/hero_loading_indicator.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/pages/player_page.dart';
 import 'package:muzik_app/providers/language_provider.dart';
@@ -342,10 +343,6 @@ class _TrendPageState extends State<TrendPage> {
         context.select<SongProvider, String?>((p) => p.errorMessage);
     final provider = context.read<SongProvider>();
 
-    if (isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
     if (errorMessage != null) {
       return RefreshIndicator(
         color: Theme.of(context).primaryColor,
@@ -391,7 +388,18 @@ class _TrendPageState extends State<TrendPage> {
         context.select<SongProvider, List<Song>>((p) => p.allSongs);
     final songs = allSongs.where(_hasValidCover).toList();
 
-    if (songs.isEmpty) {
+    if (isLoading && songs.isEmpty) {
+      return Center(
+        child: HeroLoadingIndicator(
+          size: 100,
+          message: langProvider.t('loading'),
+        ),
+      );
+    }
+
+    // Sadece aramada (isSearch) şarkı yoksa "bulunamadı" göster. Trend sayfasının normalinde
+    // şarkılar boş olsa bile (henüz yükleniyorsa) sayfa iskeletini ve statik sanatçıları göstereceğiz.
+    if (songs.isEmpty && !isLoading) {
       return RefreshIndicator(
         color: Theme.of(context).primaryColor,
         backgroundColor: Colors.grey.shade900,
@@ -504,41 +512,15 @@ class _TrendPageState extends State<TrendPage> {
         context.select<SongProvider, List<Song>>((p) => p.dailySongs);
     final mostPlayed =
         context.select<SongProvider, List<Song>>((p) => p.mostPlayed);
-    final isLoadingMore =
-        context.select<SongProvider, bool>((p) => p.isLoadingMore);
     final langProvider = context.watch<LanguageProvider>();
+    final isLoading = context.select<SongProvider, bool>((p) => p.isLoading);
     final double bottomPadding = currentSong != null ? 160 : 100;
-    // Şarkıları Sanatçı adına göre grupluyoruz
-    final Map<String, List<Song>> groupedByArtist = {};
-    for (var song in songs) {
-      if (!groupedByArtist.containsKey(song.artist)) {
-        groupedByArtist[song.artist] = [];
-      }
-      groupedByArtist[song.artist]!.add(song);
-    }
 
-    // Sağ tarafta her zaman en az 2 şarkı gösterilebilmesi için (Sol 1 + Sağ 2)
-    // toplam şarkı sayısı 3'ten az olan sanatçıları listeden çıkarıyoruz.
-    groupedByArtist.removeWhere((key, value) => value.length < 3);
-
-    final sortedEntries = groupedByArtist.entries.toList()
-      ..sort((a, b) => b.value.length.compareTo(a.value.length));
-
-    final sortedArtists = sortedEntries.map((e) => e.key).toList();
-    _latestArtistCount = sortedArtists.length;
-
-    // Eğer filtreleme sonrasında ekranda 3'ten az sanatçı kaldıysa otomatik daha fazla yükle
-    if (sortedArtists.length < 2 &&
-        !isLoadingMore &&
-        songs.isNotEmpty &&
-        songs.length < 150) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        context.read<SongProvider>().loadMoreSongs();
-      });
-    }
-
-    // Performans için gösterilecek sanatçı sayısını 4 ile sınırlıyoruz, kaydırdıkça artacak
-    final displayedArtists = sortedArtists.take(_visibleArtistCount).toList();
+    // Sanatçı blokları için artık şarkılardan rastgele çekmiyoruz.
+    // Provider'da sabitlenmiş (takip edilenler veya Eva Records/Netd Müzik) listeyi kullanıyoruz.
+    final Map<String, List<Song>> groupedByArtist =
+        songProvider.initialTrendArtists;
+    final displayedArtists = groupedByArtist.keys.toList();
 
     final bool showAll = isSearch || _selectedFilter == 'all';
     final bool showSongs = !isSearch && _selectedFilter == 'songs';
@@ -686,6 +668,7 @@ class _TrendPageState extends State<TrendPage> {
             delegate: SliverChildBuilderDelegate((context, index) {
               final artistName = displayedArtists[index];
               final initialSongs = groupedByArtist[artistName]!;
+              if (initialSongs.isEmpty) return const SizedBox.shrink();
               return ArtistSectionWidget(
                 artistName: artistName,
                 initialSongs: initialSongs,
@@ -693,57 +676,13 @@ class _TrendPageState extends State<TrendPage> {
             }, childCount: displayedArtists.length),
           ),
 
-        // + Daha fazla sanatçı Butonu
-        if ((showAll || showSongs) && !isLoadingMore)
+        // Şarkılar yükleniyorsa en alta küçük bir loading göster
+        if (isLoading && songs.isEmpty)
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24.0),
-              child: Center(
-                child: TextButton(
-                  onPressed: () {
-                    final provider = context.read<SongProvider>();
-                    if (_visibleArtistCount < _latestArtistCount) {
-                      setState(() {
-                        _visibleArtistCount += 2;
-                      });
-                    } else if (!provider.isLoadingMore) {
-                      provider.loadMoreSongs().then((_) {
-                        if (mounted) {
-                          setState(() {
-                            _visibleArtistCount += 2;
-                          });
-                        }
-                      }).catchError((e) {
-                        if (mounted) {
-                          CustomSnackBar.showError(
-                            context: context,
-                            message: langProvider.t('cannot_load_more'),
-                          );
-                        }
-                      });
-                    }
-                  },
-                  child: Text(
-                    langProvider.t('more_artists'),
-                    style: TextStyle(
-                      color: Theme.of(context).primaryColor,
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-        if (isLoadingMore)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Center(
-                child: CircularProgressIndicator(
-                  color: Theme.of(context).primaryColor,
-                ),
+              padding: const EdgeInsets.all(32.0),
+              child: const Center(
+                child: HeroLoadingIndicator(size: 60),
               ),
             ),
           ),
@@ -1430,7 +1369,7 @@ class _SmallArtistAvatarState extends State<_SmallArtistAvatar> {
   @override
   Widget build(BuildContext context) {
     final avatarUrl =
-        widget.songProvider.getArtistAvatar(widget.artistName) ?? '';
+        context.select<SongProvider, String?>((p) => p.getArtistAvatar(widget.artistName)) ?? '';
 
     return Container(
       width: 36,
@@ -1784,13 +1723,10 @@ class QuickAccessGrid extends StatelessWidget {
             child: Row(
               children: [
                 const SizedBox(width: 12),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.asset(
-                      'assets/trend_menu_icons/favori_processed.png',
-                      width: 24,
-                      height: 24,
-                      fit: BoxFit.contain),
+                Icon(
+                  Icons.favorite_rounded,
+                  color: Colors.redAccent,
+                  size: 26,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -1839,14 +1775,10 @@ class QuickAccessGrid extends StatelessWidget {
             child: Row(
               children: [
                 const SizedBox(width: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.asset(
-                      'assets/trend_menu_icons/enson_processed.png',
-                      width: 28,
-                      height: 28,
-                      color: Colors.amberAccent,
-                      fit: BoxFit.contain),
+                Icon(
+                  Icons.history_rounded,
+                  color: Colors.amber,
+                  size: 26,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -1875,13 +1807,10 @@ class QuickAccessGrid extends StatelessWidget {
             child: Row(
               children: [
                 const SizedBox(width: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.asset(
-                      'assets/trend_menu_icons/liste_processed.png',
-                      width: 28,
-                      height: 28,
-                      fit: BoxFit.contain),
+                Icon(
+                  Icons.queue_music_rounded,
+                  color: Colors.blueAccent,
+                  size: 26,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -1908,13 +1837,10 @@ class QuickAccessGrid extends StatelessWidget {
             child: Row(
               children: [
                 const SizedBox(width: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.asset(
-                      'assets/trend_menu_icons/takip_processed.png',
-                      width: 28,
-                      height: 28,
-                      fit: BoxFit.contain),
+                Icon(
+                  Icons.people_rounded,
+                  color: Colors.purpleAccent,
+                  size: 26,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -1942,13 +1868,10 @@ class QuickAccessGrid extends StatelessWidget {
             child: Row(
               children: [
                 const SizedBox(width: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.asset(
-                      'assets/trend_menu_icons/indirilenler_processed.png',
-                      width: 28,
-                      height: 28,
-                      fit: BoxFit.contain),
+                CustomIcons.svgIcon(
+                  CustomIcons.downloadingRounded,
+                  color: Colors.greenAccent,
+                  size: 26,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -1976,13 +1899,10 @@ class QuickAccessGrid extends StatelessWidget {
             child: Row(
               children: [
                 const SizedBox(width: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.asset(
-                      'assets/trend_menu_icons/videolarim_processed.png',
-                      width: 28,
-                      height: 28,
-                      fit: BoxFit.contain),
+                Icon(
+                  Icons.video_library_rounded,
+                  color: Colors.deepOrangeAccent,
+                  size: 26,
                 ),
                 const SizedBox(width: 8),
                 Expanded(

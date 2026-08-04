@@ -95,6 +95,9 @@ class SongProvider with ChangeNotifier {
   List<Song> _suggestedAlbums = []; // Koleksiyonlar sekmesi için
   bool _isSuggestionsLoading = false; // Önerilerin yüklenme durumu
   List<String> _followedArtists = []; // Takip edilen sanatçılar
+  Map<String, List<Song>> _initialTrendArtists =
+      {}; // Trend sayfasındaki statik sanatçılar
+  Map<String, List<Song>> get initialTrendArtists => _initialTrendArtists;
 
   // Jeton (Sanal Para) Sistemi
   int _coins = 0;
@@ -107,6 +110,8 @@ class SongProvider with ChangeNotifier {
 
   final Map<String, String> _artistAvatars =
       {}; // Sanatçı avatarlarını önbellekte tutar
+  final Map<String, int> _artistSubscribers =
+      {}; // Sanatçı abone sayılarını önbellekte tutar
 
   // Uyku Zamanlayıcısı
   Timer? _sleepTimer;
@@ -372,6 +377,8 @@ class SongProvider with ChangeNotifier {
   List<String> get followedArtists => _followedArtists;
   List<String> get searchSuggestions => _searchSuggestions;
   String? getArtistAvatar(String artistName) => _artistAvatars[artistName];
+  int? getArtistSubscribers(String artistName) =>
+      _artistSubscribers[artistName];
   bool get isSyncingUserData => _isSyncingUserData;
   bool get seenInitialArtists => _seenInitialArtists;
   List<Song> get playlist => _playlist;
@@ -464,7 +471,9 @@ class SongProvider with ChangeNotifier {
 
   SongProvider() {
     _loadFavorites(); // Uygulama açılışında favorileri yükle
-    _loadFollowedArtists();
+    _loadFollowedArtists().then((_) {
+      loadInitialTrendArtists(); // Takip edilen sanatçılar yüklendikten sonra çalıştır
+    });
     _loadFolders();
     _loadSearchHistory();
     _loadRecentlyPlayed();
@@ -472,6 +481,7 @@ class SongProvider with ChangeNotifier {
     _loadMostPlayed(); // En çok dinlenenleri yükle
     _loadDailySongs(); // Günün şarkılarını (varsa) yükle
     _loadSettings();
+    _loadArtistAvatars();
     _loadSuggestedFromLocal(); // Önerilenleri RAM'e hızlıca al (Anında Yükleme İçin)
     loadDownloadedVideos();
     _initConnectivity();
@@ -695,22 +705,7 @@ class SongProvider with ChangeNotifier {
             });
             return; // İndirme işlemlerine girmemesi için çık
           }
-// Yeni Çıkanlar (Yeni Parça Keşfi) bildirimine tıklandıysa
-          if (payload.startsWith('new_release|')) {
-            Future.delayed(const Duration(milliseconds: 800), () {
-              if (navigatorKey.currentContext != null) {
-                try {
-                  final songJson = payload.substring('new_release|'.length);
-                  final song = Song.fromMap(jsonDecode(songJson));
-                  SongMenuHelper.showModernMenu(
-                      navigatorKey.currentContext!, song);
-                } catch (e) {
-                  debugPrint("Yeni çıkanlar menüsü açılamadı: $e");
-                }
-              }
-            });
-            return;
-          }
+
           // İndirme bildirimleri buton eylemleri (Duraklat, Devam Et, İptal)
           if (response.actionId != null) {
             try {
@@ -1698,6 +1693,12 @@ class SongProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  void toggleFolderPin(MusicFolder folder) {
+    folder.isPinned = !folder.isPinned;
+    _saveFolders();
+    notifyListeners();
+  }
+
   void removeSongsFromFolder(MusicFolder folder, List<String> songIds) {
     folder.songs.removeWhere((s) => songIds.contains(s.id));
     _saveFolders();
@@ -1937,21 +1938,49 @@ class SongProvider with ChangeNotifier {
         ''; // Aynı anda mükerrer istekleri engellemek için geçici boşluk
 
     try {
-      // Sanatçının şarkısı üzerinden kanalının gerçek profil fotoğrafını çekiyoruz
-      final searchResults = await _yt.search.search(artistName);
+      // Sanatçının adıyla doğrudan kanal araması yapıyoruz
+      final searchResults = await _yt.search
+          .searchContent(artistName, filter: TypeFilters.channel);
       if (searchResults.isNotEmpty) {
-        final firstVideo = searchResults.first;
-        final channel = await _yt.channels.get(firstVideo.channelId);
+        final firstChannel = searchResults.first as SearchChannel;
+        final channel = await _yt.channels.get(firstChannel.id);
         _artistAvatars[artistName] = channel.logoUrl;
+        _artistSubscribers[artistName] = channel.subscribersCount ?? 0;
       } else {
         _artistAvatars[artistName] =
             'https://ui-avatars.com/api/?name=${Uri.encodeComponent(artistName)}&background=random&color=fff&size=200';
       }
       notifyListeners();
+      _saveArtistAvatars();
     } catch (e) {
       _artistAvatars[artistName] =
           'https://ui-avatars.com/api/?name=${Uri.encodeComponent(artistName)}&background=random&color=fff&size=200';
       notifyListeners();
+      _saveArtistAvatars();
+    }
+  }
+
+  Future<void> _loadArtistAvatars() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.containsKey('artist_avatars')) {
+        final Map<String, dynamic> decoded =
+            jsonDecode(prefs.getString('artist_avatars')!);
+        decoded.forEach((key, value) {
+          _artistAvatars[key] = value.toString();
+        });
+      }
+    } catch (e) {
+      debugPrint("Avatar yükleme hatası: $e");
+    }
+  }
+
+  Future<void> _saveArtistAvatars() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('artist_avatars', jsonEncode(_artistAvatars));
+    } catch (e) {
+      debugPrint("Avatar kaydetme hatası: $e");
     }
   }
 
@@ -2515,6 +2544,70 @@ class SongProvider with ChangeNotifier {
     checkNewReleases();
   }
 
+  Future<void> loadInitialTrendArtists() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? cachedData = prefs.getString('initial_trend_artists');
+
+    // 1. Önbellekten hemen yükle (Anında görüntüleme için)
+    if (cachedData != null) {
+      try {
+        final Map<String, dynamic> decoded = jsonDecode(cachedData);
+        _initialTrendArtists = decoded.map((key, value) {
+          return MapEntry(
+            key,
+            (value as List)
+                .map((s) => Song.fromJson(s as Map<String, dynamic>))
+                .toList(),
+          );
+        });
+        notifyListeners();
+      } catch (e) {
+        debugPrint("initial_trend_artists cache okuma hatası: $e");
+      }
+    }
+
+    // 2. Güncel veriyi çek
+    List<String> targetArtists = [];
+    if (_followedArtists.length >= 2) {
+      targetArtists = [_followedArtists[0], _followedArtists[1]];
+    } else {
+      targetArtists = ["Eva Records", "Netd Müzik"];
+    }
+
+    Map<String, List<Song>> newArtistsData = {};
+    for (String artist in targetArtists) {
+      try {
+        final results = await YoutubeService.searchSongs(artist, limit: 3);
+        // Ensure we only keep 3 songs
+        newArtistsData[artist] = results.take(3).toList();
+      } catch (e) {
+        debugPrint("Sanatçı verisi çekilemedi (\$artist): \$e");
+        // Hata durumunda cache'deki veriyi tut
+        if (_initialTrendArtists.containsKey(artist)) {
+          newArtistsData[artist] = _initialTrendArtists[artist]!;
+        }
+      }
+    }
+
+    _initialTrendArtists = newArtistsData;
+    notifyListeners();
+
+    // Cache'i güncelle
+    try {
+      final Map<String, dynamic> toCache =
+          _initialTrendArtists.map((key, value) {
+        return MapEntry(key, value.map((s) => s.toJson()).toList());
+      });
+      await prefs.setString('initial_trend_artists', jsonEncode(toCache));
+    } catch (e) {
+      debugPrint("initial_trend_artists cache yazma hatası: \$e");
+    }
+  }
+
+  Future<void> checkNewReleases() async {
+    // TODO: Implement new releases check
+  }
+
   bool isArtistFollowed(String name) => _followedArtists.contains(name);
 
   Future<void> toggleFollowArtist(
@@ -2536,72 +2629,6 @@ class SongProvider with ChangeNotifier {
     }
     _suggestedSongs.clear(); // Arama sayfası önerileri sıfırlansın
     fetchSuggestedSongs(); // Yeni duruma göre önerileri anında tekrar çek
-  }
-
-  /// Takip edilen sanatçılar için yeni/popüler parça kontrolü yapar
-  Future<void> checkNewReleases() async {
-    if (_followedArtists.isEmpty) return;
-    final prefs = await SharedPreferences.getInstance();
-    final lastChecked = prefs.getString('last_new_release_check');
-    final today = DateTime.now().toIso8601String().substring(0, 10);
-
-    if (lastChecked == today) return; // Günde en fazla 1 kez kontrol et
-
-    try {
-      // API limitlerini korumak için rastgele 2 sanatçıyı kontrol edelim
-      final artistsToCheck = List<String>.from(_followedArtists)..shuffle();
-
-      for (var artist in artistsToCheck.take(2)) {
-        final results = await YoutubeService.searchSongs('$artist', limit: 2);
-        if (results.isNotEmpty) {
-          final topSong = results.first;
-          final notifiedKey = 'notified_song_${topSong.id}';
-
-          if (!(prefs.getBool(notifiedKey) ?? false)) {
-            await prefs.setBool(notifiedKey, true);
-            await _showNewReleaseNotification(artist, topSong);
-            break; // Günde 1'den fazla bildirim atmayalım ki kullanıcıyı sıkmayalım
-          }
-        }
-      }
-      await prefs.setString('last_new_release_check', today);
-    } catch (e) {
-      debugPrint("Yeni sürüm kontrol hatası: $e");
-    }
-  }
-
-  Future<void> _showNewReleaseNotification(String artist, Song song) async {
-    const AndroidNotificationDetails androidPlatformChannelSpecifics =
-        AndroidNotificationDetails(
-      'new_release_channel',
-      'Yeni Çıkanlar',
-      channelDescription: 'Takip ettiğiniz sanatçıların yeni parçaları',
-      importance: Importance.max,
-      priority: Priority.high,
-    );
-    const NotificationDetails platformChannelSpecifics = NotificationDetails(
-      android: androidPlatformChannelSpecifics,
-    );
-
-    final prefs = await SharedPreferences.getInstance();
-    final lang = prefs.getString('language_code') ?? 'tr';
-
-    String title = lang == 'tr'
-        ? 'Yeni Parça Keşfi, Hemen dinle!'
-        : 'New Release Discovery, Listen Now!';
-    String body = lang == 'tr'
-        ? '$artist sanatçısından "${song.title}" parçasına göz atın!'
-        : 'Check out "${song.title}" by $artist!';
-
-    final payload = 'new_release|${jsonEncode(song.toJson())}';
-
-    await _notificationsPlugin.show(
-      song.id.hashCode,
-      title,
-      body,
-      platformChannelSpecifics,
-      payload: payload,
-    );
   }
 
   /// Ekolayzer ayarlarını Firestore'a kaydeder
@@ -2896,33 +2923,49 @@ class SongProvider with ChangeNotifier {
           }
 
           // 3. İndirme isteği (Range header ile kaldığı yerden ister)
+          // HİLE: YouTube 0. byte'tan başlayan istekleri 1x oynatma hızına sabitler.
+          // Çözüm: İlk istekte sadece 50 KB indirip bağlantıyı kapatıyoruz. İkinci istekte
+          // 50 KB'dan itibaren istediğimizde sunucu bunu bir "ileriye sarma (seek)" işlemi
+          // sanıyor ve hız sınırını kaldırıyor! (Otomatik Durdur/Devam Et Hilesi)
+          bool isFirstChunk = downloadedBytes == 0;
+          int chunkSize = 1024 * 50; // 50 KB
+          String rangeHeader = isFirstChunk
+              ? 'bytes=0-$chunkSize'
+              : 'bytes=$downloadedBytes-999999999';
+
           final response = await dio.get<ResponseBody>(
             downloadUrl,
             options: Options(
               responseType: ResponseType.stream,
               headers: {
                 'User-Agent':
-                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                'Referer': 'https://www.youtube.com/',
-                'Origin': 'https://www.youtube.com',
-                if (downloadedBytes > 0) 'range': 'bytes=$downloadedBytes-',
+                    'com.google.android.youtube/17.36.4 (Linux; U; Android 12; GB) gzip',
+                'range': rangeHeader,
               },
             ),
             cancelToken: cancelToken,
           );
 
-          // Toplam boyutu hesapla (Mevcut + Kalan)
+          // Toplam boyutu hesapla
           int totalBytes = downloadedBytes;
-          final contentLengthHeader = response.headers.value(
-            Headers.contentLengthHeader,
-          );
-          if (contentLengthHeader != null) {
-            totalBytes += int.parse(contentLengthHeader);
+          final contentRange = response.headers.value('content-range');
+          if (contentRange != null && contentRange.contains('/')) {
+            // Örn: "bytes 0-51200/1745123" -> 1745123'ü alır
+            totalBytes = int.parse(contentRange.split('/').last);
+          } else {
+            final contentLengthHeader = response.headers.value(
+              Headers.contentLengthHeader,
+            );
+            if (contentLengthHeader != null) {
+              totalBytes += int.parse(contentLengthHeader);
+            }
           }
 
           // Eğer sunucu Range desteklemiyorsa (200 OK dönerse), dosyayı sıfırdan başlat
           if (response.statusCode == 200) {
             downloadedBytes = 0;
+            final contentLengthHeader =
+                response.headers.value(Headers.contentLengthHeader);
             if (contentLengthHeader != null) {
               totalBytes = int.parse(contentLengthHeader);
             }
@@ -2976,7 +3019,14 @@ class SongProvider with ChangeNotifier {
 
             await sink.flush();
             retryCount = 0; // İşlem başarılı olursa sayacı sıfırla
-            isDownloaded = true; // Başarıyla bitti, döngüden çık
+
+            final currentTotal = downloadedBytes + receivedChunk;
+            if (totalBytes > 0 && currentTotal < totalBytes) {
+              isDownloaded =
+                  false; // Henüz tamamlanmadı, sıradaki chunk için döngü devam edecek (Hız Sınırı Aşıldı!)
+            } else {
+              isDownloaded = true; // Tamamen bitti, döngüden çık
+            }
           } finally {
             await sink.close();
           }
@@ -3739,8 +3789,8 @@ class SongProvider with ChangeNotifier {
       return _resolvingTasks[cacheKey]!;
     }
 
-    final future =
-        _yt.videos.streamsClient.getManifest(songId, ytClients: const [YoutubeApiClient.androidVr]).then((manifest) {
+    final future = _yt.videos.streamsClient.getManifest(songId,
+        ytClients: const [YoutubeApiClient.androidVr]).then((manifest) {
       String getUrlFromStreams(Iterable<StreamInfo> streams) {
         final sortedList = streams.sortByBitrate().toList();
         if (isDownload && !isVideoDownload) {
@@ -3794,19 +3844,7 @@ class SongProvider with ChangeNotifier {
         throw Exception("Video akışı bulunamadı");
       }
 
-      // 1. Öncelik: Bot kısıtlamalarını aşmak için 'muxed' (ses+video) mp4 formatı
-      Iterable<StreamInfo> muxedStreams = manifest.muxed.where(
-        (s) => s.container.name.toString().toLowerCase() == 'mp4',
-      );
-
-      if (muxedStreams.isNotEmpty) {
-        final url = getUrlFromStreams(muxedStreams);
-        _resolvedStreamUrlCache[cacheKey] = url;
-        _resolvingTasks.remove(cacheKey);
-        return url;
-      }
-
-      // 2. Yedek: Muxed bulunamazsa 'audioOnly' mp4 formatına geç
+      // 1. Öncelik: Sadece ses akışlarını kullan (Daha az veri, daha hızlı)
       Iterable<StreamInfo> audioStreams = manifest.audioOnly.where(
         (s) => s.container.name.toString().toLowerCase() == 'mp4',
       );
@@ -3818,9 +3856,21 @@ class SongProvider with ChangeNotifier {
         return url;
       }
 
-      // 3. Son çare
+      // 2. Yedek: Mp4 formatında ses bulunamazsa diğer ses akışlarını dene
       if (manifest.audioOnly.isNotEmpty) {
         final url = getUrlFromStreams(manifest.audioOnly);
+        _resolvedStreamUrlCache[cacheKey] = url;
+        _resolvingTasks.remove(cacheKey);
+        return url;
+      }
+
+      // 3. Son çare: Hiç ses akışı yoksa muxed (ses+video) kullan
+      Iterable<StreamInfo> muxedStreams = manifest.muxed.where(
+        (s) => s.container.name.toString().toLowerCase() == 'mp4',
+      );
+
+      if (muxedStreams.isNotEmpty) {
+        final url = getUrlFromStreams(muxedStreams);
         _resolvedStreamUrlCache[cacheKey] = url;
         _resolvingTasks.remove(cacheKey);
         return url;

@@ -246,12 +246,14 @@ class MusicFolder {
   final List<Song> songs;
   bool isFromDownloads; // Klasörün indirilenlerden mi oluşturulduğunu belirtir
   String? customImagePath; // Klasör için özel kapak resmi yolu
+  bool isPinned; // Klasörün sabitlenip sabitlenmediğini belirtir
 
   MusicFolder({
     required this.name,
     required this.songs,
     this.isFromDownloads = false,
     this.customImagePath,
+    this.isPinned = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -259,6 +261,7 @@ class MusicFolder {
         'songs': songs.map((s) => s.toJson()).toList(),
         'isFromDownloads': isFromDownloads,
         'customImagePath': customImagePath,
+        'isPinned': isPinned,
       };
 
   factory MusicFolder.fromJson(Map<String, dynamic> json) {
@@ -269,6 +272,7 @@ class MusicFolder {
           .toList(),
       isFromDownloads: json['isFromDownloads'] ?? false,
       customImagePath: json['customImagePath'],
+      isPinned: json['isPinned'] ?? false,
     );
   }
 }

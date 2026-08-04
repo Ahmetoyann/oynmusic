@@ -23,7 +23,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:muzik_app/widgets/device_cover_placeholder.dart';
 import 'package:muzik_app/pages/artist_detail_page.dart';
 import 'package:muzik_app/widgets/mini_player.dart';
+import 'package:muzik_app/widgets/current_artist_box.dart';
 import 'package:muzik_app/services/custom_winning_add.dart';
+import 'package:muzik_app/widgets/playing_equalizer_indicator.dart';
 
 class PlayerPage extends StatefulWidget {
   const PlayerPage({super.key});
@@ -295,6 +297,262 @@ class _PlayerPageState extends State<PlayerPage> {
     super.dispose();
   }
 
+  void _showFullScreenQueue(BuildContext context, SongProvider provider,
+      LanguageProvider langProvider) {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (pageContext, animation, secondaryAnimation) {
+          return Scaffold(
+            backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
+            body: SafeArea(
+              child: Column(
+                children: [
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: IconButton(
+                        icon: const Icon(Icons.close_rounded,
+                            color: Colors.white, size: 32),
+                        onPressed: () => Navigator.pop(pageContext),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    langProvider.t('they_will_play_next'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Expanded(
+                    child: StatefulBuilder(
+                        builder: (BuildContext context, StateSetter setState) {
+                      final currentSongIndex = provider.currentSongIndex ?? 0;
+                      final playlist = provider.playlist;
+
+                      if (playlist.isEmpty) {
+                        return const Center(
+                            child: Text('Empty Queue',
+                                style: TextStyle(color: Colors.white)));
+                      }
+
+                      // We only show current song and the upcoming songs.
+                      final currentSong = playlist[currentSongIndex];
+                      final upcomingSongs =
+                          playlist.skip(currentSongIndex + 1).toList();
+
+                      return Column(
+                        children: [
+                          // Current Song (Fixed)
+                          ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 8),
+                            leading: ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: SizedBox(
+                                width: 71,
+                                height: 40,
+                                child: currentSong.localImagePath != null &&
+                                        File(currentSong.localImagePath!)
+                                            .existsSync()
+                                    ? Image.file(
+                                        File(currentSong.localImagePath!),
+                                        fit: BoxFit.cover)
+                                    : CachedNetworkImage(
+                                        imageUrl: currentSong.coverUrl,
+                                        fit: BoxFit.cover,
+                                        errorWidget: (context, url, error) =>
+                                            DeviceCoverPlaceholder(
+                                                width: 71,
+                                                height: 40,
+                                                borderRadius: 6,
+                                                logoColor: Theme.of(context)
+                                                    .primaryColor),
+                                      ),
+                              ),
+                            ),
+                            title: Text(
+                              currentSong.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  color: Theme.of(context).primaryColor,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14),
+                            ),
+                            subtitle: Text(
+                              currentSong.artist,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  color: Theme.of(context)
+                                      .primaryColor
+                                      .withOpacity(0.7),
+                                  fontSize: 12),
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                StreamBuilder<bool>(
+                                  stream: provider.audioPlayer.playingStream,
+                                  builder: (context, snapshot) {
+                                    final isPlaying = snapshot.data ?? false;
+                                    if (isPlaying) {
+                                      return Padding(
+                                        padding:
+                                            const EdgeInsets.only(right: 12.0),
+                                        child: PlayingEqualizerIndicator(
+                                          color: Theme.of(context).primaryColor,
+                                        ),
+                                      );
+                                    }
+                                    return const SizedBox.shrink();
+                                  },
+                                ),
+                                StreamBuilder<bool>(
+                                  stream: provider.audioPlayer.playingStream,
+                                  builder: (context, snapshot) {
+                                    final isPlaying = snapshot.data ?? false;
+                                    return IconButton(
+                                      icon: Icon(
+                                        isPlaying
+                                            ? Icons.pause_rounded
+                                            : Icons.play_arrow_rounded,
+                                        color: Theme.of(context).primaryColor,
+                                      ),
+                                      onPressed: () {
+                                        if (isPlaying) {
+                                          provider.audioPlayer.pause();
+                                        } else {
+                                          provider.audioPlayer.play();
+                                        }
+                                      },
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Divider(color: Colors.white24, height: 1),
+                          // Upcoming Songs (Reorderable)
+                          Expanded(
+                            child: ReorderableListView.builder(
+                              physics: const BouncingScrollPhysics(),
+                              padding: const EdgeInsets.only(bottom: 100),
+                              itemCount: upcomingSongs.length,
+                              onReorder: (oldIndex, newIndex) {
+                                // ReorderableListView increments newIndex when dragging downwards.
+                                if (oldIndex < newIndex) {
+                                  newIndex -= 1;
+                                }
+                                // Map relative indices back to full playlist
+                                final actualOldIndex =
+                                    currentSongIndex + 1 + oldIndex;
+                                final actualNewIndex =
+                                    currentSongIndex + 1 + newIndex;
+
+                                setState(() {
+                                  provider.reorderPlaylist(
+                                      actualOldIndex, actualNewIndex);
+                                });
+                              },
+                              itemBuilder: (context, index) {
+                                final song = upcomingSongs[index];
+                                return ListTile(
+                                  key: ValueKey(song.id),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 24, vertical: 4),
+                                  leading: ClipRRect(
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: SizedBox(
+                                      width: 71,
+                                      height: 40,
+                                      child: song.localImagePath != null &&
+                                              File(song.localImagePath!)
+                                                  .existsSync()
+                                          ? Image.file(
+                                              File(song.localImagePath!),
+                                              fit: BoxFit.cover)
+                                          : CachedNetworkImage(
+                                              imageUrl: song.coverUrl,
+                                              fit: BoxFit.cover,
+                                              errorWidget: (context, url,
+                                                      error) =>
+                                                  DeviceCoverPlaceholder(
+                                                      width: 71,
+                                                      height: 40,
+                                                      borderRadius: 6,
+                                                      logoColor:
+                                                          Theme.of(context)
+                                                              .primaryColor),
+                                            ),
+                                    ),
+                                  ),
+                                  title: Text(
+                                    song.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13),
+                                  ),
+                                  subtitle: Text(
+                                    song.artist,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                        color: Colors.grey.shade400,
+                                        fontSize: 11),
+                                  ),
+                                  trailing: ReorderableDragStartListener(
+                                    index: index,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(left: 8.0),
+                                      child: CustomIcons.svgIcon(
+                                        CustomIcons.dragHandleRounded,
+                                        color: Colors.grey.shade500,
+                                        size: 24,
+                                      ),
+                                    ),
+                                  ),
+                                  onTap: () {
+                                    Navigator.pop(pageContext);
+                                    provider.playSong(song, provider.playlist);
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      );
+                    }),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 1.0);
+          const end = Offset.zero;
+          const curve = Curves.easeOutCubic;
+          var tween =
+              Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final songProvider = context.watch<SongProvider>();
@@ -317,7 +575,7 @@ class _PlayerPageState extends State<PlayerPage> {
       direction: DismissDirection.down,
       onDismissed: (_) => Navigator.of(context).pop(),
       child: Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: (_dominantColor ?? primaryColor).withOpacity(0.1),
         extendBodyBehindAppBar: true, // AppBar'ın arkasına içerik taşsın
         appBar: PreferredSize(
           preferredSize: const Size.fromHeight(kToolbarHeight),
@@ -367,13 +625,18 @@ class _PlayerPageState extends State<PlayerPage> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            currentSong.artist,
+                            songProvider.connectedBluetoothDevice != null
+                                ? songProvider.connectedBluetoothDevice!
+                                : currentSong.artist,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 9,
                               fontWeight: FontWeight.w600,
-                              color: Colors.white.withOpacity(0.7),
+                              color:
+                                  songProvider.connectedBluetoothDevice != null
+                                      ? const Color(0xFF1DB954)
+                                      : Colors.white.withOpacity(0.7),
                             ),
                           ),
                         ],
@@ -403,6 +666,18 @@ class _PlayerPageState extends State<PlayerPage> {
                       ),
                 actions: isScrolled
                     ? [
+                        if (songProvider.connectedBluetoothDevice != null)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8.0),
+                            child: Center(
+                              child: Image.asset(
+                                'assets/icon/OYN_ana_logo_seffaf.png',
+                                width: 22,
+                                height: 22,
+                                color: const Color(0xFF1DB954),
+                              ),
+                            ),
+                          ),
                         IconButton(
                           icon: Icon(
                             currentSong.isFavorite
@@ -442,9 +717,9 @@ class _PlayerPageState extends State<PlayerPage> {
                       ]
                     : [
                         IconButton(
-                          icon: CustomIcons.svgIcon(
-                            CustomIcons.menuRounded,
-                            size: 24,
+                          icon: const Icon(
+                            Icons.more_horiz,
+                            size: 28,
                             color: Colors.white,
                           ),
                           tooltip: langProvider.t('options'),
@@ -500,7 +775,7 @@ class _PlayerPageState extends State<PlayerPage> {
                   end: Alignment.bottomCenter,
                   colors: [
                     (_dominantColor ?? primaryColor).withOpacity(0.35),
-                    Theme.of(context).scaffoldBackgroundColor,
+                    (_dominantColor ?? primaryColor).withOpacity(0.1),
                   ],
                   stops: const [0.0, 1.0],
                 ),
@@ -519,8 +794,8 @@ class _PlayerPageState extends State<PlayerPage> {
                         top:
                             MediaQuery.of(context).padding.top + kToolbarHeight,
                         bottom: MediaQuery.of(context).padding.bottom + 12,
-                        left: screenWidth * 0.025,
-                        right: screenWidth * 0.025,
+                        left: screenWidth * 0.04,
+                        right: screenWidth * 0.04,
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.end,
@@ -579,7 +854,7 @@ class _PlayerPageState extends State<PlayerPage> {
                                 song: currentSong,
                                 provider: songProvider,
                                 // Ekran genişliğinin %90'ı kadar genişlik (Yükseklik 16:9 oranına göre içeride hesaplanacak)
-                                size: screenWidth * 0.9,
+                                size: screenWidth * 0.88,
                               ),
                             ),
                           ),
@@ -1010,9 +1285,9 @@ class _PlayerPageState extends State<PlayerPage> {
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: EdgeInsets.fromLTRB(
-                        screenWidth * 0.025,
+                        screenWidth * 0.04,
                         0,
-                        screenWidth * 0.025,
+                        screenWidth * 0.04,
                         16,
                       ),
                       child: _LyricsBlock(song: currentSong),
@@ -1023,165 +1298,157 @@ class _PlayerPageState extends State<PlayerPage> {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: EdgeInsets.fromLTRB(
-                      screenWidth * 0.025,
+                      screenWidth * 0.04,
                       24,
-                      screenWidth * 0.025,
+                      screenWidth * 0.04,
                       16,
                     ),
-                    child: Text(
-                      langProvider.t('they_will_play_next'),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          langProvider.t('they_will_play_next'),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          icon: CustomIcons.svgIcon(CustomIcons.queue,
+                              color: Colors.white70, size: 28),
+                          onPressed: () => _showFullScreenQueue(
+                              context, songProvider, langProvider),
+                        ),
+                      ],
                     ),
                   ),
                 ),
                 SliverPadding(
                   padding: EdgeInsets.symmetric(
-                    horizontal: screenWidth * 0.025,
+                    horizontal: screenWidth * 0.04,
                   ),
-                  sliver: SliverReorderableList(
-                    itemCount: songProvider.playlist.length,
-                    onReorder: (oldIndex, newIndex) {
-                      songProvider.reorderPlaylist(oldIndex, newIndex);
+                  sliver: Builder(
+                    builder: (context) {
+                      final currentSongIndex =
+                          songProvider.currentSongIndex ?? 0;
+                      // Display only the next 3 songs
+                      final upcomingSongs = songProvider.playlist
+                          .skip(currentSongIndex + 1)
+                          .take(3)
+                          .toList();
+
+                      return SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final song = upcomingSongs[index];
+
+                            return Padding(
+                              key: ValueKey(song.id),
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.4),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.05),
+                                    ),
+                                  ),
+                                  child: ListTile(
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
+                                    leading: ClipRRect(
+                                      borderRadius: BorderRadius.circular(6),
+                                      child: SizedBox(
+                                        width: 71,
+                                        height: 40,
+                                        child: (song.localImagePath != null &&
+                                                File(song.localImagePath!)
+                                                    .existsSync())
+                                            ? Image.file(
+                                                File(song.localImagePath!),
+                                                fit: BoxFit.cover,
+                                                cacheHeight: 200,
+                                              )
+                                            : CachedNetworkImage(
+                                                imageUrl: song.coverUrl,
+                                                fit: BoxFit.cover,
+                                                memCacheHeight: 200,
+                                                errorWidget:
+                                                    (context, url, error) =>
+                                                        DeviceCoverPlaceholder(
+                                                  width: 71,
+                                                  height: 40,
+                                                  borderRadius: 6,
+                                                  logoColor: Theme.of(context)
+                                                      .primaryColor,
+                                                ),
+                                              ),
+                                      ),
+                                    ),
+                                    title: Text(
+                                      song.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      song.artist,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: Colors.grey.shade400,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                    onTap: () {
+                                      songProvider.playSong(
+                                          song, songProvider.playlist);
+                                    },
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                          childCount: upcomingSongs.length,
+                        ),
+                      );
                     },
-                    itemBuilder: (context, index) {
-                      final song = songProvider.playlist[index];
-                      final isCurrent = song.id == songProvider.currentSong?.id;
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Builder(
+                    builder: (context) {
+                      final currentSongIndex =
+                          songProvider.currentSongIndex ?? 0;
+                      if (songProvider.playlist.isEmpty)
+                        return const SizedBox.shrink();
+                      final currentSong =
+                          songProvider.playlist[currentSongIndex];
 
                       return Padding(
-                        key: ValueKey(song.id),
-                        padding: const EdgeInsets.only(bottom: 8.0),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: isCurrent
-                                  ? Theme.of(context)
-                                      .primaryColor
-                                      .withOpacity(0.2)
-                                  : Colors.black.withOpacity(0.4),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: isCurrent
-                                    ? Theme.of(context)
-                                        .primaryColor
-                                        .withOpacity(0.5)
-                                    : Colors.white.withOpacity(0.05),
-                              ),
-                            ),
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              leading: ClipRRect(
-                                borderRadius: BorderRadius.circular(6),
-                                child: SizedBox(
-                                  width: 71, // 16:9 Oranı için genişletildi
-                                  height: 40,
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    children: <Widget>[
-                                      if (song.localImagePath != null &&
-                                          File(song.localImagePath!)
-                                              .existsSync())
-                                        Image.file(
-                                          File(song.localImagePath!),
-                                          fit: BoxFit.cover,
-                                          cacheHeight: 200,
-                                        )
-                                      else if (song.coverUrl.isEmpty)
-                                        DeviceCoverPlaceholder(
-                                          width: 71,
-                                          height: 40,
-                                          borderRadius: 6,
-                                          logoColor:
-                                              Theme.of(context).primaryColor,
-                                        )
-                                      else
-                                        CachedNetworkImage(
-                                          imageUrl: song.coverUrl,
-                                          fit: BoxFit.cover,
-                                          memCacheHeight: 200,
-                                          errorWidget: (
-                                            context,
-                                            url,
-                                            error,
-                                          ) =>
-                                              DeviceCoverPlaceholder(
-                                            width: 71,
-                                            height: 40,
-                                            borderRadius: 6,
-                                            logoColor:
-                                                Theme.of(context).primaryColor,
-                                          ),
-                                        ),
-                                      if (isCurrent)
-                                        Container(
-                                          color: Colors.black.withOpacity(0.6),
-                                          child: Center(
-                                            child: CustomIcons.svgIcon(
-                                              CustomIcons.graphicEq,
-                                              color: Theme.of(
-                                                context,
-                                              ).primaryColor,
-                                              size: 20,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              title: Text(
-                                song.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: isCurrent
-                                      ? Theme.of(context).primaryColor
-                                      : Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                ),
-                              ),
-                              subtitle: Text(
-                                song.artist,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: isCurrent
-                                      ? Theme.of(
-                                          context,
-                                        ).primaryColor.withOpacity(0.7)
-                                      : Colors.grey.shade400,
-                                  fontSize: 11,
-                                ),
-                              ),
-                              trailing: ReorderableDragStartListener(
-                                index: index,
-                                child: Padding(
-                                  padding: const EdgeInsets.only(left: 8.0),
-                                  child: CustomIcons.svgIcon(
-                                    CustomIcons.dragHandleRounded,
-                                    color: Colors.grey.shade500,
-                                    size: 24,
-                                  ),
-                                ),
-                              ),
-                              onTap: () {
-                                if (!isCurrent) {
-                                  songProvider.playSong(
-                                    song,
-                                    songProvider.playlist,
-                                  );
-                                }
-                              },
-                            ),
-                          ),
+                        padding: EdgeInsets.fromLTRB(
+                          screenWidth * 0.04,
+                          24,
+                          screenWidth * 0.04,
+                          16,
+                        ),
+                        child: CurrentArtistBox(
+                          artistName: currentSong.artist,
+                          songProvider: songProvider,
+                          langProvider: langProvider,
+                          onRequireLogin: () => _showLoginBottomSheet(context),
+                          currentSong: currentSong,
                         ),
                       );
                     },
@@ -1293,6 +1560,36 @@ class _PlayerPageState extends State<PlayerPage> {
                 );
               },
             ),
+          ListTile(
+            leading: CustomIcons.svgIcon(
+              CustomIcons.queue,
+              color: Colors.white,
+              size: 24,
+            ),
+            title: Text(
+              langProvider.t('they_will_play_next'),
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              _showFullScreenQueue(context, songProvider, langProvider);
+            },
+          ),
+          ListTile(
+            leading: CustomIcons.svgIcon(
+              CustomIcons.lyrics,
+              color: Colors.white,
+              size: 24,
+            ),
+            title: Text(
+              langProvider.t('lyrics'),
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              showGlobalFullScreenLyrics(context, currentSong, langProvider);
+            },
+          ),
           ListTile(
             leading: CustomIcons.svgIcon(
               CustomIcons.timerRounded,
@@ -1657,6 +1954,77 @@ class _LyricsBlockState extends State<_LyricsBlock> {
     }
   }
 
+  void _showFullScreenLyrics(
+      BuildContext context, Song song, LanguageProvider langProvider) {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (pageContext, animation, secondaryAnimation) {
+          return Scaffold(
+            backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
+            body: SafeArea(
+              child: Column(
+                children: [
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: IconButton(
+                        icon: const Icon(Icons.close_rounded,
+                            color: Colors.white, size: 32),
+                        onPressed: () => Navigator.pop(pageContext),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    langProvider.t('lyrics'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24.0, vertical: 8.0),
+                        child: Text(
+                          song.lyrics ?? '',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            height: 2.0,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 1.0);
+          const end = Offset.zero;
+          const curve = Curves.easeOutCubic;
+          var tween =
+              Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final langProvider = context.watch<LanguageProvider>();
@@ -1678,6 +2046,7 @@ class _LyricsBlockState extends State<_LyricsBlock> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 langProvider.t('lyrics'),
@@ -1687,6 +2056,15 @@ class _LyricsBlockState extends State<_LyricsBlock> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              if (currentSong.lyrics != null && currentSong.lyrics!.isNotEmpty)
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(Icons.fullscreen,
+                      color: Colors.white70, size: 28),
+                  onPressed: () =>
+                      _showFullScreenLyrics(context, currentSong, langProvider),
+                ),
             ],
           ),
           const SizedBox(height: 16),
@@ -2182,6 +2560,7 @@ Widget _buildDownloadButton(
   bool isMp4 = false,
 }) {
   final primaryColor = Theme.of(context).primaryColor;
+  final langProvider = context.read<LanguageProvider>();
 
   if (isMp4) {
     return ValueListenableBuilder<double?>(
@@ -2194,6 +2573,8 @@ Widget _buildDownloadButton(
         VoidCallback? onTap;
         Color borderColor;
         Color bgColor;
+        EdgeInsets buttonPadding =
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 8);
 
         if (isDownloading) {
           borderColor = primaryColor.withOpacity(0.8);
@@ -2202,22 +2583,22 @@ Widget _buildDownloadButton(
             key: const ValueKey('downloading_mp4'),
             mainAxisSize: MainAxisSize.min,
             children: [
+              Text(
+                langProvider.t('video'),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(width: 6),
               SizedBox(
-                width: 20,
-                height: 20,
+                width: 18,
+                height: 18,
                 child: CircularProgressIndicator(
                   value: progress == 0.0 ? null : progress,
                   strokeWidth: 2.5,
                   color: primaryColor,
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Text(
-                "Video",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
                 ),
               ),
             ],
@@ -2230,19 +2611,19 @@ Widget _buildDownloadButton(
             key: const ValueKey('downloaded_mp4'),
             mainAxisSize: MainAxisSize.min,
             children: [
-              CustomIcons.svgIcon(
-                CustomIcons.check,
-                color: Colors.greenAccent,
-                size: 20,
-              ),
-              const SizedBox(width: 6),
-              const Text(
-                "Video",
+              Text(
+                langProvider.t('video'),
                 style: TextStyle(
                   color: Colors.greenAccent,
                   fontWeight: FontWeight.bold,
-                  fontSize: 15,
+                  fontSize: 13,
                 ),
+              ),
+              const SizedBox(width: 4),
+              CustomIcons.svgIcon(
+                CustomIcons.check,
+                color: Colors.greenAccent,
+                size: 18,
               ),
             ],
           );
@@ -2253,35 +2634,21 @@ Widget _buildDownloadButton(
             );
           };
         } else {
+          buttonPadding = const EdgeInsets.fromLTRB(4, 8, 12, 8);
           borderColor = Colors.white.withOpacity(0.2);
           bgColor = Colors.black.withOpacity(0.4);
           content = Row(
             key: const ValueKey('download_mp4'),
             mainAxisSize: MainAxisSize.min,
             children: [
-              CustomIcons.svgIcon(
-                CustomIcons.downloadingRounded,
-                color: Colors.white,
-                size: 20,
-              ),
-              const SizedBox(width: 6),
-              const Text(
-                "Video",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                ),
-              ),
-              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
+                  horizontal: 6,
+                  vertical: 2,
                 ),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: Colors.white.withOpacity(0.14),
                   ),
@@ -2293,18 +2660,33 @@ Widget _buildDownloadButton(
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                        fontSize: 12,
                       ),
                     ),
                     const SizedBox(width: 4),
                     Image.asset(
                       'assets/trend_menu_icons/jeton_processed.png',
-                      width: 16,
-                      height: 16,
+                      width: 14,
+                      height: 14,
                       fit: BoxFit.contain,
                     ),
                   ],
                 ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                langProvider.t('video'),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(width: 4),
+              CustomIcons.svgIcon(
+                CustomIcons.downloadingRounded,
+                color: Colors.white,
+                size: 18,
               ),
             ],
           );
@@ -2334,19 +2716,16 @@ Widget _buildDownloadButton(
           curve: Curves.easeInOut,
           decoration: BoxDecoration(
             color: bgColor,
-            borderRadius: BorderRadius.circular(30),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(color: borderColor, width: 1.5),
           ),
           child: Material(
             color: Colors.transparent,
             child: InkWell(
               onTap: onTap,
-              borderRadius: BorderRadius.circular(30),
+              borderRadius: BorderRadius.circular(12),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
+                padding: buttonPadding,
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 300),
                   child: content,
@@ -2371,6 +2750,8 @@ Widget _buildDownloadButton(
       VoidCallback? onTap;
       Color borderColor;
       Color bgColor;
+      EdgeInsets buttonPadding =
+          const EdgeInsets.symmetric(horizontal: 12, vertical: 8);
 
       if (isDownloading) {
         borderColor = primaryColor.withOpacity(0.8);
@@ -2379,29 +2760,29 @@ Widget _buildDownloadButton(
           key: const ValueKey('downloading'),
           mainAxisSize: MainAxisSize.min,
           children: [
+            Text(
+              langProvider.t('music'),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(width: 6),
             SizedBox(
-              width: 20,
-              height: 20,
+              width: 18,
+              height: 18,
               child: isPaused
                   ? CustomIcons.svgIcon(
                       CustomIcons.pauseRounded,
                       color: primaryColor,
-                      size: 20,
+                      size: 18,
                     )
                   : CircularProgressIndicator(
                       value: progress == 0.0 && !isPaused ? null : progress,
                       strokeWidth: 2.5,
                       color: primaryColor,
                     ),
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              "Müzik",
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
-              ),
             ),
           ],
         );
@@ -2419,19 +2800,19 @@ Widget _buildDownloadButton(
           key: const ValueKey('downloaded'),
           mainAxisSize: MainAxisSize.min,
           children: [
-            CustomIcons.svgIcon(
-              CustomIcons.check,
-              color: Colors.greenAccent,
-              size: 20,
-            ),
-            const SizedBox(width: 6),
-            const Text(
-              "Müzik",
+            Text(
+              langProvider.t('music'),
               style: TextStyle(
                 color: Colors.greenAccent,
                 fontWeight: FontWeight.bold,
-                fontSize: 15,
+                fontSize: 13,
               ),
+            ),
+            const SizedBox(width: 4),
+            CustomIcons.svgIcon(
+              CustomIcons.check,
+              color: Colors.greenAccent,
+              size: 18,
             ),
           ],
         );
@@ -2442,35 +2823,21 @@ Widget _buildDownloadButton(
           );
         };
       } else {
+        buttonPadding = const EdgeInsets.fromLTRB(4, 8, 12, 8);
         borderColor = Colors.white.withOpacity(0.2);
         bgColor = Colors.black.withOpacity(0.4);
         content = Row(
           key: const ValueKey('download'),
           mainAxisSize: MainAxisSize.min,
           children: [
-            CustomIcons.svgIcon(
-              CustomIcons.downloadingRounded,
-              color: Colors.white,
-              size: 20,
-            ),
-            const SizedBox(width: 6),
-            const Text(
-              "Müzik",
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
-              ),
-            ),
-            const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 4,
+                horizontal: 6,
+                vertical: 2,
               ),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: Colors.white.withOpacity(0.14),
                 ),
@@ -2482,18 +2849,33 @@ Widget _buildDownloadButton(
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                      fontSize: 12,
                     ),
                   ),
                   const SizedBox(width: 4),
                   Image.asset(
                     'assets/trend_menu_icons/jeton_processed.png',
-                    width: 16,
-                    height: 16,
+                    width: 14,
+                    height: 14,
                     fit: BoxFit.contain,
                   ),
                 ],
               ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              langProvider.t('music'),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(width: 4),
+            CustomIcons.svgIcon(
+              CustomIcons.downloadingRounded,
+              color: Colors.white,
+              size: 18,
             ),
           ],
         );
@@ -2527,19 +2909,16 @@ Widget _buildDownloadButton(
         curve: Curves.easeInOut,
         decoration: BoxDecoration(
           color: bgColor,
-          borderRadius: BorderRadius.circular(30),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: borderColor, width: 1.5),
         ),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: onTap,
-            borderRadius: BorderRadius.circular(30),
+            borderRadius: BorderRadius.circular(12),
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 12,
-              ),
+              padding: buttonPadding,
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
                 child: content,
@@ -2569,4 +2948,75 @@ class _CustomTrackShape extends RoundedRectSliderTrackShape {
     final double trackWidth = parentBox.size.width;
     return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
   }
+}
+
+void showGlobalFullScreenLyrics(
+    BuildContext context, Song song, LanguageProvider langProvider) {
+  Navigator.push(
+    context,
+    PageRouteBuilder(
+      pageBuilder: (pageContext, animation, secondaryAnimation) {
+        return Scaffold(
+          backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
+          body: SafeArea(
+            child: Column(
+              children: [
+                Align(
+                  alignment: Alignment.topRight,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: IconButton(
+                      icon: const Icon(Icons.close_rounded,
+                          color: Colors.white, size: 32),
+                      onPressed: () => Navigator.pop(pageContext),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  langProvider.t('lyrics'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24.0, vertical: 8.0),
+                      child: Text(
+                        song.lyrics ?? '',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          height: 2.0,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        const begin = Offset(0.0, 1.0);
+        const end = Offset.zero;
+        const curve = Curves.easeOutCubic;
+        var tween =
+            Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+        return SlideTransition(
+          position: animation.drive(tween),
+          child: child,
+        );
+      },
+    ),
+  );
 }

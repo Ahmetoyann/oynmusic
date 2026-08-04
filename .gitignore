@@ -53,6 +53,7 @@ android/.gradle/
 android/app/build/
 ios/Pods/
 git init
+/notification/serviceAccountKey.json
 
 # Environment files
 youtubeapi.env

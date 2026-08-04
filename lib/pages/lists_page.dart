@@ -52,8 +52,14 @@ class _ListelerPageState extends State<ListelerPage> {
         ? folders
         : folders.where((f) => f.isFromDownloads).toList();
 
-    // Varsayılan olarak en yeni eklenen klasörler üstte görünsün
+    // Varsayılan olarak en yeni eklenen klasörler üstte görünsün, ancak sabitlenenler en üstte olsun
     final sortedFolders = displayFolders.reversed.toList();
+    sortedFolders.sort((a, b) {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return 0; // İkisi de aynıysa (ikisi de sabitli veya ikisi de değil), mevcut (ters) sırayı koru
+    });
+
     final screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
@@ -257,15 +263,33 @@ class _ListelerPageState extends State<ListelerPage> {
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            folder.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  folder.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              if (folder.isPinned)
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: Transform.rotate(
+                    angle: 0.7854, // 45 degrees in radians
+                    child: const Icon(
+                      Icons.push_pin,
+                      size: 12,
+                      color: Colors.green,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),
@@ -757,6 +781,25 @@ class _ListelerPageState extends State<ListelerPage> {
         mainAxisSize: MainAxisSize.min,
         children: [
           const SizedBox(height: 24),
+          ListTile(
+            leading: Icon(
+              folder.isPinned ? Icons.push_pin_outlined : Icons.push_pin,
+              color: folder.isPinned ? Colors.grey : Colors.green,
+              size: 24,
+            ),
+            title: Text(
+              folder.isPinned
+                  ? 'Sabitlemeyi Kaldır'
+                  : 'Sabitle', // Replace with localized text if you have it in langProvider later
+              style: TextStyle(
+                color: folder.isPinned ? Colors.grey : Colors.green,
+              ),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              context.read<SongProvider>().toggleFolderPin(folder);
+            },
+          ),
           ListTile(
             leading: CustomIcons.svgIcon(
               CustomIcons.edit,

@@ -17,6 +17,7 @@ import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:muzik_app/main.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/widgets/custom_app_bar.dart';
+import 'package:muzik_app/widgets/hero_loading_indicator.dart';
 import 'package:muzik_app/widgets/custom_drop_down.dart';
 import 'package:muzik_app/providers/language_provider.dart';
 import 'package:muzik_app/widgets/custom_search_bar.dart';
@@ -47,6 +48,7 @@ class DownloadsPageState extends State<DownloadsPage> {
   late bool _showVideos;
   bool _showStickyPlayButton = false;
   int _selectedTabIndex = 0; // 0: Uygulama İndirmeleri, 1: Cihazımdaki Müzikler
+  bool _isInitialLoading = true;
 
   final Map<String, String> _fileSizeCache = {};
   final Map<String, bool> _fileExistsCache = {};
@@ -63,6 +65,9 @@ class DownloadsPageState extends State<DownloadsPage> {
   void initState() {
     super.initState();
     _showVideos = widget.showVideosInitially;
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (mounted) setState(() => _isInitialLoading = false);
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context
@@ -1092,7 +1097,15 @@ class DownloadsPageState extends State<DownloadsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final songProvider = context.read<SongProvider>();
+    if (_isInitialLoading) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: const Center(
+          child: HeroLoadingIndicator(),
+        ),
+      );
+    }
+    final songProvider = context.watch<SongProvider>();
     final langProvider = context.watch<LanguageProvider>();
 
     final downloadedSongs =

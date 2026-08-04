@@ -338,9 +338,13 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                 mainAxisSize: MainAxisSize.min,
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  const Icon(Icons.bluetooth,
-                                      color: Colors.green, size: 22),
-                                  SizedBox(height: 2),
+                                  Image.asset(
+                                    'assets/icon/OYN_ana_logo_seffaf.png',
+                                    height: 22,
+                                    width: 22,
+                                    color: Colors.green,
+                                  ),
+                                  const SizedBox(height: 2),
                                   Text(
                                     songProvider.connectedBluetoothDevice!,
                                     style: const TextStyle(

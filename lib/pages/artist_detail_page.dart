@@ -9,6 +9,7 @@ import 'package:muzik_app/pages/player_page.dart';
 import 'package:muzik_app/widgets/mini_player.dart';
 import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/widgets/song_card.dart';
+import 'package:muzik_app/widgets/hero_loading_indicator.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:muzik_app/pages/login_page.dart';
@@ -42,6 +43,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
   String _searchText = '';
   bool _showSearchBar = false;
   bool _showStickyPlayButton = false;
+  bool _isInitialLoading = true;
 
   @override
   void initState() {
@@ -58,6 +60,10 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
         context.read<SongProvider>().fetchArtistAvatar(widget.artistName);
       });
     }
+
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (mounted) setState(() => _isInitialLoading = false);
+    });
   }
 
   @override
@@ -137,6 +143,14 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
 
   @override
   Widget build(BuildContext context) {
+    if (_isInitialLoading) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: const Center(
+          child: HeroLoadingIndicator(),
+        ),
+      );
+    }
     final langProvider = context.watch<LanguageProvider>();
     // Favori durumlarını dinlemek için watch kullanıyoruz
     final songProvider = context.watch<SongProvider>();
@@ -920,9 +934,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Center(
-                      child: CircularProgressIndicator(
-                        color: Theme.of(context).primaryColor,
-                      ),
+                      child: HeroLoadingIndicator(size: 60),
                     ),
                   ),
                 ),

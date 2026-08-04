@@ -15,6 +15,7 @@ import 'package:muzik_app/services/audius_service.dart';
 import 'package:muzik_app/widgets/song_card.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
+import 'package:muzik_app/widgets/hero_loading_indicator.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/widgets/custom_app_bar.dart';
 import 'package:muzik_app/widgets/custom_drop_down.dart';
@@ -46,11 +47,15 @@ class _FolderDetailPageState extends State<FolderDetailPage>
   String _searchText = '';
   bool _showStickyPlayButton = false;
   bool _showSearchBar = false;
+  bool _isInitialLoading = true;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (mounted) setState(() => _isInitialLoading = false);
+    });
   }
 
   @override
@@ -105,6 +110,14 @@ class _FolderDetailPageState extends State<FolderDetailPage>
 
   @override
   Widget build(BuildContext context) {
+    if (_isInitialLoading) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: const Center(
+          child: HeroLoadingIndicator(),
+        ),
+      );
+    }
     // Provider'ı izleyerek değişikliklerde sayfanın yenilenmesini sağlıyoruz.
     final songProvider = context.read<SongProvider>();
     final folders =
@@ -1731,7 +1744,7 @@ class _AddSongsSheetState extends State<AddSongsSheet> {
         const SizedBox(height: 16),
         Expanded(
           child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
+              ? const Center(child: HeroLoadingIndicator())
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemCount: _songs.length,

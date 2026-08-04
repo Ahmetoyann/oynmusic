@@ -63,19 +63,18 @@ class CustomBottomSheet extends StatelessWidget {
               Align(
                 alignment: Alignment.bottomCenter,
                 child: SafeArea(
+                  bottom: false,
                   child: Padding(
-                    padding: const EdgeInsets.only(
-                      bottom: 24,
-                      left: 16,
-                      right: 16,
-                    ),
+                    padding: EdgeInsets.zero,
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(16)),
                       child: Container(
                         width: double.infinity,
                         decoration: BoxDecoration(
                           color: Colors.grey.shade900,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(16)),
                           border: Border.all(
                             color: Colors.white.withOpacity(0.1),
                             width: 1.2,
@@ -90,16 +89,19 @@ class CustomBottomSheet extends StatelessWidget {
                         ),
                         child: Material(
                           color: Colors.transparent,
-                          child: CustomBottomSheet(
-                            title: title,
-                            message: message,
-                            icon: icon,
-                            primaryButtonText: primaryButtonText,
-                            onPrimaryButtonTap: onPrimaryButtonTap,
-                            secondaryButtonText: secondaryButtonText,
-                            onSecondaryButtonTap: onSecondaryButtonTap,
-                            primaryButtonColor: primaryButtonColor,
-                            primaryButtonTextColor: primaryButtonTextColor,
+                          child: SafeArea(
+                            top: false,
+                            child: CustomBottomSheet(
+                              title: title,
+                              message: message,
+                              icon: icon,
+                              primaryButtonText: primaryButtonText,
+                              onPrimaryButtonTap: onPrimaryButtonTap,
+                              secondaryButtonText: secondaryButtonText,
+                              onSecondaryButtonTap: onSecondaryButtonTap,
+                              primaryButtonColor: primaryButtonColor,
+                              primaryButtonTextColor: primaryButtonTextColor,
+                            ),
                           ),
                         ),
                       ),
@@ -161,14 +163,12 @@ class CustomBottomSheet extends StatelessWidget {
               Align(
                 alignment: Alignment.bottomCenter,
                 child: SafeArea(
+                  bottom: false,
                   child: Padding(
-                    padding: const EdgeInsets.only(
-                      bottom: 24,
-                      left: 16,
-                      right: 16,
-                    ),
+                    padding: EdgeInsets.zero,
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(24)),
                       child: Container(
                         width: double.infinity,
                         constraints: BoxConstraints(
@@ -177,7 +177,8 @@ class CustomBottomSheet extends StatelessWidget {
                         clipBehavior: Clip.antiAlias,
                         decoration: BoxDecoration(
                           color: backgroundColor ?? Colors.grey.shade900,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(24)),
                           border: backgroundColor == Colors.transparent
                               ? null
                               : Border.all(
@@ -196,7 +197,10 @@ class CustomBottomSheet extends StatelessWidget {
                         ),
                         child: Material(
                           color: Colors.transparent,
-                          child: child,
+                          child: SafeArea(
+                            top: false,
+                            child: child,
+                          ),
                         ),
                       ),
                     ),

@@ -55,7 +55,14 @@ class YoutubeService {
         print("Sayfalama hatası (Trend): $pageError");
       }
 
-      final targetVideos = videos.skip(offset).take(limit).toList();
+      // Eğer offset toplam video sayısından büyükse başa sar veya sıfırla
+      int safeOffset = offset;
+      if (videos.isNotEmpty && safeOffset >= videos.length) {
+        safeOffset = videos.length > limit ? videos.length - limit : 0;
+        if (safeOffset < 0) safeOffset = 0;
+      }
+
+      final targetVideos = videos.skip(safeOffset).take(limit).toList();
       final songs = targetVideos.map((video) {
         return Song(
           id: video.id.value,
@@ -69,12 +76,14 @@ class YoutubeService {
         );
       }).toList();
 
-      // 2. Yeni veriyi önbelleğe al
-      await prefs.setString(
-        cacheKey,
-        jsonEncode(songs.map((s) => s.toJson()).toList()),
-      );
-      await prefs.setString(cacheTimeKey, DateTime.now().toIso8601String());
+      // 2. Yeni veriyi önbelleğe al (Sadece veri varsa kaydet ki boş ekran hatası olmasın)
+      if (songs.isNotEmpty) {
+        await prefs.setString(
+          cacheKey,
+          jsonEncode(songs.map((s) => s.toJson()).toList()),
+        );
+        await prefs.setString(cacheTimeKey, DateTime.now().toIso8601String());
+      }
 
       return songs;
     } catch (e) {

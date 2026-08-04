@@ -504,6 +504,23 @@ class CustomIcons {
   <path d="M7 7h10v1.79c0 .45.54.67.85.35l2.79-2.79c.2-.2.2-.51 0-.71l-2.79-2.79c-.31-.31-.85-.09-.85.36V5H6c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1s1-.45 1-1V7zm10 10H7v-1.79c0-.45-.54-.67-.85-.35l-2.79 2.79c-.2.2-.2.51 0 .71l2.79 2.79c.31.31.85.09.85-.36V19h11c.55 0 1-.45 1-1v-4c0-.55-.45-1-1-1s-1 .45-1 1v3z"/>
 </svg>''';
 
+  static const String lyrics =
+      '''<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2">
+  <rect x="6" y="10" width="36" height="28" rx="4" />
+  <line x1="12" y1="18" x2="36" y2="18" />
+  <line x1="12" y1="24" x2="28" y2="24" />
+  <line x1="12" y1="30" x2="32" y2="30" />
+</svg>''';
+
+  static const String queue =
+      '''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M11 17a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" />
+  <path d="M17 17v-13h4" />
+  <path d="M13 5h-10" />
+  <path d="M3 9l10 0" />
+  <path d="M9 13h-6" />
+</svg>''';
+
   /// Helper to render SVG icons
   static Widget svgIcon(String svgCode, {double? size, Color? color}) {
     return Builder(

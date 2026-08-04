@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'dart:ui';
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
@@ -15,8 +14,6 @@ import 'package:muzik_app/pages/offline_downloads_page.dart';
 import 'package:muzik_app/providers/song_provider.dart';
 import 'package:muzik_app/widgets/mini_player.dart';
 import 'package:provider/provider.dart';
-import 'package:muzik_app/models/song_model.dart';
-import 'package:muzik_app/pages/favorites_page.dart'; // TrendPage'deki import yapısına göre
 import 'package:muzik_app/providers/theme_provider.dart';
 import 'package:muzik_app/providers/language_provider.dart';
 import 'package:muzik_app/providers/auth_provider.dart';
@@ -36,18 +33,19 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:in_app_review/in_app_review.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
-import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 
 // Global Navigator Key
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 final GlobalKey<MainScreenState> mainScreenKey = GlobalKey<MainScreenState>();
-final GlobalKey<DownloadsPageState> downloadsPageKey = GlobalKey<DownloadsPageState>();
+final GlobalKey<DownloadsPageState> downloadsPageKey =
+    GlobalKey<DownloadsPageState>();
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -84,8 +82,8 @@ void main() async {
     ),
   );
 
-  if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-    await MobileAds.instance.initialize();
+  if (Platform.isAndroid || Platform.isIOS) {
+    MobileAds.instance.initialize();
   }
   try {
     await dotenv.load(fileName: "youtubeapi.env");
@@ -98,6 +96,9 @@ void main() async {
     );
     // Arkaplan bildirim dinleyicisini kaydet
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+    // Herkesi all_users konusuna abone yap (Bildirimler için)
+    await FirebaseMessaging.instance.subscribeToTopic('all_users');
   } catch (e) {
     debugPrint("Firebase başlatılamadı: $e");
   }
@@ -740,219 +741,19 @@ class MainScreenState extends State<MainScreen> {
     }
   }
 
-  void _showReviewBottomSheet() {
-    final langProvider = context.read<LanguageProvider>();
-    int selectedStar = 0;
-    bool showFeedbackForm = false;
-    final TextEditingController feedbackController = TextEditingController();
+  Future<void> _showReviewBottomSheet() async {
+    final InAppReview inAppReview = InAppReview.instance;
 
-    Navigator.push(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (pageContext, animation, secondaryAnimation) {
-          return Scaffold(
-            backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
-            body: SafeArea(
-              child: StatefulBuilder(
-                builder: (context, setModalState) {
-                  final primaryColor = Theme.of(context).primaryColor;
-
-                  return Column(
-                    children: [
-                      Align(
-                        alignment: Alignment.topRight,
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: IconButton(
-                            icon: const Icon(Icons.close_rounded,
-                                color: Colors.white, size: 32),
-                            onPressed: () => Navigator.pop(pageContext),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          padding: EdgeInsets.only(
-                            bottom: MediaQuery.of(context).viewInsets.bottom,
-                            left: 24,
-                            right: 24,
-                            top: 24,
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  color: primaryColor.withOpacity(0.15),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.star_rounded,
-                                  color: primaryColor,
-                                  size: 48,
-                                ),
-                              ),
-                              const SizedBox(height: 24),
-                              Text(
-                                langProvider.t('do_you_like_app'),
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                showFeedbackForm
-                                    ? langProvider.t('help_us_improve')
-                                    : langProvider.t('how_do_you_rate'),
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.7),
-                                  fontSize: 15,
-                                ),
-                              ),
-                              const SizedBox(height: 32),
-
-                              // Yıldızlar
-                              if (!showFeedbackForm)
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: List.generate(5, (index) {
-                                    return GestureDetector(
-                                      onTap: () {
-                                        setModalState(() {
-                                          selectedStar = index + 1;
-                                        });
-                                      },
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 4.0),
-                                        child: Icon(
-                                          index < selectedStar
-                                              ? Icons.star_rounded
-                                              : Icons.star_border_rounded,
-                                          color: index < selectedStar
-                                              ? Colors.amber
-                                              : Colors.grey.shade600,
-                                          size: 40,
-                                        ),
-                                      ),
-                                    );
-                                  }),
-                                ),
-
-                              // Düşük Puanda Çıkan Geri Bildirim Formu
-                              if (showFeedbackForm)
-                                TextField(
-                                  controller: feedbackController,
-                                  maxLines: 3,
-                                  style: const TextStyle(color: Colors.white),
-                                  decoration: InputDecoration(
-                                    hintText:
-                                        langProvider.t('write_your_thoughts'),
-                                    hintStyle:
-                                        TextStyle(color: Colors.grey.shade500),
-                                    filled: true,
-                                    fillColor: Colors.grey.shade800,
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: BorderSide.none,
-                                    ),
-                                  ),
-                                ),
-
-                              const SizedBox(height: 32),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: selectedStar > 0
-                                        ? primaryColor
-                                        : Colors.grey.shade800,
-                                    foregroundColor:
-                                        primaryColor.computeLuminance() > 0.5
-                                            ? Colors.black
-                                            : Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 16),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                  ),
-                                  onPressed: selectedStar == 0
-                                      ? null
-                                      : () async {
-                                          if (selectedStar >= 4) {
-                                            Navigator.pop(pageContext);
-                                            final url =
-                                                'https://play.google.com/store/apps/details?id=com.ahmed.oyn_music';
-                                            final uri = Uri.parse(url);
-                                            if (await canLaunchUrl(uri)) {
-                                              await launchUrl(uri,
-                                                  mode: LaunchMode
-                                                      .externalApplication);
-                                            }
-                                          } else {
-                                            if (!showFeedbackForm) {
-                                              setModalState(() =>
-                                                  showFeedbackForm = true);
-                                            } else {
-                                              Navigator.pop(pageContext);
-                                              CustomSnackBar.showSuccess(
-                                                context: context,
-                                                message: langProvider
-                                                    .t('thanks_for_feedback'),
-                                              );
-                                            }
-                                          }
-                                        },
-                                  child: Text(
-                                    showFeedbackForm
-                                        ? langProvider.t('send')
-                                        : (selectedStar >= 4
-                                            ? langProvider
-                                                .t('rate_on_google_play')
-                                            : langProvider.t('next')),
-                                    style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              TextButton(
-                                onPressed: () => Navigator.pop(pageContext),
-                                child: Text(
-                                  langProvider.t('later'),
-                                  style: TextStyle(color: Colors.grey),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          );
-        },
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          const begin = Offset(0.0, 1.0);
-          const end = Offset.zero;
-          const curve = Curves.easeOutCubic;
-          var tween =
-              Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-          return SlideTransition(
-              position: animation.drive(tween), child: child);
-        },
-      ),
-    );
+    if (await inAppReview.isAvailable()) {
+      await inAppReview.requestReview();
+    } else {
+      final url =
+          'https://play.google.com/store/apps/details?id=com.ahmed.oyn_music';
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    }
   }
 
   Widget _buildNavItem(

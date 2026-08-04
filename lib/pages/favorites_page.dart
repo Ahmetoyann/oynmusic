@@ -12,6 +12,7 @@ import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:muzik_app/main.dart';
 import 'package:muzik_app/widgets/custom_app_bar.dart';
+import 'package:muzik_app/widgets/hero_loading_indicator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:muzik_app/pages/folder_detail_page.dart';
 import 'package:muzik_app/pages/player_page.dart';
@@ -39,6 +40,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
   SortOption _sortOption = SortOption.dateNewest;
   final ScrollController _scrollController = ScrollController();
   bool _showStickyPlayButton = false;
+  bool _isInitialLoading = true;
 
   List<Song> _cachedFilteredSongs = [];
   int _lastListLength = -1;
@@ -50,6 +52,10 @@ class _FavoritesPageState extends State<FavoritesPage> {
   @override
   void initState() {
     super.initState();
+
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (mounted) setState(() => _isInitialLoading = false);
+    });
 
     _scrollController.addListener(() {
       if (_scrollController.hasClients) {
@@ -939,7 +945,15 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
   @override
   Widget build(BuildContext context) {
-    final songProvider = context.read<SongProvider>();
+    if (_isInitialLoading) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: const Center(
+          child: HeroLoadingIndicator(),
+        ),
+      );
+    }
+    final songProvider = context.watch<SongProvider>();
     final authProvider = context.watch<AuthProvider>();
     final langProvider = context.watch<LanguageProvider>();
 
