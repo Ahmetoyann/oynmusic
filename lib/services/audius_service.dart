@@ -43,11 +43,14 @@ class YoutubeService {
 
       // Yükleme sırasında ofseti yakalamak için gerekirse sonraki sayfaları çek
       try {
-        while (videos.length < offset + limit) {
+        int maxPages = 5; // Sonsuz döngüyü (ve RAM sızıntısını) önlemek için sınır
+        int pagesFetched = 0;
+        while (videos.length < offset + limit && pagesFetched < maxPages) {
           final nextPage = await searchResults.nextPage();
           if (nextPage == null || nextPage.isEmpty) break;
           videos.addAll(nextPage.whereType<Video>());
           searchResults = nextPage;
+          pagesFetched++;
         }
       } catch (pageError) {
         // Sonraki sayfaları çekerken YouTube bot korumasına takılırsa,
@@ -123,11 +126,14 @@ class YoutubeService {
 
       // Yükleme sırasında ofseti yakalamak için gerekirse sonraki sayfaları çek
       try {
-        while (videos.length < offset + limit) {
+        int maxPages = 5;
+        int pagesFetched = 0;
+        while (videos.length < offset + limit && pagesFetched < maxPages) {
           final nextPage = await searchResults.nextPage();
           if (nextPage == null || nextPage.isEmpty) break;
           videos.addAll(nextPage.whereType<Video>());
           searchResults = nextPage;
+          pagesFetched++;
         }
       } catch (pageError) {
         print("Sayfalama hatası (Arama): $pageError");
