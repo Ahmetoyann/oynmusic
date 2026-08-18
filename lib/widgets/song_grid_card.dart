@@ -6,6 +6,7 @@ import 'package:muzik_app/widgets/song_card.dart';
 import 'package:provider/provider.dart';
 import 'package:muzik_app/providers/song_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:muzik_app/widgets/device_cover_placeholder.dart';
 
 class SongGridCard extends StatelessWidget {
   final Song? song;
@@ -37,6 +38,25 @@ class SongGridCard extends StatelessWidget {
           )
         : false;
 
+    Widget buildFallback() {
+      return Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.grey.shade800, Colors.black],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Center(
+          child: CustomIcons.svgIcon(
+            placeholderIcon,
+            color: Colors.white.withOpacity(0.15),
+            size: 28,
+          ),
+        ),
+      );
+    }
+
     return GestureDetector(
       onTap: onTap,
       onLongPress: song != null
@@ -65,34 +85,23 @@ class SongGridCard extends StatelessWidget {
                             fit: BoxFit.cover,
                             cacheHeight: 300,
                             errorBuilder: (context, error, stackTrace) =>
-                                Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [Colors.grey.shade800, Colors.black],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                              ),
-                            ),
+                                buildFallback(),
                           )
-                        : CachedNetworkImage(
-                            imageUrl: imageUrl.contains('ytimg.com')
-                                ? imageUrl
-                                    .replaceAll('maxresdefault.jpg', 'mqdefault.jpg')
-                                    .replaceAll('hqdefault.jpg', 'mqdefault.jpg')
-                                : imageUrl,
-                            fit: BoxFit.cover,
-                            memCacheHeight: 300,
-                            errorWidget: (context, url, error) => Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [Colors.grey.shade800, Colors.black],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                              ),
-                            ),
-                          ),
+                        : (imageUrl.isNotEmpty)
+                            ? CachedNetworkImage(
+                                imageUrl: imageUrl.contains('ytimg.com')
+                                    ? imageUrl
+                                        .replaceAll('maxresdefault.jpg',
+                                            'mqdefault.jpg')
+                                        .replaceAll(
+                                            'hqdefault.jpg', 'mqdefault.jpg')
+                                    : imageUrl,
+                                fit: BoxFit.cover,
+                                memCacheHeight: 300,
+                                errorWidget: (context, url, error) =>
+                                    buildFallback(),
+                              )
+                            : buildFallback(),
                     if (isFav)
                       Positioned(
                         top: 6,

@@ -2030,10 +2030,11 @@ class SongProvider with ChangeNotifier {
 
   /// Arama sayfası için rastgele önerilen şarkıları çeker
   Future<void> fetchSuggestedSongs({bool forceRefresh = false}) async {
-    // Eğer resimler tamamsa ve forceRefresh yoksa es geç (Anında görünmesi için)
+    // Eğer resimler tamamsa, koleksiyonlar 10 ise ve forceRefresh yoksa es geç (Anında görünmesi için)
     if (!forceRefresh &&
         _suggestedSongs.isNotEmpty &&
         _suggestedArtists.isNotEmpty &&
+        _suggestedAlbums.length >= 10 &&
         !_suggestedArtists.any((a) =>
             a.coverUrl.isEmpty ||
             a.coverUrl.contains('ui-avatars.com') ||
@@ -2069,21 +2070,49 @@ class SongProvider with ChangeNotifier {
       }).toList();
     }
 
-    // Statik Popüler Mix İsimleri (Gerçek YouTube mix'leri aranacak)
-    final List<String> topMixes = [
+    // Dinamik Kişiselleştirilmiş Mix İsimleri (10 Adet)
+    List<String> dynamicMixNames = [];
+    final sourceSongs = [..._recentlyPlayed, ..._favoriteSongs];
+    for (var song in sourceSongs) {
+      final mixName = '${song.artist} Mix';
+      if (!dynamicMixNames.contains(mixName)) {
+        dynamicMixNames.add(mixName);
+      }
+      if (dynamicMixNames.length >= 10) break;
+    }
+
+    if (dynamicMixNames.length < 10 && _suggestedSongs.isNotEmpty) {
+      for (var song in _suggestedSongs) {
+        final mixName = '${song.artist} Mix';
+        if (!dynamicMixNames.contains(mixName)) {
+          dynamicMixNames.add(mixName);
+        }
+        if (dynamicMixNames.length >= 10) break;
+      }
+    }
+
+    final fallbackMixes = [
+      'Haftalık Keşif Mix',
+      'Popüler Şarkılar Mix',
+      'Yeni Çıkanlar Mix',
       'Türkçe Pop Mix',
-      'Semicenk Mix',
-      'Sezen Aksu Mix',
+      'Akustik Mix',
+      'Rap Mix',
+      'Slow Müzik Mix',
       'Yabancı Hit Mix',
       'Arabesk Mix',
-      '90lar Pop Mix',
-      'Rap Mix',
-      'Akustik Mix',
-      'Slow Müzik Mix',
-      'Yaz Şarkıları Mix',
+      'Yaz Şarkıları Mix'
     ];
+    for (var fallback in fallbackMixes) {
+      if (dynamicMixNames.length >= 10) break;
+      if (!dynamicMixNames.contains(fallback)) {
+        dynamicMixNames.add(fallback);
+      }
+    }
 
-    if (_suggestedAlbums.isEmpty || forceRefresh) {
+    final List<String> topMixes = dynamicMixNames.take(10).toList();
+
+    if (_suggestedAlbums.length < 10 || forceRefresh) {
       _suggestedAlbums = topMixes.asMap().entries.map((entry) {
         final mixName = entry.value;
         return Song(
@@ -2195,8 +2224,11 @@ class SongProvider with ChangeNotifier {
           coverUrl: realCover,
           audioUrl: '',
         );
+        _suggestedArtists = List.from(_suggestedArtists);
         notifyListeners();
         _saveSuggestedToLocal(); // Resmi bulunca kaydet
+        // YouTube API spam (429 Too Many Requests) hatasını önlemek için 1.5 saniye bekle
+        await Future.delayed(const Duration(milliseconds: 1500));
       } catch (_) {
         _suggestedArtists[i] = Song(
           id: _suggestedArtists[i].id,
@@ -2206,8 +2238,10 @@ class SongProvider with ChangeNotifier {
               'https://ui-avatars.com/api/?name=${Uri.encodeComponent(artistName)}&background=random&color=fff&size=200',
           audioUrl: '',
         );
+        _suggestedArtists = List.from(_suggestedArtists);
         notifyListeners();
         _saveSuggestedToLocal();
+        await Future.delayed(const Duration(milliseconds: 1500));
       }
     }
 
@@ -2243,7 +2277,10 @@ class SongProvider with ChangeNotifier {
             audioUrl: '',
           );
         }
+        _suggestedAlbums = List.from(_suggestedAlbums);
         notifyListeners();
+        // YouTube API spam hatasını önlemek için 1.5 saniye bekle
+        await Future.delayed(const Duration(milliseconds: 1500));
       } catch (_) {
         _suggestedAlbums[i] = Song(
           id: _suggestedAlbums[i].id,
@@ -2253,8 +2290,10 @@ class SongProvider with ChangeNotifier {
               'https://ui-avatars.com/api/?name=${Uri.encodeComponent(mixName)}&background=random&color=fff&size=200',
           audioUrl: '',
         );
+        _suggestedAlbums = List.from(_suggestedAlbums);
         notifyListeners();
         _saveSuggestedToLocal();
+        await Future.delayed(const Duration(milliseconds: 1500));
       }
     }
   }
@@ -2551,8 +2590,12 @@ class SongProvider with ChangeNotifier {
     // 1. Önbellekten hemen yükle (Anında görüntüleme için)
     if (cachedData != null) {
       try {
-        final Map<String, dynamic> decoded = jsonDecode(cachedData);
-        _initialTrendArtists = decoded.map((key, value) {
+        dynamic decoded = jsonDecode(cachedData);
+        if (decoded is String) {
+          decoded = jsonDecode(decoded);
+        }
+        final Map<String, dynamic> decodedMap = decoded as Map<String, dynamic>;
+        _initialTrendArtists = decodedMap.map((key, value) {
           return MapEntry(
             key,
             (value as List)

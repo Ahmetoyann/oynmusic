@@ -511,31 +511,15 @@ class _TrendPageState extends State<TrendPage> {
     final suggestedAlbums =
         context.select<SongProvider, List<Song>>((p) => p.suggestedAlbums);
 
-    // Trend şarkıları arasından koleksiyonları (mix/albüm) filtrele
-    List<Song> collectionSongs = songs.where((song) {
-      final title = song.title.toLowerCase();
-      return title.contains('mix') ||
-          title.contains('albüm') ||
-          title.contains('album') ||
-          title.contains('playlist') ||
-          title.contains('set');
-    }).toList();
-
-    // Eğer trendlerde yeterince koleksiyon yoksa, önerilen mix'lerle doldur
-    if (collectionSongs.length < 4 && suggestedAlbums.isNotEmpty) {
-      final existingIds = collectionSongs.map((s) => s.id).toSet();
-      for (var mix in suggestedAlbums) {
-        if (!existingIds.contains(mix.id)) {
-          collectionSongs.add(mix);
-        }
-      }
-    }
-
     final List<Song> displayedCollections;
     if (showAlbumsOnly) {
-      displayedCollections = collectionSongs;
+      displayedCollections = suggestedAlbums.where((mix) =>
+          !mix.coverUrl.contains('ui-avatars.com') &&
+          !mix.coverUrl.contains('via.placeholder.com')).toList();
     } else if (showAll) {
-      displayedCollections = collectionSongs.take(10).toList();
+      displayedCollections = suggestedAlbums.where((mix) =>
+          !mix.coverUrl.contains('ui-avatars.com') &&
+          !mix.coverUrl.contains('via.placeholder.com')).take(10).toList();
     } else {
       displayedCollections = [];
     }

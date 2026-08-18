@@ -533,20 +533,38 @@ class _SettingsPageState extends State<SettingsPage> {
                     color: Colors.grey.shade600,
                     size: 14,
                   ),
-                  onTap: () async {
-                    final Uri url = Uri.parse(
-                        'https://oynmusic.duckdns.org/hesap_silme.html');
-                    if (!await launchUrl(url,
-                        mode: LaunchMode.externalApplication)) {
-                      if (context.mounted) {
-                        CustomSnackBar.showError(
-                          context: context,
-                          message: languageProvider.currentLanguage == 'tr'
-                              ? 'Bağlantı açılamadı'
-                              : 'Could not launch URL',
-                        );
-                      }
-                    }
+                  onTap: () {
+                    CustomBottomSheet.show(
+                      context: context,
+                      title: languageProvider.currentLanguage == 'tr'
+                          ? 'Hesabı Sil'
+                          : 'Delete Account',
+                      message: languageProvider.currentLanguage == 'tr'
+                          ? 'Hesabınızı ve tüm verilerinizi kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.'
+                          : 'Are you sure you want to permanently delete your account and all data? This action cannot be undone.',
+                      primaryButtonText:
+                          languageProvider.currentLanguage == 'tr'
+                              ? 'Evet, Sil'
+                              : 'Yes, Delete',
+                      primaryButtonColor: Colors.redAccent,
+                      secondaryButtonText: languageProvider.t('cancel'),
+                      onPrimaryButtonTap: () async {
+                        Navigator.pop(context);
+                        final Uri url = Uri.parse(
+                            'https://oynmusic.duckdns.org/hesap_silme.html');
+                        if (!await launchUrl(url,
+                            mode: LaunchMode.externalApplication)) {
+                          if (context.mounted) {
+                            CustomSnackBar.showError(
+                              context: context,
+                              message: languageProvider.currentLanguage == 'tr'
+                                  ? 'Bağlantı açılamadı'
+                                  : 'Could not launch URL',
+                            );
+                          }
+                        }
+                      },
+                    );
                   },
                 ),
               ],

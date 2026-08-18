@@ -33,6 +33,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -60,11 +61,24 @@ void main() async {
   tz.initializeTimeZones();
   try {
     final dynamic localTz = await FlutterTimezone.getLocalTimezone();
-    // Eğer paket doğrudan String dönmüyorsa (yeni sürüm), TimezoneInfo nesnesinin içindeki 'name' değerini alıyoruz.
-    final String timeZoneName = localTz is String ? localTz : localTz.name;
-    tz.setLocalLocation(tz.getLocation(timeZoneName));
+    if (localTz is String) {
+      tz.setLocalLocation(tz.getLocation(localTz));
+    } else {
+      // Trying to get timezone from unknown object or fallback to Europe/Istanbul
+      try {
+        final String tzName = localTz.toString(); // or some other property
+        tz.setLocalLocation(tz.getLocation(tzName));
+      } catch (_) {
+        tz.setLocalLocation(tz.getLocation('Europe/Istanbul'));
+      }
+    }
   } catch (e) {
     debugPrint("Zaman dilimi alınamadı: $e");
+    try {
+      tz.setLocalLocation(tz.getLocation('Europe/Istanbul'));
+    } catch (e) {
+      debugPrint("Varsayılan zaman dilimi ayarlanamadı: $e");
+    }
   }
 
   // Hem üst durum çubuğunu hem de alt navigasyon tuşlarını gösterir
@@ -98,7 +112,10 @@ void main() async {
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
     // Herkesi all_users konusuna abone yap (Bildirimler için)
-    await FirebaseMessaging.instance.subscribeToTopic('all_users');
+    // Await kullanmıyoruz çünkü ağ bağlantısı yavaş/kopuk olduğunda runApp'i bloke edip beyaz ekranda bırakabiliyor.
+    FirebaseMessaging.instance.subscribeToTopic('all_users').catchError((e) {
+      debugPrint("all_users konusuna abone olunamadı: $e");
+    });
   } catch (e) {
     debugPrint("Firebase başlatılamadı: $e");
   }
@@ -826,89 +843,114 @@ class MainScreenState extends State<MainScreen> {
       return const OfflineDownloadsPage(isDirectOffline: true);
     }
 
-    return Scaffold(
-      extendBody: true,
-      body: Stack(
-        children: [
-          IndexedStack(
-            index: _selectedIndex,
-            children: _pages,
-          ),
-        ],
-      ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.bottomCenter,
-            end: Alignment.topCenter,
-            colors: [
-              const Color(0xFF121212).withOpacity(
-                1,
-              ), // İçeriklerin arkadan flulaşarak görünmesi için şeffaflaştırıldı
+    return PopScope(
+        canPop: false,
+        onPopInvoked: (didPop) {
+          if (didPop) return;
 
-              const Color(0xFF121212).withOpacity(0.7),
-              const Color(0xFF121212).withOpacity(0.4),
-              Colors.transparent,
-            ],
-            stops: const [0.0, 0.4, 0.8, 1.0],
-          ),
-        ),
-        child: SafeArea(
-          bottom: true,
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          if (_selectedIndex != 0) {
+            _onItemTapped(0);
+          } else {
+            CustomBottomSheet.show(
+              context: context,
+              title: langProvider.currentLanguage == 'tr' ? 'Çıkış' : 'Exit',
+              message: langProvider.currentLanguage == 'tr'
+                  ? 'Uygulamadan çıkmak istediğinize emin misiniz?'
+                  : 'Are you sure you want to exit the app?',
+              primaryButtonText: langProvider.currentLanguage == 'tr'
+                  ? 'Evet, Çık'
+                  : 'Yes, Exit',
+              primaryButtonColor: Colors.redAccent,
+              secondaryButtonText: langProvider.t('cancel'),
+              onPrimaryButtonTap: () {
+                SystemNavigator.pop();
+              },
+            );
+          }
+        },
+        child: Scaffold(
+          extendBody: true,
+          body: Stack(
             children: [
-              GestureDetector(
-                onTap: () => PlayerPage.show(context),
-                child: const MiniPlayer(),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  16,
-                  0,
-                  16,
-                  8, // Menüyü biraz daha aşağı hizalamak için alt boşluk sıfırlandı
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildNavItem(
-                      0,
-                      langProvider.t('trends'),
-                      CustomIcons.trending,
-                      primaryColor,
-                    ),
-                    _buildNavItem(
-                      1,
-                      langProvider.t('search'),
-                      _selectedIndex == 1
-                          ? CustomIcons.searchActive
-                          : CustomIcons.search,
-                      primaryColor,
-                    ),
-                    _buildNavItem(
-                      2,
-                      langProvider.t('downloads'),
-                      _selectedIndex == 2
-                          ? CustomIcons.downloadingRounded
-                          : CustomIcons.downloadingRounded,
-                      primaryColor,
-                    ),
-                    _buildNavItem(
-                      3,
-                      langProvider.t('library'),
-                      CustomIcons.library,
-                      primaryColor,
-                    ),
-                  ],
-                ),
+              IndexedStack(
+                index: _selectedIndex,
+                children: _pages,
               ),
             ],
           ),
-        ),
-      ),
-    );
+          bottomNavigationBar: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: [
+                  const Color(0xFF121212).withOpacity(
+                    1,
+                  ), // İçeriklerin arkadan flulaşarak görünmesi için şeffaflaştırıldı
+
+                  const Color(0xFF121212).withOpacity(0.7),
+                  const Color(0xFF121212).withOpacity(0.4),
+                  Colors.transparent,
+                ],
+                stops: const [0.0, 0.4, 0.8, 1.0],
+              ),
+            ),
+            child: SafeArea(
+              bottom: true,
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: () => PlayerPage.show(context),
+                    child: const MiniPlayer(),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      16,
+                      0,
+                      16,
+                      8, // Menüyü biraz daha aşağı hizalamak için alt boşluk sıfırlandı
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildNavItem(
+                          0,
+                          langProvider.t('trends'),
+                          CustomIcons.trending,
+                          primaryColor,
+                        ),
+                        _buildNavItem(
+                          1,
+                          langProvider.t('search'),
+                          _selectedIndex == 1
+                              ? CustomIcons.searchActive
+                              : CustomIcons.search,
+                          primaryColor,
+                        ),
+                        _buildNavItem(
+                          2,
+                          langProvider.t('downloads'),
+                          _selectedIndex == 2
+                              ? CustomIcons.downloadingRounded
+                              : CustomIcons.downloadingRounded,
+                          primaryColor,
+                        ),
+                        _buildNavItem(
+                          3,
+                          langProvider.t('library'),
+                          CustomIcons.library,
+                          primaryColor,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ));
   }
 }
 

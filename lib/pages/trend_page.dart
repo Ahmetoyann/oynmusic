@@ -17,6 +17,7 @@ import 'package:muzik_app/services/audius_service.dart';
 import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/widgets/song_card.dart';
 import 'package:muzik_app/widgets/song_grid_card.dart';
+import 'package:muzik_app/pages/collections_page.dart';
 import 'package:muzik_app/widgets/hero_loading_indicator.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/pages/player_page.dart';
@@ -41,9 +42,40 @@ class TrendPage extends StatefulWidget {
 }
 
 class _TrendPageState extends State<TrendPage> {
-  String _selectedFilter = 'all';
-  final List<String> _filterKeys = ['all', 'songs', 'collections'];
   ScrollController? _primaryScrollController;
+
+  String _getGreeting(LanguageProvider langProvider, String? displayName) {
+    final hour = DateTime.now().hour;
+    String greeting;
+    if (langProvider.currentLanguage == 'tr') {
+      if (hour >= 5 && hour < 12) {
+        greeting = 'Günaydın';
+      } else if (hour >= 12 && hour < 18) {
+        greeting = 'İyi Günler';
+      } else if (hour >= 18 && hour < 22) {
+        greeting = 'İyi Akşamlar';
+      } else {
+        greeting = 'İyi Geceler';
+      }
+    } else {
+      if (hour >= 5 && hour < 12) {
+        greeting = 'Good Morning';
+      } else if (hour >= 12 && hour < 18) {
+        greeting = 'Good Afternoon';
+      } else if (hour >= 18 && hour < 22) {
+        greeting = 'Good Evening';
+      } else {
+        greeting = 'Good Night';
+      }
+    }
+
+    if (displayName != null && displayName.trim().isNotEmpty) {
+      final firstName = displayName.trim().split(' ')[0];
+      return '$greeting, $firstName';
+    }
+    return greeting;
+  }
+
   int _visibleArtistCount = 2;
   int _latestArtistCount = 0;
   bool _isIncrementingLocal = false;
@@ -199,62 +231,20 @@ class _TrendPageState extends State<TrendPage> {
             ),
           ),
         ),
-        title: SizedBox(
-          height: 24, // Yüksekliği azaltıp daha minimal hale getirdik
-          child: ListView.separated(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.only(right: 16),
-            scrollDirection: Axis.horizontal,
-            itemCount: _filterKeys.length,
-            separatorBuilder: (context, index) =>
-                const SizedBox(width: 4), // Aralarındaki boşluğu daralttık
-            itemBuilder: (context, index) {
-              final filterKey = _filterKeys[index];
-              final isSelected = _selectedFilter == filterKey;
-              return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedFilter = filterKey;
-                    });
-                  },
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(
-                      12,
-                    ),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6, // İç yan boşlukları daralttık
-                      ),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? Theme.of(context).primaryColor.withOpacity(0.25)
-                            : Colors.grey.shade800.withOpacity(0.6),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isSelected
-                              ? Theme.of(context).primaryColor.withOpacity(0.5)
-                              : Colors.transparent,
-                          width: 1.0, // Çerçeveyi incelttik
-                        ),
-                      ),
-                      child: Text(
-                        langProvider.t(filterKey).toUpperCase(),
-                        style: TextStyle(
-                          color:
-                              isSelected ? Colors.white : Colors.grey.shade400,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 9, // Yazı boyutunu daha da küçülttük
-                          letterSpacing: 0.0, // Harf aralığı kaldırıldı
-                        ),
-                      ),
-                    ),
-                  ));
-            },
+        title: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            _getGreeting(langProvider, authProvider.user?.displayName),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              letterSpacing: -0.5,
+            ),
           ),
         ),
-        titleSpacing: 0,
+        titleSpacing: 12,
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
@@ -522,41 +512,14 @@ class _TrendPageState extends State<TrendPage> {
         songProvider.initialTrendArtists;
     final displayedArtists = groupedByArtist.keys.toList();
 
-    final bool showAll = isSearch || _selectedFilter == 'all';
-    final bool showSongs = !isSearch && _selectedFilter == 'songs';
-    final bool showAlbumsOnly = !isSearch && _selectedFilter == 'collections';
-
     final suggestedAlbums =
         context.select<SongProvider, List<Song>>((p) => p.suggestedAlbums);
 
-    // Trend şarkıları arasından koleksiyonları (mix/albüm) filtrele
-    List<Song> collectionSongs = songs.where((song) {
-      final title = song.title.toLowerCase();
-      return title.contains('mix') ||
-          title.contains('albüm') ||
-          title.contains('album') ||
-          title.contains('playlist') ||
-          title.contains('set');
-    }).toList();
-
-    // Eğer trendlerde yeterince koleksiyon yoksa, önerilen mix'lerle doldur
-    if (collectionSongs.length < 4 && suggestedAlbums.isNotEmpty) {
-      final existingIds = collectionSongs.map((s) => s.id).toSet();
-      for (var mix in suggestedAlbums) {
-        if (!existingIds.contains(mix.id)) {
-          collectionSongs.add(mix);
-        }
-      }
-    }
-
-    final List<Song> displayedCollections;
-    if (showAlbumsOnly) {
-      displayedCollections = collectionSongs;
-    } else {
-      displayedCollections = [];
-    }
-
-    final bool useGrid = showAlbumsOnly;
+    // Sadece kapak resmi Youtube'dan BAŞARIYLA çekilmiş ve doğrulanmış Mix'leri ekrana veriyoruz.
+    // Kapaksız veya hatalı olanları tamamen listeden çıkartıyoruz!
+    // Henüz yüklenmekte olanlar (coverUrl boş olanlar) ekranda Placeholder olarak kalsın,
+    // ancak YÜKLENEMEYENLER ve hata alıp 'ui-avatars' atananlar ekrandan silinsin!
+    final List<Song> displayedCollections = suggestedAlbums;
     final primaryColor = Theme.of(context).primaryColor;
 
     // Günün şarkıları ve son dinlenenler için de sadece resmi olanları filtrele
@@ -574,106 +537,36 @@ class _TrendPageState extends State<TrendPage> {
           const AlwaysScrollableScrollPhysics(), // Listenin her zaman kaydırılabilir olmasını (ve yenilenebilmesini) sağlar
       slivers: [
         // Günün Şarkıları Listesi
-        if (!isSearch && (showAll || showSongs) && validDailySongs.isNotEmpty)
+        if (!isSearch && validDailySongs.isNotEmpty)
           SliverToBoxAdapter(
             child: _buildDailySongsList(context, validDailySongs),
           ),
 
         // --- SENİN HAFTALIK MİX'İN (YOUR MIX) ---
-        if (!isSearch && (showAll || showSongs) && mostPlayed.length > 5)
+        if (!isSearch && mostPlayed.length > 5)
           SliverToBoxAdapter(
             child: _buildYourMixList(context, mostPlayed),
           ),
 
-        // --- KOLEKSİYONLAR BÖLÜMÜ ---
-        if (displayedCollections.isNotEmpty)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                MediaQuery.of(context).size.width * 0.025,
-                16,
-                MediaQuery.of(context).size.width * 0.025,
-                12,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    showAlbumsOnly
-                        ? langProvider.t('all_collections')
-                        : langProvider.t('featured_collections'),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
 
-        if (displayedCollections.isNotEmpty)
-          useGrid
-              ? SliverPadding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: MediaQuery.of(context).size.width * 0.025,
-                  ),
-                  sliver: SliverGrid(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: 1.15,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                    ),
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final collection = displayedCollections[index];
-                      return _buildCollectionCard(
-                        context,
-                        collection,
-                        isGrid: true,
-                      );
-                    }, childCount: displayedCollections.length),
-                  ),
-                )
-              : SliverToBoxAdapter(
-                  child: SizedBox(
-                    height: 140,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      padding: EdgeInsets.symmetric(
-                        horizontal: MediaQuery.of(context).size.width * 0.025,
-                      ),
-                      itemCount: displayedCollections.length,
-                      itemBuilder: (context, index) {
-                        final collection = displayedCollections[index];
-                        return Container(
-                          width: 150,
-                          margin: const EdgeInsets.only(right: 16),
-                          child: _buildCollectionCard(
-                            context,
-                            collection,
-                            isGrid: false,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
 
         // --- SANATÇI BAZLI LİSTELEME ---
-        if (showAll || showSongs)
-          SliverList(
-            delegate: SliverChildBuilderDelegate((context, index) {
-              final artistName = displayedArtists[index];
-              final initialSongs = groupedByArtist[artistName]!;
-              if (initialSongs.isEmpty) return const SizedBox.shrink();
-              return ArtistSectionWidget(
-                artistName: artistName,
-                initialSongs: initialSongs,
-              );
-            }, childCount: displayedArtists.length),
+        SliverList(
+          delegate: SliverChildBuilderDelegate((context, index) {
+            final artistName = displayedArtists[index];
+            final initialSongs = groupedByArtist[artistName]!;
+            if (initialSongs.isEmpty) return const SizedBox.shrink();
+            return ArtistSectionWidget(
+              artistName: artistName,
+              initialSongs: initialSongs,
+            );
+          }, childCount: displayedArtists.length),
+        ),
+
+        // --- YENİ 3D KATMANLI KOLEKSİYONLAR BÖLÜMÜ (EN ALTTA) ---
+        if (!isSearch && displayedCollections.isNotEmpty)
+          SliverToBoxAdapter(
+            child: _buildStackedCollections(context, displayedCollections),
           ),
 
         // Şarkılar yükleniyorsa en alta küçük bir loading göster
@@ -691,6 +584,109 @@ class _TrendPageState extends State<TrendPage> {
     );
   }
 
+  Widget _buildStackedCollections(BuildContext context, List<Song> collections) {
+    if (collections.isEmpty) return const SizedBox.shrink();
+    
+    // 3'ten az varsa olanları göster
+    final List<Song> top3 = collections.take(3).toList();
+    final langProvider = context.read<LanguageProvider>();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const CollectionsPage(), // Yeni oluşturduğumuz sayfa
+            ),
+          );
+        },
+        child: Column(
+          children: [
+            // 3D Katmanlı Kapaklar
+            SizedBox(
+              height: MediaQuery.of(context).size.width * 0.65, // Stack alanı
+              width: double.infinity,
+              child: Stack(
+                alignment: Alignment.center,
+                children: List.generate(top3.length, (index) {
+                  final reversedIndex = top3.length - 1 - index; 
+                  final song = top3[reversedIndex];
+                  
+                  // En öndeki (reversedIndex == 0) -> scale: 1.0, topOffset: 40
+                  // Ortadaki (reversedIndex == 1) -> scale: 0.9, topOffset: 20
+                  // En arkadaki (reversedIndex == 2) -> scale: 0.8, topOffset: 0
+                  
+                  final double scale = 1.0 - (reversedIndex * 0.1);
+                  final double topOffset = (top3.length - 1 - reversedIndex) * 20.0;
+                  
+                  return Positioned(
+                    top: topOffset,
+                    child: RepaintBoundary(
+                      child: Transform.scale(
+                        scale: scale,
+                        alignment: Alignment.topCenter,
+                        child: Container(
+                          width: MediaQuery.of(context).size.width * 0.8,
+                          height: MediaQuery.of(context).size.width * 0.8 * (9 / 16),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.5),
+                                blurRadius: 15,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: SongGridCard(
+                              song: song,
+                              imageUrl: song.coverUrl,
+                              title: song.title,
+                              showFavorite: false,
+                              titleMaxLines: 1,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // "Koleksiyonlar" Yazısı
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  langProvider.t('featured_collections'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: Colors.white70,
+                  size: 16,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildCollectionCard(
     BuildContext context,
     Song collectionSong, {
@@ -703,6 +699,7 @@ class _TrendPageState extends State<TrendPage> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(4),
         child: SongGridCard(
+          song: collectionSong,
           imageUrl: collectionSong.coverUrl,
           title: collectionSong.title,
           showFavorite: false, // Albüm kartında favori butonu göstermiyoruz
@@ -1368,8 +1365,9 @@ class _SmallArtistAvatarState extends State<_SmallArtistAvatar> {
 
   @override
   Widget build(BuildContext context) {
-    final avatarUrl =
-        context.select<SongProvider, String?>((p) => p.getArtistAvatar(widget.artistName)) ?? '';
+    final avatarUrl = context.select<SongProvider, String?>(
+            (p) => p.getArtistAvatar(widget.artistName)) ??
+        '';
 
     return Container(
       width: 36,
@@ -1692,8 +1690,9 @@ class QuickAccessGrid extends StatelessWidget {
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.grey.shade800.withOpacity(0.6),
-            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white.withOpacity(0.1)),
+            color: Colors.grey.shade900.withOpacity(0.8),
+            borderRadius: BorderRadius.circular(6),
           ),
           child: child,
         ),
