@@ -2073,6 +2073,7 @@ class SongProvider with ChangeNotifier {
     // Dinamik Kişiselleştirilmiş Mix İsimleri (10 Adet)
     List<String> dynamicMixNames = [];
     final sourceSongs = [..._recentlyPlayed, ..._favoriteSongs];
+    sourceSongs.shuffle();
     for (var song in sourceSongs) {
       final mixName = '${song.artist} Mix';
       if (!dynamicMixNames.contains(mixName)) {
@@ -2103,6 +2104,7 @@ class SongProvider with ChangeNotifier {
       'Arabesk Mix',
       'Yaz Şarkıları Mix'
     ];
+    fallbackMixes.shuffle();
     for (var fallback in fallbackMixes) {
       if (dynamicMixNames.length >= 10) break;
       if (!dynamicMixNames.contains(fallback)) {
@@ -2193,81 +2195,92 @@ class SongProvider with ChangeNotifier {
     List<String> artists,
     List<String> mixes,
   ) async {
-    // Sanatçı resimlerini ağı tıkamamak için sırayla (sequential) çekiyoruz.
-    // Böylece 20 istek aynı anda kilitlenmez, resimler bulundukça tek tek anında ekrana düşer.
-    for (int i = 0; i < artists.length; i++) {
-      if (i >= _suggestedArtists.length) break;
-      // Zaten çekilmiş ve geçerli bir resimse es geç
-      if (_suggestedArtists[i].coverUrl.isNotEmpty &&
-          !_suggestedArtists[i].coverUrl.contains('ui-avatars.com') &&
-          !_suggestedArtists[i].coverUrl.contains('via.placeholder.com'))
-        continue;
+    // Sanatçı resimlerini ağı tıkamamak için sırayla çekiyoruz.
+    // Ancak Sanatçılar ve Mix'ler birbirini beklememesi için paralel çalıştırıyoruz.
+    Future(() async {
+      for (int i = 0; i < artists.length; i++) {
+        if (i >= _suggestedArtists.length) break;
+        if (_suggestedArtists[i].coverUrl.isNotEmpty &&
+            !_suggestedArtists[i].coverUrl.contains('ui-avatars.com') &&
+            !_suggestedArtists[i].coverUrl.contains('via.placeholder.com'))
+          continue;
 
-      final String artistName = artists[i];
-      try {
-        // Gerçek Youtube kanal resmini çekiyoruz
-        final searchResults = await _yt.search.search(artistName);
-        String realCover =
-            'https://ui-avatars.com/api/?name=${Uri.encodeComponent(artistName)}&background=random&color=fff&size=200';
-        if (searchResults.isNotEmpty) {
-          final firstVideo = searchResults.first;
-          final channel = await _yt.channels.get(firstVideo.channelId);
-          realCover = channel.logoUrl;
-          _artistAvatars[artistName] =
-              realCover; // Önbelleğe de atalım ki diğer sayfalarda da anında dolsun
-        }
+        final String artistName = artists[i];
+        try {
+          final searchResults = await _yt.search.search(artistName);
+          String realCover =
+              'https://ui-avatars.com/api/?name=${Uri.encodeComponent(artistName)}&background=random&color=fff&size=200';
+          if (searchResults.isNotEmpty) {
+            final firstVideo = searchResults.first;
+            final channel = await _yt.channels.get(firstVideo.channelId);
+            realCover = channel.logoUrl;
+            _artistAvatars[artistName] = realCover;
+          }
 
-        _suggestedArtists[i] = Song(
-          id: _suggestedArtists[i].id,
-          title: _suggestedArtists[i].title,
-          artist: _suggestedArtists[i].artist,
-          coverUrl: realCover,
-          audioUrl: '',
-        );
-        _suggestedArtists = List.from(_suggestedArtists);
-        notifyListeners();
-        _saveSuggestedToLocal(); // Resmi bulunca kaydet
-        // YouTube API spam (429 Too Many Requests) hatasını önlemek için 1.5 saniye bekle
-        await Future.delayed(const Duration(milliseconds: 1500));
-      } catch (_) {
-        _suggestedArtists[i] = Song(
-          id: _suggestedArtists[i].id,
-          title: _suggestedArtists[i].title,
-          artist: _suggestedArtists[i].artist,
-          coverUrl:
-              'https://ui-avatars.com/api/?name=${Uri.encodeComponent(artistName)}&background=random&color=fff&size=200',
-          audioUrl: '',
-        );
-        _suggestedArtists = List.from(_suggestedArtists);
-        notifyListeners();
-        _saveSuggestedToLocal();
-        await Future.delayed(const Duration(milliseconds: 1500));
-      }
-    }
-
-    // Mix resimlerini ve gerçek video verilerini sırayla çekiyoruz
-    for (int i = 0; i < mixes.length; i++) {
-      if (i >= _suggestedAlbums.length) break;
-      // Zaten çekilmiş ve geçerli bir resimse es geç
-      if (_suggestedAlbums[i].coverUrl.isNotEmpty &&
-          !_suggestedAlbums[i].coverUrl.contains('ui-avatars.com') &&
-          !_suggestedAlbums[i].coverUrl.contains('via.placeholder.com'))
-        continue;
-
-      final String mixName = mixes[i];
-      try {
-        final results = await YoutubeService.searchSongs(mixName, limit: 1);
-        if (results.isNotEmpty) {
-          final realMix = results.first;
-          _suggestedAlbums[i] = Song(
-            id: realMix.id, // Gerçek YouTube ID'si
-            title: mixName,
-            artist: realMix.artist,
-            coverUrl: realMix.coverUrl,
-            audioUrl: realMix.audioUrl,
-            duration: realMix.duration,
+          _suggestedArtists[i] = Song(
+            id: _suggestedArtists[i].id,
+            title: _suggestedArtists[i].title,
+            artist: _suggestedArtists[i].artist,
+            coverUrl: realCover,
+            audioUrl: '',
           );
-        } else {
+          _suggestedArtists = List.from(_suggestedArtists);
+          notifyListeners();
+          _saveSuggestedToLocal();
+          await Future.delayed(const Duration(milliseconds: 1500));
+        } catch (_) {
+          _suggestedArtists[i] = Song(
+            id: _suggestedArtists[i].id,
+            title: _suggestedArtists[i].title,
+            artist: _suggestedArtists[i].artist,
+            coverUrl:
+                'https://ui-avatars.com/api/?name=${Uri.encodeComponent(artistName)}&background=random&color=fff&size=200',
+            audioUrl: '',
+          );
+          _suggestedArtists = List.from(_suggestedArtists);
+          notifyListeners();
+          _saveSuggestedToLocal();
+          await Future.delayed(const Duration(milliseconds: 1500));
+        }
+      }
+    });
+
+    // Mix resimlerini de eşzamanlı olarak sırayla çekiyoruz
+    Future(() async {
+      for (int i = 0; i < mixes.length; i++) {
+        if (i >= _suggestedAlbums.length) break;
+        if (_suggestedAlbums[i].coverUrl.isNotEmpty &&
+            !_suggestedAlbums[i].coverUrl.contains('ui-avatars.com') &&
+            !_suggestedAlbums[i].coverUrl.contains('via.placeholder.com'))
+          continue;
+
+        final String mixName = mixes[i];
+        try {
+          final results = await YoutubeService.searchSongs(mixName, limit: 1);
+          if (results.isNotEmpty) {
+            final realMix = results.first;
+            _suggestedAlbums[i] = Song(
+              id: realMix.id,
+              title: mixName,
+              artist: realMix.artist,
+              coverUrl: realMix.coverUrl,
+              audioUrl: realMix.audioUrl,
+              duration: realMix.duration,
+            );
+          } else {
+            _suggestedAlbums[i] = Song(
+              id: _suggestedAlbums[i].id,
+              title: mixName,
+              artist: 'YouTube Mix',
+              coverUrl:
+                  'https://ui-avatars.com/api/?name=${Uri.encodeComponent(mixName)}&background=random&color=fff&size=200',
+              audioUrl: '',
+            );
+          }
+          _suggestedAlbums = List.from(_suggestedAlbums);
+          notifyListeners();
+          await Future.delayed(const Duration(milliseconds: 1500));
+        } catch (_) {
           _suggestedAlbums[i] = Song(
             id: _suggestedAlbums[i].id,
             title: mixName,
@@ -2276,26 +2289,13 @@ class SongProvider with ChangeNotifier {
                 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(mixName)}&background=random&color=fff&size=200',
             audioUrl: '',
           );
+          _suggestedAlbums = List.from(_suggestedAlbums);
+          notifyListeners();
+          _saveSuggestedToLocal();
+          await Future.delayed(const Duration(milliseconds: 1500));
         }
-        _suggestedAlbums = List.from(_suggestedAlbums);
-        notifyListeners();
-        // YouTube API spam hatasını önlemek için 1.5 saniye bekle
-        await Future.delayed(const Duration(milliseconds: 1500));
-      } catch (_) {
-        _suggestedAlbums[i] = Song(
-          id: _suggestedAlbums[i].id,
-          title: mixName,
-          artist: 'YouTube Mix',
-          coverUrl:
-              'https://ui-avatars.com/api/?name=${Uri.encodeComponent(mixName)}&background=random&color=fff&size=200',
-          audioUrl: '',
-        );
-        _suggestedAlbums = List.from(_suggestedAlbums);
-        notifyListeners();
-        _saveSuggestedToLocal();
-        await Future.delayed(const Duration(milliseconds: 1500));
       }
-    }
+    });
   }
 
   /// Arama sonuçlarının devamını yükler (Sonsuz Kaydırma)
@@ -3832,8 +3832,8 @@ class SongProvider with ChangeNotifier {
       return _resolvingTasks[cacheKey]!;
     }
 
-    final future = _yt.videos.streamsClient.getManifest(songId,
-        ytClients: const [YoutubeApiClient.androidVr]).then((manifest) {
+    final future =
+        _yt.videos.streamsClient.getManifest(songId).then((manifest) {
       String getUrlFromStreams(Iterable<StreamInfo> streams) {
         final sortedList = streams.sortByBitrate().toList();
         if (isDownload && !isVideoDownload) {
@@ -3886,38 +3886,15 @@ class SongProvider with ChangeNotifier {
         }
         throw Exception("Video akışı bulunamadı");
       }
-
-      // 1. Öncelik: Sadece ses akışlarını kullan (Daha az veri, daha hızlı)
-      Iterable<StreamInfo> audioStreams = manifest.audioOnly.where(
-        (s) => s.container.name.toString().toLowerCase() == 'mp4',
-      );
-
-      if (audioStreams.isNotEmpty) {
-        final url = getUrlFromStreams(audioStreams);
+      // YouTube'un audioOnly akışlara getirdiği kısıtlamalar (sonsuz yüklenme / 403)
+      // nedeniyle tamamen Muxed (ses+video) akışlarına dönüyoruz.
+      if (manifest.muxed.isNotEmpty) {
+        final url = getUrlFromStreams(manifest.muxed);
         _resolvedStreamUrlCache[cacheKey] = url;
         _resolvingTasks.remove(cacheKey);
         return url;
       }
 
-      // 2. Yedek: Mp4 formatında ses bulunamazsa diğer ses akışlarını dene
-      if (manifest.audioOnly.isNotEmpty) {
-        final url = getUrlFromStreams(manifest.audioOnly);
-        _resolvedStreamUrlCache[cacheKey] = url;
-        _resolvingTasks.remove(cacheKey);
-        return url;
-      }
-
-      // 3. Son çare: Hiç ses akışı yoksa muxed (ses+video) kullan
-      Iterable<StreamInfo> muxedStreams = manifest.muxed.where(
-        (s) => s.container.name.toString().toLowerCase() == 'mp4',
-      );
-
-      if (muxedStreams.isNotEmpty) {
-        final url = getUrlFromStreams(muxedStreams);
-        _resolvedStreamUrlCache[cacheKey] = url;
-        _resolvingTasks.remove(cacheKey);
-        return url;
-      }
       throw Exception(_lang.t('audio_stream_not_found'));
     }).catchError((Object e) {
       _resolvingTasks.remove(cacheKey);

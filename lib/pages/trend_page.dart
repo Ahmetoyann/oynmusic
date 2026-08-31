@@ -548,8 +548,6 @@ class _TrendPageState extends State<TrendPage> {
             child: _buildYourMixList(context, mostPlayed),
           ),
 
-
-
         // --- SANATÇI BAZLI LİSTELEME ---
         SliverList(
           delegate: SliverChildBuilderDelegate((context, index) {
@@ -584,9 +582,10 @@ class _TrendPageState extends State<TrendPage> {
     );
   }
 
-  Widget _buildStackedCollections(BuildContext context, List<Song> collections) {
+  Widget _buildStackedCollections(
+      BuildContext context, List<Song> collections) {
     if (collections.isEmpty) return const SizedBox.shrink();
-    
+
     // 3'ten az varsa olanları göster
     final List<Song> top3 = collections.take(3).toList();
     final langProvider = context.read<LanguageProvider>();
@@ -598,7 +597,8 @@ class _TrendPageState extends State<TrendPage> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => const CollectionsPage(), // Yeni oluşturduğumuz sayfa
+              builder: (context) =>
+                  const CollectionsPage(), // Yeni oluşturduğumuz sayfa
             ),
           );
         },
@@ -611,16 +611,17 @@ class _TrendPageState extends State<TrendPage> {
               child: Stack(
                 alignment: Alignment.center,
                 children: List.generate(top3.length, (index) {
-                  final reversedIndex = top3.length - 1 - index; 
+                  final reversedIndex = top3.length - 1 - index;
                   final song = top3[reversedIndex];
-                  
+
                   // En öndeki (reversedIndex == 0) -> scale: 1.0, topOffset: 40
                   // Ortadaki (reversedIndex == 1) -> scale: 0.9, topOffset: 20
                   // En arkadaki (reversedIndex == 2) -> scale: 0.8, topOffset: 0
-                  
+
                   final double scale = 1.0 - (reversedIndex * 0.1);
-                  final double topOffset = (top3.length - 1 - reversedIndex) * 20.0;
-                  
+                  final double topOffset =
+                      (top3.length - 1 - reversedIndex) * 20.0;
+
                   return Positioned(
                     top: topOffset,
                     child: RepaintBoundary(
@@ -629,9 +630,11 @@ class _TrendPageState extends State<TrendPage> {
                         alignment: Alignment.topCenter,
                         child: Container(
                           width: MediaQuery.of(context).size.width * 0.8,
-                          height: MediaQuery.of(context).size.width * 0.8 * (9 / 16),
+                          height: MediaQuery.of(context).size.width *
+                              0.8 *
+                              (9 / 16),
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(8),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withOpacity(0.5),
@@ -641,13 +644,14 @@ class _TrendPageState extends State<TrendPage> {
                             ],
                           ),
                           child: ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(8),
                             child: SongGridCard(
                               song: song,
                               imageUrl: song.coverUrl,
                               title: song.title,
                               showFavorite: false,
                               titleMaxLines: 1,
+                              showTitle: false,
                             ),
                           ),
                         ),
@@ -657,9 +661,9 @@ class _TrendPageState extends State<TrendPage> {
                 }),
               ),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // "Koleksiyonlar" Yazısı
             Row(
               mainAxisAlignment: MainAxisAlignment.center,

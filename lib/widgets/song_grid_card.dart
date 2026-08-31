@@ -17,6 +17,8 @@ class SongGridCard extends StatelessWidget {
   final bool showFavorite;
   final String placeholderIcon;
   final int titleMaxLines;
+  final bool showTitle;
+  final bool showPlaceholderIcon;
 
   const SongGridCard({
     super.key,
@@ -28,6 +30,8 @@ class SongGridCard extends StatelessWidget {
     this.showFavorite = true,
     this.placeholderIcon = CustomIcons.musicNote,
     this.titleMaxLines = 1,
+    this.showTitle = true,
+    this.showPlaceholderIcon = true,
   });
 
   @override
@@ -47,13 +51,15 @@ class SongGridCard extends StatelessWidget {
             end: Alignment.bottomRight,
           ),
         ),
-        child: Center(
-          child: CustomIcons.svgIcon(
-            placeholderIcon,
-            color: Colors.white.withOpacity(0.15),
-            size: 28,
-          ),
-        ),
+        child: showPlaceholderIcon
+            ? Center(
+                child: CustomIcons.svgIcon(
+                  placeholderIcon,
+                  color: Colors.white.withOpacity(0.15),
+                  size: 28,
+                ),
+              )
+            : const SizedBox.shrink(),
       );
     }
 
@@ -83,21 +89,13 @@ class SongGridCard extends StatelessWidget {
                         ? Image.file(
                             File(song!.localImagePath!),
                             fit: BoxFit.cover,
-                            cacheHeight: 300,
                             errorBuilder: (context, error, stackTrace) =>
                                 buildFallback(),
                           )
                         : (imageUrl.isNotEmpty)
                             ? CachedNetworkImage(
-                                imageUrl: imageUrl.contains('ytimg.com')
-                                    ? imageUrl
-                                        .replaceAll('maxresdefault.jpg',
-                                            'mqdefault.jpg')
-                                        .replaceAll(
-                                            'hqdefault.jpg', 'mqdefault.jpg')
-                                    : imageUrl,
+                                imageUrl: imageUrl,
                                 fit: BoxFit.cover,
-                                memCacheHeight: 300,
                                 errorWidget: (context, url, error) =>
                                     buildFallback(),
                               )
@@ -124,25 +122,27 @@ class SongGridCard extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            maxLines: titleMaxLines,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
-          ),
-          if (subtitle != null) ...[
-            const SizedBox(height: 4),
+          if (showTitle) ...[
+            const SizedBox(height: 8),
             Text(
-              subtitle!,
-              maxLines: 1,
+              title,
+              maxLines: titleMaxLines,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
             ),
+            if (subtitle != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                subtitle!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+              ),
+            ],
           ],
         ],
       ),
