@@ -130,9 +130,10 @@ class _SearchPageState extends State<SearchPage> {
 
   /// Yazılan metne göre arama önerilerini listeleyen widget.
   Widget _buildKeywordSuggestions(BuildContext context) {
-    // `watch` kullanarak öneri listesi güncellendiğinde UI'ın yeniden çizilmesini sağlıyoruz.
-    final songProvider = context.watch<SongProvider>();
-    final suggestions = songProvider.searchSuggestions;
+    final songProvider = context.read<SongProvider>();
+    // Sadece arama önerileri listesi güncellendiğinde bu bileşenin çizilmesi için select kullanıyoruz
+    final suggestions =
+        context.select<SongProvider, List<String>>((p) => p.searchSuggestions);
     final aramaMetni = _searchController.text.trim();
 
     // Arama metni boşsa veya öneri yoksa boş bir widget döndür.
@@ -358,6 +359,7 @@ class _SearchPageState extends State<SearchPage> {
                               onPressed: () {
                                 _searchController.clear();
                                 songProvider.updateSearchText('');
+                                setState(() {});
                                 if (_isListening) _stopListening();
                               },
                             ),
@@ -953,6 +955,7 @@ class _SearchPageState extends State<SearchPage> {
                 )
               : SliverList(
                   delegate: SliverChildBuilderDelegate((context, index) {
+                    final songProvider = context.read<SongProvider>();
                     final song = sonuclar[index];
                     if (selectedTab == 'artists') {
                       return _buildArtistTile(context, song);
@@ -994,12 +997,14 @@ class _SearchPageState extends State<SearchPage> {
 
   Widget _buildArtistTile(BuildContext context, Song song) {
     final langProvider = context.watch<LanguageProvider>();
-    final songProvider = context.watch<SongProvider>();
-    final isFollowed = songProvider.isArtistFollowed(song.artist);
+    final songProvider = context.read<SongProvider>();
+    final isFollowed = context
+        .select<SongProvider, bool>((p) => p.isArtistFollowed(song.artist));
     final primaryColor = Theme.of(context).primaryColor;
 
-    String coverUrl = song.coverUrl;
-    final artistAvatar = songProvider.getArtistAvatar(song.artist);
+    String coverUrl = '';
+    final artistAvatar = context
+        .select<SongProvider, String?>((p) => p.getArtistAvatar(song.artist));
     if (artistAvatar != null && artistAvatar.isNotEmpty) {
       coverUrl = artistAvatar;
     } else {
@@ -1250,8 +1255,9 @@ class _SearchPageState extends State<SearchPage> {
 
   Widget _buildEmptyState(BuildContext context, String query) {
     final langProvider = context.watch<LanguageProvider>();
-    final songProvider = context.watch<SongProvider>();
-    final double bottomPadding = songProvider.currentSong != null ? 160 : 100;
+    final currentSong =
+        context.select<SongProvider, Song?>((p) => p.currentSong);
+    final double bottomPadding = currentSong != null ? 160 : 100;
 
     return CustomScrollView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,

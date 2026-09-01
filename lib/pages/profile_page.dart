@@ -323,15 +323,12 @@ class _ProfilePageState extends State<ProfilePage>
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
                   colors: [
-                    const Color(0xFF121212).withOpacity(
-                      1,
-                    ), // İçeriklerin arkadan flulaşarak görünmesi için şeffaflaştırıldı
-
-                    const Color(0xFF121212).withOpacity(0.8),
-                    const Color(0xFF121212).withOpacity(0.4),
+                    const Color(0xFF121212).withOpacity(1.0),
+                    const Color(0xFF121212).withOpacity(0.9),
+                    const Color(0xFF121212).withOpacity(0.6),
                     Colors.transparent,
                   ],
-                  stops: const [0.0, 0.4, 0.8, 1.0],
+                  stops: const [0.0, 0.5, 0.85, 1.0],
                 ),
               ),
               child: SafeArea(
@@ -1087,55 +1084,7 @@ class _ProfilePageState extends State<ProfilePage>
             const SizedBox(height: 24),
           ],
 
-          // Ayarlar Butonu
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16.0),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade800.withOpacity(0.5),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.2),
-                    width: 1.5,
-                  ),
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => const SettingsPage()),
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(24),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 16, horizontal: 20),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          CustomIcons.svgIcon(CustomIcons.settings,
-                              color: Colors.white, size: 22),
-                          const SizedBox(width: 12),
-                          Text(
-                            langProvider.t('settings'),
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
+
 
           Padding(
             padding: const EdgeInsets.only(top: 8.0),

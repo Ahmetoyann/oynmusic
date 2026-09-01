@@ -53,7 +53,7 @@ class SongProvider with ChangeNotifier {
   bool _isLoading = true;
   String? _errorMessage;
   String? _playbackError; // Oynatma hataları için özel değişken
-  final List<MusicFolder> _folders = [];
+  List<MusicFolder> _folders = [];
   // AudioHandler referansı (Anında başlatılıyor ki arayüz hemen erişebilsin)
   final MyAudioHandler _audioHandler = MyAudioHandler();
   bool _isAudioServiceInitialized = false;
@@ -1107,8 +1107,9 @@ class SongProvider with ChangeNotifier {
         }
       }
 
-      _folders.clear();
-      _folders.addAll(mergedMap.values);
+      _folders = List.from(mergedMap.values);
+      _isLocalFoldersLoaded = true;
+      notifyListeners();
 
       await _saveFolders(); // Yerel ve Bulut (saveFolders içinde çağrılırsa)
       notifyListeners();
@@ -1228,10 +1229,14 @@ class SongProvider with ChangeNotifier {
   Future<void> _updateFirestoreFollowedArtists() async {
     if (_currentUser == null) return;
     try {
-      await FirebaseFirestore.instance
+      final docRef = FirebaseFirestore.instance
           .collection('users')
-          .doc(_currentUser!.uid)
-          .set({'followedArtists': _followedArtists}, SetOptions(merge: true));
+          .doc(_currentUser!.uid);
+      try {
+        await docRef.update({'followedArtists': _followedArtists});
+      } catch (e) {
+        await docRef.set({'followedArtists': _followedArtists}, SetOptions(merge: true));
+      }
     } catch (e) {
       debugPrint("Firestore takip güncelleme hatası: $e");
     }
@@ -1480,11 +1485,12 @@ class SongProvider with ChangeNotifier {
       // Eğer listede yoksa ekle
       if (!_favoriteSongs.any((s) => s.id == song.id)) {
         song.dateAdded = DateTime.now();
-        _favoriteSongs.add(song);
+        _favoriteSongs = [..._favoriteSongs, song];
       }
     } else {
       // Listeden çıkar
-      _favoriteSongs.removeWhere((s) => s.id == song.id);
+      _favoriteSongs = List.from(_favoriteSongs)
+        ..removeWhere((s) => s.id == song.id);
     }
 
     notifyListeners();
@@ -1501,7 +1507,7 @@ class SongProvider with ChangeNotifier {
   /// Tüm favorileri temizler
   Future<void> clearAllFavorites() async {
     SongFavoriteStatus.clear();
-    _favoriteSongs.clear();
+    _favoriteSongs = [];
     notifyListeners();
     await _saveFavoritesToLocal();
     if (_currentUser != null) {
@@ -1539,10 +1545,14 @@ class SongProvider with ChangeNotifier {
         return json;
       }).toList();
 
-      await FirebaseFirestore.instance
+      final docRef = FirebaseFirestore.instance
           .collection('users')
-          .doc(_currentUser!.uid)
-          .set({'favorites': cleanFavorites}, SetOptions(merge: true));
+          .doc(_currentUser!.uid);
+      try {
+        await docRef.update({'favorites': cleanFavorites});
+      } catch (e) {
+        await docRef.set({'favorites': cleanFavorites}, SetOptions(merge: true));
+      }
     } catch (e) {
       debugPrint("Firestore güncelleme hatası: $e");
     }
@@ -1575,10 +1585,14 @@ class SongProvider with ChangeNotifier {
         return folderJson;
       }).toList();
 
-      await FirebaseFirestore.instance
+      final docRef = FirebaseFirestore.instance
           .collection('users')
-          .doc(_currentUser!.uid)
-          .set({'folders': cleanFolders}, SetOptions(merge: true));
+          .doc(_currentUser!.uid);
+      try {
+        await docRef.update({'folders': cleanFolders});
+      } catch (e) {
+        await docRef.set({'folders': cleanFolders}, SetOptions(merge: true));
+      }
     } catch (e) {
       debugPrint("Firestore folders güncelleme hatası: $e");
     }
@@ -1626,7 +1640,7 @@ class SongProvider with ChangeNotifier {
       // 3. Hafızadaki durumları sıfırla
       // SongDownloadStatus.clear(); // Artık kullanılmıyor
       SongFavoriteStatus.clear();
-      _favoriteSongs.clear();
+      _favoriteSongs = [];
 
       notifyListeners();
     } catch (e) {
@@ -1663,7 +1677,7 @@ class SongProvider with ChangeNotifier {
         isFromDownloads: isFromDownloads,
         customImagePath: customImagePath,
       );
-      _folders.add(newFolder);
+      _folders = [..._folders, newFolder];
       _saveFolders();
       notifyListeners();
     }
@@ -1682,13 +1696,13 @@ class SongProvider with ChangeNotifier {
   }
 
   void deleteFolder(MusicFolder folder) {
-    _folders.remove(folder);
+    _folders = List.from(_folders)..removeWhere((f) => f.name == folder.name);
     _saveFolders();
     notifyListeners();
   }
 
   void removeSongFromFolder(MusicFolder folder, Song song) {
-    folder.songs.remove(song);
+    folder.songs.removeWhere((s) => s.id == song.id);
     _saveFolders();
     notifyListeners();
   }
@@ -2369,6 +2383,8 @@ class SongProvider with ChangeNotifier {
     if (query.trim().isEmpty) return;
     final cleanQuery = query.trim();
 
+    _searchHistory = List.from(_searchHistory); // Kopya oluştur (Reactivity için)
+
     // Varsa çıkarıp en başa ekleyelim (son aranan üstte olsun)
     if (_searchHistory.contains(cleanQuery)) {
       _searchHistory.remove(cleanQuery);
@@ -2386,14 +2402,14 @@ class SongProvider with ChangeNotifier {
   }
 
   Future<void> removeFromSearchHistory(String query) async {
-    _searchHistory.remove(query);
+    _searchHistory = List.from(_searchHistory)..remove(query);
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('search_history', _searchHistory);
   }
 
   Future<void> clearSearchHistory() async {
-    _searchHistory.clear();
+    _searchHistory = [];
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('search_history');
@@ -2670,25 +2686,26 @@ class SongProvider with ChangeNotifier {
     if (_currentUser != null && syncToFirestore) {
       _updateFirestoreFollowedArtists();
     }
-    _suggestedSongs.clear(); // Arama sayfası önerileri sıfırlansın
+    _suggestedSongs = []; // Arama sayfası önerileri sıfırlansın
     fetchSuggestedSongs(); // Yeni duruma göre önerileri anında tekrar çek
   }
 
   /// Ekolayzer ayarlarını Firestore'a kaydeder
   Future<void> _updateFirestoreEqualizer() async {
     if (_currentUser == null) return;
+    final docRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(_currentUser!.uid);
+    final data = {
+      'equalizer': {
+        'enabled': _isEqualizerEnabled,
+        'values': _equalizerValues,
+      },
+    };
     try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(_currentUser!.uid)
-          .set({
-        'equalizer': {
-          'enabled': _isEqualizerEnabled,
-          'values': _equalizerValues,
-        },
-      }, SetOptions(merge: true));
+      await docRef.update(data);
     } catch (e) {
-      debugPrint("Firestore EQ güncelleme hatası: $e");
+      await docRef.set(data, SetOptions(merge: true));
     }
   }
 
@@ -2777,8 +2794,7 @@ class SongProvider with ChangeNotifier {
       final String? foldersJson = prefs.getString('music_folders');
       if (foldersJson != null) {
         final List<dynamic> decoded = jsonDecode(foldersJson);
-        _folders.clear();
-        _folders.addAll(decoded.map((e) => MusicFolder.fromJson(e)).toList());
+        _folders = decoded.map((e) => MusicFolder.fromJson(e)).toList();
       }
     } catch (e) {
       debugPrint("Klasörler yüklenirken hata: $e");
@@ -3151,7 +3167,7 @@ class SongProvider with ChangeNotifier {
       // Başarılı ise listeye ekle
       song.localPath = savePath;
       song.dateAdded = DateTime.now();
-      _downloadedSongs.add(song);
+      _downloadedSongs = [..._downloadedSongs, song];
       await spendCoins(2,
           reason: _lang.t('mp3_download_reason').replaceAll('%s', song.title));
       await _saveDownloadedSongs();
@@ -3614,7 +3630,9 @@ class SongProvider with ChangeNotifier {
         }
         _currentSongIndex = null;
       }
-      _deviceSongs.removeWhere((s) => s.id == song.id);
+      _deviceSongs = List.from(_deviceSongs)
+        ..removeWhere((s) => s.id == song.id);
+
       notifyListeners();
     } catch (e) {
       debugPrint("Cihaz müziği silinirken hata: $e");
@@ -3660,8 +3678,9 @@ class SongProvider with ChangeNotifier {
         }
       }
     }
-    _downloadedSongs.removeWhere((s) => s.id == song.id);
-    await _saveDownloadedSongs();
+    _downloadedSongs = List.from(_downloadedSongs)
+      ..removeWhere((s) => s.id == song.id);
+    _saveDownloadedSongs();
 
     // Klasörlerden de kaldır
     bool folderUpdated = false;
@@ -3713,7 +3732,7 @@ class SongProvider with ChangeNotifier {
         }
       }
     }
-    _downloadedSongs.clear();
+    _downloadedSongs = [];
     await _saveDownloadedSongs();
 
     // Klasörlerden de kaldır
@@ -3761,6 +3780,8 @@ class SongProvider with ChangeNotifier {
 
     notifyListeners();
 
+    _preResolveNextSong();
+
     if (navigatorKey.currentContext != null) {
       final langProvider = _lang;
       CustomSnackBar.showInfo(
@@ -3805,6 +3826,8 @@ class SongProvider with ChangeNotifier {
     }
 
     notifyListeners();
+
+    _preResolveNextSong();
 
     if (showSnackbar) {
       if (navigatorKey.currentContext != null) {

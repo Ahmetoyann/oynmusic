@@ -24,6 +24,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:muzik_app/pages/login_page.dart';
 import 'package:muzik_app/pages/player_page.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:muzik_app/pages/settings_page.dart';
 import 'package:muzik_app/pages/splash_screen.dart';
 import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/pages/onboarding_page.dart';
@@ -35,6 +36,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:in_app_review/in_app_review.dart';
+import 'package:muzik_app/widgets/review_bottom_sheet.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter_timezone/flutter_timezone.dart';
@@ -488,6 +490,7 @@ class MainScreenState extends State<MainScreen> {
       ScrollController(),
       ScrollController(),
       ScrollController(),
+      ScrollController(), // Arama sekmesi için 5. controller
     ];
 
     _pages = [
@@ -497,15 +500,19 @@ class MainScreenState extends State<MainScreen> {
       ),
       PrimaryScrollController(
         controller: _scrollControllers[1],
-        child: const SearchPage(),
-      ),
-      PrimaryScrollController(
-        controller: _scrollControllers[2],
         child: DownloadsPage(key: downloadsPageKey),
       ),
       PrimaryScrollController(
-        controller: _scrollControllers[3],
+        controller: _scrollControllers[2],
         child: const ListelerPage(),
+      ),
+      PrimaryScrollController(
+        controller: _scrollControllers[3],
+        child: const SettingsPage(), // Profil yerine Ayarlar eklendi
+      ),
+      PrimaryScrollController(
+        controller: _scrollControllers[4],
+        child: const SearchPage(), // Arama ayrı bir sekme oldu (index 4)
       ),
     ];
 
@@ -514,26 +521,31 @@ class MainScreenState extends State<MainScreen> {
       _checkForUpdate();
     });
 
-    _initReviewTimer();
+    _checkAppLaunchesAndReview();
   }
 
-  Future<void> _initReviewTimer() async {
+  Future<void> _checkAppLaunchesAndReview() async {
     final prefs = await SharedPreferences.getInstance();
     final hasSeenReview = prefs.getBool('has_seen_review') ?? false;
 
     if (!hasSeenReview) {
-      _reviewTimer = Timer(const Duration(minutes: 3), () {
+      int launchCount = prefs.getInt('app_launch_count') ?? 0;
+      launchCount++;
+      await prefs.setInt('app_launch_count', launchCount);
+
+      if (launchCount == 2) {
+        // Uygulamanın tamamen yüklenmesi için kısa bir süre bekle
+        await Future.delayed(const Duration(seconds: 2));
         if (mounted) {
-          _showReviewBottomSheet();
+          ReviewBottomSheet.show(context);
           prefs.setBool('has_seen_review', true);
         }
-      });
+      }
     }
   }
 
   @override
   void dispose() {
-    _reviewTimer?.cancel();
     for (var c in _scrollControllers) {
       c.dispose();
     }
@@ -758,78 +770,6 @@ class MainScreenState extends State<MainScreen> {
     }
   }
 
-  Future<void> _showReviewBottomSheet() async {
-    final InAppReview inAppReview = InAppReview.instance;
-
-    if (await inAppReview.isAvailable()) {
-      await inAppReview.requestReview();
-    } else {
-      final url =
-          'https://play.google.com/store/apps/details?id=com.ahmed.oyn_music';
-      final uri = Uri.parse(url);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-    }
-  }
-
-  Widget _buildNavItem(
-    int index,
-    String label,
-    String svgIcon,
-    Color primaryColor,
-  ) {
-    final isSelected = _selectedIndex == index;
-    final color = isSelected ? primaryColor : Colors.grey.withOpacity(0.6);
-
-    return GestureDetector(
-      onTap: () => _onItemTapped(index),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOutQuint,
-            padding: EdgeInsets.symmetric(
-              horizontal: isSelected ? 16 : 14,
-              vertical: 12,
-            ),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? primaryColor.withOpacity(0.2)
-                  : Colors.white.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: isSelected
-                    ? primaryColor.withOpacity(0.3)
-                    : Colors.white.withOpacity(0.1),
-                width: 1,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CustomIcons.svgIcon(svgIcon, color: color, size: 24),
-                if (isSelected) ...[
-                  const SizedBox(width: 6),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      color: primaryColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).primaryColor;
@@ -878,78 +818,221 @@ class MainScreenState extends State<MainScreen> {
               ),
             ],
           ),
-          bottomNavigationBar: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-                colors: [
-                  const Color(0xFF121212).withOpacity(
-                    1,
-                  ), // İçeriklerin arkadan flulaşarak görünmesi için şeffaflaştırıldı
+          bottomNavigationBar: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.bottomCenter,
+              children: [
+                Positioned(
+                  top: -48,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: IgnorePointer(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [
+                            Colors.black.withOpacity(0.7),
+                            Colors.black.withOpacity(0.5),
+                            Colors.black.withOpacity(0.4),
+                            Colors.black.withOpacity(0.0),
+                          ],
+                          stops: const [0.0, 0.3, 0.6, 1.0],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                SafeArea(
+                  bottom: true,
+                  top: false,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const MiniPlayer(),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Container(
+                                margin: const EdgeInsets.only(
+                                    right: 12), // Arama topuna boşluk
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(100),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.2),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 10),
+                                    ),
+                                  ],
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(100),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(
+                                        sigmaX: 15, sigmaY: 15),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 4, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.15),
+                                        border: Border.all(
+                                          color: Colors.white.withOpacity(0.2),
+                                          width: 1,
+                                        ),
+                                        borderRadius:
+                                            BorderRadius.circular(100),
+                                      ),
+                                      child: Row(
+                                        children: List.generate(4, (index) {
+                                          final isSelected =
+                                              _selectedIndex == index;
 
-                  const Color(0xFF121212).withOpacity(0.7),
-                  const Color(0xFF121212).withOpacity(0.4),
-                  Colors.transparent,
-                ],
-                stops: const [0.0, 0.4, 0.8, 1.0],
-              ),
-            ),
-            child: SafeArea(
-              bottom: true,
-              top: false,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  GestureDetector(
-                    onTap: () => PlayerPage.show(context),
-                    child: const MiniPlayer(),
+                                          String label;
+                                          String iconStr;
+                                          if (index == 0) {
+                                            label = langProvider.t('trends');
+                                            iconStr = CustomIcons.trending;
+                                          } else if (index == 1) {
+                                            label = langProvider.t('downloads');
+                                            iconStr =
+                                                CustomIcons.downloadingRounded;
+                                          } else if (index == 2) {
+                                            label = langProvider.t('library');
+                                            iconStr = CustomIcons.library;
+                                          } else {
+                                            label =
+                                                langProvider.currentLanguage ==
+                                                        'tr'
+                                                    ? 'Ayarlar'
+                                                    : 'Settings';
+                                            iconStr = CustomIcons.settings;
+                                          }
+
+                                          return Expanded(
+                                            child: GestureDetector(
+                                              onTap: () => _onItemTapped(index),
+                                              behavior: HitTestBehavior.opaque,
+                                              child: AnimatedContainer(
+                                                duration: const Duration(
+                                                    milliseconds: 300),
+                                                curve: Curves.easeOutQuint,
+                                                height: 60,
+                                                decoration: BoxDecoration(
+                                                  color: isSelected
+                                                      ? Colors.white
+                                                          .withOpacity(0.2)
+                                                      : Colors.transparent,
+                                                  borderRadius:
+                                                      BorderRadius.circular(50),
+                                                ),
+                                                child: Column(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: [
+                                                    CustomIcons.svgIcon(
+                                                      iconStr,
+                                                      color: isSelected
+                                                          ? primaryColor
+                                                          : Colors.white
+                                                              .withOpacity(0.6),
+                                                      size: 24,
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      label,
+                                                      style: TextStyle(
+                                                        color: isSelected
+                                                            ? primaryColor
+                                                            : Colors.white
+                                                                .withOpacity(
+                                                                    0.6),
+                                                        fontWeight: isSelected
+                                                            ? FontWeight.bold
+                                                            : FontWeight.w500,
+                                                        fontSize: 8,
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        }),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            // En sağdaki ayrı Arama topu
+                            GestureDetector(
+                              onTap: () => _onItemTapped(4),
+                              behavior: HitTestBehavior.opaque,
+                              child: Container(
+                                width: 64,
+                                height: 64,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.2),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 10),
+                                    ),
+                                  ],
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(100),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(
+                                        sigmaX: 15, sigmaY: 15),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: _selectedIndex == 4
+                                            ? Colors.white.withOpacity(0.35)
+                                            : Colors.white.withOpacity(0.15),
+                                        border: Border.all(
+                                          color: _selectedIndex == 4
+                                              ? Colors.white.withOpacity(0.5)
+                                              : Colors.white.withOpacity(0.2),
+                                          width: 1,
+                                        ),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Center(
+                                        child: CustomIcons.svgIcon(
+                                          _selectedIndex == 4
+                                              ? CustomIcons.searchActive
+                                              : CustomIcons.search,
+                                          color: _selectedIndex == 4
+                                              ? primaryColor
+                                              : Colors.white.withOpacity(0.6),
+                                          size: 24,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      16,
-                      0,
-                      16,
-                      8, // Menüyü biraz daha aşağı hizalamak için alt boşluk sıfırlandı
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _buildNavItem(
-                          0,
-                          langProvider.t('trends'),
-                          CustomIcons.trending,
-                          primaryColor,
-                        ),
-                        _buildNavItem(
-                          1,
-                          langProvider.t('search'),
-                          _selectedIndex == 1
-                              ? CustomIcons.searchActive
-                              : CustomIcons.search,
-                          primaryColor,
-                        ),
-                        _buildNavItem(
-                          2,
-                          langProvider.t('downloads'),
-                          _selectedIndex == 2
-                              ? CustomIcons.downloadingRounded
-                              : CustomIcons.downloadingRounded,
-                          primaryColor,
-                        ),
-                        _buildNavItem(
-                          3,
-                          langProvider.t('library'),
-                          CustomIcons.library,
-                          primaryColor,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+                ),
+              ]),
         ));
   }
 }

@@ -119,11 +119,9 @@ class _FolderDetailPageState extends State<FolderDetailPage>
       );
     }
     // Provider'ı izleyerek değişikliklerde sayfanın yenilenmesini sağlıyoruz.
-    final songProvider = context.read<SongProvider>();
-    final folders =
-        context.select<SongProvider, List<MusicFolder>>((p) => p.folders);
-    final currentSongId =
-        context.select<SongProvider, String?>((p) => p.currentSong?.id);
+    final songProvider = context.watch<SongProvider>();
+    final folders = songProvider.folders;
+    final currentSongId = songProvider.currentSong?.id;
     final langProvider = context.watch<LanguageProvider>();
     final folder = folders.firstWhere((f) => f.name == widget.folder.name,
         orElse: () => widget.folder);
@@ -976,15 +974,12 @@ class _FolderDetailPageState extends State<FolderDetailPage>
                       begin: Alignment.bottomCenter,
                       end: Alignment.topCenter,
                       colors: [
-                        const Color(0xFF121212).withOpacity(
-                          1,
-                        ), // İçeriklerin arkadan flulaşarak görünmesi için şeffaflaştırıldı
-
-                        const Color(0xFF121212).withOpacity(0.8),
-                        const Color(0xFF121212).withOpacity(0.4),
+                        const Color(0xFF121212).withOpacity(1.0),
+                        const Color(0xFF121212).withOpacity(0.9),
+                        const Color(0xFF121212).withOpacity(0.6),
                         Colors.transparent,
                       ],
-                      stops: const [0.0, 0.4, 0.8, 1.0],
+                      stops: const [0.0, 0.5, 0.85, 1.0],
                     ),
                   ),
                   child: SafeArea(

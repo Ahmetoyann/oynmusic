@@ -16,6 +16,7 @@ import 'package:muzik_app/pages/login_page.dart';
 import 'package:muzik_app/providers/language_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:muzik_app/widgets/custom_search_bar.dart';
+import 'package:muzik_app/utils/string_extensions.dart';
 
 class ArtistDetailPage extends StatefulWidget {
   final String artistName;
@@ -99,11 +100,26 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
 
   Future<void> _fetchArtistSongs() async {
     try {
-      // Sanatçı adına göre Audius'ta arama yap
       final results = await YoutubeService.searchSongs(widget.artistName);
       if (mounted) {
         setState(() {
-          _songs = results;
+          if (widget.isCollection) {
+            _songs = results;
+          } else {
+            final targetArtist = widget.artistName.toSearchableString();
+            final filteredResults = results.where((song) {
+              final songArtist = song.artist.toSearchableString();
+              return songArtist.contains(targetArtist) ||
+                  targetArtist.contains(songArtist);
+            }).toList();
+
+            final existingIds = _songs.map((s) => s.id).toSet();
+            for (final song in filteredResults) {
+              if (!existingIds.contains(song.id)) {
+                _songs.add(song);
+              }
+            }
+          }
           _nextPageToken = null;
         });
       }
@@ -127,7 +143,17 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
 
       if (mounted && results.isNotEmpty) {
         setState(() {
-          _songs.addAll(results);
+          if (widget.isCollection) {
+            _songs.addAll(results);
+          } else {
+            final targetArtist = widget.artistName.toSearchableString();
+            final filtered = results.where((song) {
+              final songArtist = song.artist.toSearchableString();
+              return songArtist.contains(targetArtist) ||
+                  targetArtist.contains(songArtist);
+            }).toList();
+            _songs.addAll(filtered);
+          }
         });
       }
     } catch (e) {
@@ -166,7 +192,9 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
     }
 
     final displayedSongs = _songs.where((song) {
-      return song.title.toLowerCase().contains(_searchText.toLowerCase());
+      return song.title
+          .toSearchableString()
+          .contains(_searchText.toSearchableString());
     }).toList();
 
     final bool isAnyLoaded = songProvider.currentSong != null &&
@@ -211,15 +239,12 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
                       begin: Alignment.bottomCenter,
                       end: Alignment.topCenter,
                       colors: [
-                        const Color(0xFF121212).withOpacity(
-                          1,
-                        ), // İçeriklerin arkadan flulaşarak görünmesi için şeffaflaştırıldı
-
-                        const Color(0xFF121212).withOpacity(0.8),
-                        const Color(0xFF121212).withOpacity(0.4),
+                        const Color(0xFF121212).withOpacity(1.0),
+                        const Color(0xFF121212).withOpacity(0.9),
+                        const Color(0xFF121212).withOpacity(0.6),
                         Colors.transparent,
                       ],
-                      stops: const [0.0, 0.4, 0.8, 1.0],
+                      stops: const [0.0, 0.5, 0.85, 1.0],
                     ),
                   ),
                   child: SafeArea(

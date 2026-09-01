@@ -14,6 +14,7 @@ import 'package:muzik_app/widgets/song_grid_card.dart';
 import 'package:muzik_app/pages/folder_detail_page.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
+import 'package:muzik_app/widgets/create_playlist_bottom_sheet.dart';
 import 'package:muzik_app/main.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/widgets/custom_app_bar.dart';
@@ -167,239 +168,17 @@ class DownloadsPageState extends State<DownloadsPage> {
   }
 
   void _showCreateFolderBottomSheet(BuildContext context) {
-    final langProvider = context.read<LanguageProvider>();
-    final TextEditingController controller = TextEditingController();
-    String? selectedImagePath;
-
-    Navigator.push(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (pageContext, animation, secondaryAnimation) {
-          return Scaffold(
-            backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
-            body: SafeArea(
-              child: StatefulBuilder(
-                builder: (modalContext, setModalState) => Column(
-                  children: [
-                    Align(
-                      alignment: Alignment.topRight,
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: IconButton(
-                          icon: const Icon(Icons.close_rounded,
-                              color: Colors.white, size: 32),
-                          onPressed: () => Navigator.pop(pageContext),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const SizedBox(height: 8),
-                            GestureDetector(
-                              onTap: () async {
-                                final ImagePicker picker = ImagePicker();
-                                final XFile? image = await picker.pickImage(
-                                  source: ImageSource.gallery,
-                                );
-                                if (image != null) {
-                                  setModalState(() {
-                                    selectedImagePath = image.path;
-                                  });
-                                }
-                              },
-                              child: Container(
-                                width: 256,
-                                height: 144,
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade900,
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.3),
-                                      blurRadius: 15,
-                                      offset: const Offset(0, 8),
-                                    ),
-                                  ],
-                                  image: selectedImagePath != null
-                                      ? DecorationImage(
-                                          image: FileImage(
-                                              File(selectedImagePath!)),
-                                          fit: BoxFit.cover,
-                                        )
-                                      : null,
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(0.1),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: selectedImagePath == null
-                                    ? Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.add_a_photo_outlined,
-                                            color:
-                                                Theme.of(context).primaryColor,
-                                            size: 48,
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            langProvider.t('choose_cover'),
-                                            style: TextStyle(
-                                              color: Colors.grey.shade500,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
-                                      )
-                                    : null,
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-                            Container(
-                              margin:
-                                  const EdgeInsets.symmetric(horizontal: 24),
-                              child: TextField(
-                                controller: controller,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                decoration: InputDecoration(
-                                  hintText: langProvider.t('list_name'),
-                                  hintStyle: TextStyle(
-                                    color: Colors.grey.shade500,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  filled: true,
-                                  fillColor: Colors.grey.shade800,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    vertical: 16,
-                                    horizontal: 16,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: BackdropFilter(
-                                  filter:
-                                      ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(
-                                        context,
-                                      ).primaryColor.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color: Theme.of(
-                                          context,
-                                        ).primaryColor.withOpacity(0.5),
-                                        width: 1.5,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Theme.of(
-                                            context,
-                                          ).primaryColor.withOpacity(0.2),
-                                          blurRadius: 15,
-                                          spreadRadius: 1,
-                                        ),
-                                      ],
-                                    ),
-                                    child: Material(
-                                      color: Colors.transparent,
-                                      child: InkWell(
-                                        onTap: () {
-                                          if (controller.text.isNotEmpty) {
-                                            context
-                                                .read<SongProvider>()
-                                                .createFolder(
-                                                  name: controller.text,
-                                                  songs:
-                                                      _selectedSongs.toList(),
-                                                  isFromDownloads: true,
-                                                  customImagePath:
-                                                      selectedImagePath,
-                                                );
-                                            Navigator.pop(pageContext);
-                                            setState(() {
-                                              _isSelectionMode = false;
-                                              _selectedSongs.clear();
-                                            });
-                                            CustomSnackBar.showSuccess(
-                                              context: context,
-                                              message: langProvider
-                                                  .t('list_created')
-                                                  .replaceAll(
-                                                      '%s', controller.text),
-                                            );
-                                          } else {
-                                            CustomSnackBar.showError(
-                                              context: context,
-                                              message: langProvider
-                                                  .t('enter_list_name_warning'),
-                                            );
-                                          }
-                                        },
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                              vertical: 16),
-                                          child: Center(
-                                            child: Text(
-                                              langProvider.t('create'),
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          const begin = Offset(0.0, 1.0);
-          const end = Offset.zero;
-          const curve = Curves.easeOutCubic;
-          var tween =
-              Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-          return SlideTransition(
-              position: animation.drive(tween), child: child);
-        },
-      ),
+    if (_selectedSongs.isEmpty) return;
+    CreatePlaylistBottomSheet.show(
+      context: context,
+      songs: _selectedSongs.toList(),
+      isFromDownloads: true,
+      onSuccess: () {
+        setState(() {
+          _isSelectionMode = false;
+          _selectedSongs.clear();
+        });
+      },
     );
   }
 
@@ -1107,16 +886,12 @@ class DownloadsPageState extends State<DownloadsPage> {
     }
     final songProvider = context.watch<SongProvider>();
     final langProvider = context.watch<LanguageProvider>();
-
-    final downloadedSongs =
-        context.select<SongProvider, List<Song>>((p) => p.downloadedSongs);
-    final folders =
-        context.select<SongProvider, List<MusicFolder>>((p) => p.folders);
-    final deviceSongs =
-        context.select<SongProvider, List<Song>>((p) => p.deviceSongs);
+    final downloadedSongs = songProvider.downloadedSongs;
+    final folders = songProvider.folders;
     final downloadFolders = folders.where((f) => f.isFromDownloads).toList();
-    final currentSongId =
-        context.select<SongProvider, String?>((p) => p.currentSong?.id);
+    final deviceSongs = songProvider.deviceSongs;
+
+    final currentSongId = songProvider.currentSong?.id;
     final rawSongs = _selectedTabIndex == 0 ? downloadedSongs : deviceSongs;
 
     // Arama ve sıralama önbellekleme (Memoization)

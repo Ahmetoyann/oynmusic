@@ -39,6 +39,17 @@ class _SettingsPageState extends State<SettingsPage> {
     final languageProvider = context.watch<LanguageProvider>();
     final authProvider = context.watch<AuthProvider>();
     final user = authProvider.user;
+
+    // Performans için watch yerine select kullanıyoruz (sürekli rebuild olmaması için)
+    final hasCurrentSong =
+        context.select<SongProvider, bool>((p) => p.currentSong != null);
+    final isSleepTimerActive =
+        context.select<SongProvider, bool>((p) => p.isSleepTimerActive);
+    final sleepTimerEndTime =
+        context.select<SongProvider, DateTime?>((p) => p.sleepTimerEndTime);
+    final downloadQuality =
+        context.select<SongProvider, String>((p) => p.downloadQuality);
+
     const textColor = Colors.white;
     final subTextColor = Colors.grey.shade600;
 
@@ -48,49 +59,16 @@ class _SettingsPageState extends State<SettingsPage> {
         title: languageProvider.t('settings'),
         centerTitle: true,
       ),
-      bottomNavigationBar: context.watch<SongProvider>().currentSong != null
-          ? Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  colors: [
-                    const Color(0xFF121212).withOpacity(
-                      1,
-                    ), // İçeriklerin arkadan flulaşarak görünmesi için şeffaflaştırıldı
-
-                    const Color(0xFF121212).withOpacity(0.8),
-                    const Color(0xFF121212).withOpacity(0.4),
-                    Colors.transparent,
-                  ],
-                  stops: const [0.0, 0.4, 0.8, 1.0],
-                ),
-              ),
-              child: SafeArea(
-                bottom: true,
-                top: false,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    GestureDetector(
-                      onTap: () => PlayerPage.show(context),
-                      child: const MiniPlayer(),
-                    ),
-                    const SizedBox(height: 2),
-                  ],
-                ),
-              ),
-            )
-          : null,
       body: ListView(
         padding: EdgeInsets.fromLTRB(
           16,
           16,
           16,
-          (context.watch<SongProvider>().currentSong != null ? 160.0 : 40.0) +
+          (hasCurrentSong ? 160.0 : 40.0) +
               MediaQuery.of(context).padding.bottom,
         ),
         children: [
+          const _UpdateCheckButton(),
           // Dil Ayarları
           _buildSectionHeader(context, languageProvider.t('language')),
           _buildSettingsCard(
@@ -101,7 +79,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   Colors.blueGrey,
                   const Icon(
                     Icons.language_rounded,
-                    color: Colors.blueGrey,
+                    color: Colors.white,
                     size: 24,
                   ),
                 ),
@@ -140,9 +118,9 @@ class _SettingsPageState extends State<SettingsPage> {
                       children: [
                         _buildLeadingIcon(
                           Theme.of(context).primaryColor,
-                          Icon(
+                          const Icon(
                             Icons.color_lens_rounded,
-                            color: Theme.of(context).primaryColor,
+                            color: Colors.white,
                             size: 24,
                           ),
                         ),
@@ -219,7 +197,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   Colors.orange,
                   CustomIcons.svgIcon(
                     CustomIcons.timerRounded,
-                    color: Colors.orange,
+                    color: Colors.white,
                     size: 24,
                   ),
                 ),
@@ -228,8 +206,8 @@ class _SettingsPageState extends State<SettingsPage> {
                   style: const TextStyle(color: Colors.white),
                 ),
                 subtitle: Text(
-                  context.watch<SongProvider>().isSleepTimerActive
-                      ? 'Bitiş: ${_formatTime(context.watch<SongProvider>().sleepTimerEndTime!)}'
+                  isSleepTimerActive
+                      ? 'Bitiş: ${_formatTime(sleepTimerEndTime!)}'
                       : languageProvider.t('off'),
                   style: TextStyle(color: subTextColor, fontSize: 12),
                 ),
@@ -254,7 +232,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       Colors.blueAccent,
                       const Icon(
                         Icons.data_usage_rounded,
-                        color: Colors.blueAccent,
+                        color: Colors.white,
                         size: 24,
                       ),
                     ),
@@ -286,7 +264,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   Colors.purpleAccent,
                   const Icon(
                     Icons.equalizer_rounded,
-                    color: Colors.purpleAccent,
+                    color: Colors.white,
                     size: 24,
                   ),
                 ),
@@ -320,7 +298,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       Colors.teal,
                       const Icon(
                         Icons.wifi_rounded,
-                        color: Colors.teal,
+                        color: Colors.white,
                         size: 24,
                       ),
                     ),
@@ -348,7 +326,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   Colors.indigoAccent,
                   const Icon(
                     Icons.hd_rounded,
-                    color: Colors.indigoAccent,
+                    color: Colors.white,
                     size: 24,
                   ),
                 ),
@@ -357,8 +335,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   style: TextStyle(color: textColor),
                 ),
                 subtitle: Text(
-                  _getQualityText(context.watch<SongProvider>().downloadQuality,
-                      languageProvider),
+                  _getQualityText(downloadQuality, languageProvider),
                   style: TextStyle(color: subTextColor, fontSize: 12),
                 ),
                 trailing: Icon(
@@ -380,7 +357,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   Colors.orange,
                   const Icon(
                     Icons.cleaning_services_rounded,
-                    color: Colors.orange,
+                    color: Colors.white,
                     size: 24,
                   ),
                 ),
@@ -409,7 +386,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ListTile(
                 leading: _buildLeadingIcon(
                   Colors.red,
-                  CustomIcons.svgIcon(CustomIcons.delete, color: Colors.red),
+                  CustomIcons.svgIcon(CustomIcons.delete, color: Colors.white),
                 ),
                 title: Text(
                   languageProvider.t('clear_cache'),
@@ -446,7 +423,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       Colors.blueAccent,
                       const Icon(
                         Icons.lock_reset_rounded,
-                        color: Colors.blueAccent,
+                        color: Colors.white,
                         size: 24,
                       ),
                     ),
@@ -512,7 +489,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     Colors.redAccent,
                     const Icon(
                       Icons.person_remove_rounded,
-                      color: Colors.redAccent,
+                      color: Colors.white,
                       size: 24,
                     ),
                   ),
@@ -583,7 +560,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     'assets/icon/OYN_ana_logo_seffaf.png',
                     width: 24,
                     height: 24,
-                    color: Theme.of(context).primaryColor,
+                    color: Colors.white,
                   ),
                 ),
                 title: Text(
@@ -605,7 +582,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                 ),
               ),
-              const _UpdateCheckButton(),
             ],
           ),
         ],
@@ -643,7 +619,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           color: isSelected
                               ? primaryColor.withOpacity(0.2)
                               : Colors.white.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(24),
                           border: Border.all(
                             color: isSelected
                                 ? primaryColor.withOpacity(0.5)
@@ -733,7 +709,7 @@ class _SettingsPageState extends State<SettingsPage> {
                               width: double.infinity,
                               height: 55,
                               child: ClipRRect(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(24),
                                 child: BackdropFilter(
                                   filter:
                                       ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -745,11 +721,11 @@ class _SettingsPageState extends State<SettingsPage> {
                                           .rescheduleAllNotifications();
                                       Navigator.pop(pageContext);
                                     },
-                                    borderRadius: BorderRadius.circular(16),
+                                    borderRadius: BorderRadius.circular(24),
                                     child: Container(
                                       decoration: BoxDecoration(
                                         color: primaryColor.withOpacity(0.2),
-                                        borderRadius: BorderRadius.circular(16),
+                                        borderRadius: BorderRadius.circular(24),
                                         border: Border.all(
                                           color: primaryColor.withOpacity(0.5),
                                           width: 1.5,
@@ -835,7 +811,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           color: isSelected
                               ? primaryColor.withOpacity(0.2)
                               : Colors.white.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(24),
                           border: Border.all(
                             color: isSelected
                                 ? primaryColor.withOpacity(0.5)
@@ -957,7 +933,7 @@ class _SettingsPageState extends State<SettingsPage> {
                               width: double.infinity,
                               height: 55,
                               child: ClipRRect(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(24),
                                 child: BackdropFilter(
                                   filter:
                                       ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -967,11 +943,11 @@ class _SettingsPageState extends State<SettingsPage> {
                                           .setDownloadQuality(selectedQuality);
                                       Navigator.pop(pageContext);
                                     },
-                                    borderRadius: BorderRadius.circular(16),
+                                    borderRadius: BorderRadius.circular(24),
                                     child: Container(
                                       decoration: BoxDecoration(
                                         color: primaryColor.withOpacity(0.2),
-                                        borderRadius: BorderRadius.circular(16),
+                                        borderRadius: BorderRadius.circular(24),
                                         border: Border.all(
                                           color: primaryColor.withOpacity(0.5),
                                           width: 1.5,
@@ -1024,10 +1000,13 @@ class _SettingsPageState extends State<SettingsPage> {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: icon,
+      child: IconTheme(
+        data: const IconThemeData(color: Colors.white),
+        child: icon,
+      ),
     );
   }
 
@@ -1056,7 +1035,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.grey.shade900.withOpacity(0.6),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
       ),
       child: Column(children: children),
@@ -1253,7 +1232,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                 width: double.infinity,
                                 height: 55,
                                 child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius: BorderRadius.circular(24),
                                   child: BackdropFilter(
                                     filter: ImageFilter.blur(
                                         sigmaX: 10, sigmaY: 10),
@@ -1267,13 +1246,13 @@ class _SettingsPageState extends State<SettingsPage> {
                                               langProvider.t('timer_canceled'),
                                         );
                                       },
-                                      borderRadius: BorderRadius.circular(16),
+                                      borderRadius: BorderRadius.circular(24),
                                       child: Container(
                                         decoration: BoxDecoration(
                                           color:
                                               Colors.redAccent.withOpacity(0.2),
                                           borderRadius:
-                                              BorderRadius.circular(16),
+                                              BorderRadius.circular(24),
                                           border: Border.all(
                                             color: Colors.redAccent
                                                 .withOpacity(0.5),
@@ -1335,13 +1314,13 @@ class _SettingsPageState extends State<SettingsPage> {
                 .replaceAll('%s', minutes.toString()),
           );
         },
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
         child: Container(
           width: (MediaQuery.of(context).size.width - 80) / 3,
           padding: const EdgeInsets.symmetric(vertical: 20),
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(24),
             border: Border.all(color: Colors.white.withOpacity(0.1)),
           ),
           child: Column(
@@ -1475,14 +1454,14 @@ class _UpdateCheckButtonState extends State<_UpdateCheckButton> {
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(24),
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                   child: Container(
                     width: double.infinity,
                     decoration: BoxDecoration(
                       color: Colors.greenAccent.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(24),
                       border: Border.all(
                         color: Colors.greenAccent.withOpacity(0.5),
                         width: 1.5,
@@ -1516,7 +1495,7 @@ class _UpdateCheckButtonState extends State<_UpdateCheckButton> {
                             }
                           }
                         },
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(24),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           child: Row(
@@ -1736,16 +1715,16 @@ class _EqualizerFullScreenState extends State<_EqualizerFullScreen> {
                       width: double.infinity,
                       height: 55,
                       child: ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(24),
                         child: BackdropFilter(
                           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                           child: InkWell(
                             onTap: _reset,
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(24),
                             child: Container(
                               decoration: BoxDecoration(
                                 color: primaryColor.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(24),
                                 border: Border.all(
                                   color: primaryColor.withOpacity(0.5),
                                   width: 1.5,

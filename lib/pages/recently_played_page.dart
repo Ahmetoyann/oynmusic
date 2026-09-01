@@ -165,14 +165,12 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
                   colors: [
-                    const Color(0xFF121212).withOpacity(
-                      1,
-                    ), // İçeriklerin arkadan flulaşarak görünmesi için şeffaflaştırıldı
-                    const Color(0xFF121212).withOpacity(0.8),
-                    const Color(0xFF121212).withOpacity(0.4),
+                    const Color(0xFF121212).withOpacity(1.0),
+                    const Color(0xFF121212).withOpacity(0.9),
+                    const Color(0xFF121212).withOpacity(0.6),
                     Colors.transparent,
                   ],
-                  stops: const [0.0, 0.4, 0.8, 1.0],
+                  stops: const [0.0, 0.5, 0.85, 1.0],
                 ),
               ),
               child: SafeArea(
@@ -512,7 +510,7 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
           padding: const EdgeInsets.only(left: 24),
           decoration: BoxDecoration(
             color: Colors.green.shade700,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(8),
           ),
           child:
               const Icon(Icons.favorite_rounded, color: Colors.white, size: 32),
@@ -523,7 +521,7 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
           padding: const EdgeInsets.only(right: 24),
           decoration: BoxDecoration(
             color: Colors.blueAccent.shade700,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(8),
           ),
           child: const Icon(Icons.queue_music_rounded,
               color: Colors.white, size: 32),
@@ -550,7 +548,7 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
               color: isCurrentSong
                   ? primaryColor.withOpacity(0.15)
                   : Colors.white.withOpacity(0.03),
-              borderRadius: BorderRadius.circular(20), // Oval hatlı albüm kartı
+              borderRadius: BorderRadius.circular(8), // Oval hatlı albüm kartı
               border: Border.all(
                 color: isCurrentSong
                     ? primaryColor.withOpacity(0.5)

@@ -408,9 +408,8 @@ class _ListelerPageState extends State<ListelerPage> {
 
   Widget _buildFavoritesSquareCard(BuildContext context) {
     final langProvider = context.watch<LanguageProvider>();
-    final songProvider = context.read<SongProvider>();
-    final favorites =
-        context.select<SongProvider, List<Song>>((p) => p.favoriteSongs);
+    final songProvider = context.watch<SongProvider>();
+    final favorites = songProvider.favoriteSongs;
     final screenWidth = MediaQuery.of(context).size.width;
     // Toplam boşluk = 2 * (screenWidth * 0.025) + ortadaki 12px boşluk
     final cardSize = (screenWidth - (screenWidth * 0.05) - 12) / 2;
@@ -580,9 +579,8 @@ class _ListelerPageState extends State<ListelerPage> {
 
   Widget _buildRecentlyPlayedSquareCard(BuildContext context) {
     final langProvider = context.watch<LanguageProvider>();
-    final songProvider = context.read<SongProvider>();
-    final history =
-        context.select<SongProvider, List<Song>>((p) => p.recentlyPlayed);
+    final songProvider = context.watch<SongProvider>();
+    final history = songProvider.recentlyPlayed;
     final screenWidth = MediaQuery.of(context).size.width;
     final cardSize = (screenWidth - (screenWidth * 0.05) - 12) / 2;
 
@@ -1498,7 +1496,12 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
           margin: const EdgeInsets.symmetric(horizontal: 24),
           child: TextField(
             controller: _nameController,
-            textAlign: TextAlign.center,
+            textAlign: TextAlign.start,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
             decoration: InputDecoration(
               hintText: langProvider.t('list_name'),
               hintStyle: TextStyle(
@@ -1506,21 +1509,26 @@ class _CreateListWithSongsSheetState extends State<CreateListWithSongsSheet>
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
               ),
-              filled: true,
-              fillColor: Colors.grey.shade800,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
+              filled: false,
+              border: UnderlineInputBorder(
+                borderSide: BorderSide(
+                  color: Theme.of(context).primaryColor.withOpacity(0.5),
+                ),
+              ),
+              enabledBorder: UnderlineInputBorder(
+                borderSide: BorderSide(
+                  color: Theme.of(context).primaryColor.withOpacity(0.5),
+                ),
+              ),
+              focusedBorder: UnderlineInputBorder(
+                borderSide: BorderSide(
+                  color: Theme.of(context).primaryColor,
+                  width: 2,
+                ),
               ),
               contentPadding: const EdgeInsets.symmetric(
                 vertical: 16,
-                horizontal: 16,
               ),
-            ),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
             ),
           ),
         ),

@@ -1646,21 +1646,22 @@ class QuickAccessGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<SongProvider>();
-
+    final provider = context.read<SongProvider>();
     final langProvider = context.watch<LanguageProvider>();
 
     final horizontalPadding = MediaQuery.of(context).size.width * 0.025;
 
-    final recentlyPlayed = provider.recentlyPlayed;
+    final recentlyPlayed =
+        context.select<SongProvider, List<Song>>((p) => p.recentlyPlayed);
+    final followedArtists =
+        context.select<SongProvider, List<String>>((p) => p.followedArtists);
+    final mostPlayed =
+        context.select<SongProvider, List<Song>>((p) => p.mostPlayed);
+    final allSongs =
+        context.select<SongProvider, List<Song>>((p) => p.allSongs);
 
-    final followedArtists = provider.followedArtists;
-
-    final mostPlayed = provider.mostPlayed;
-
-    final randomSongs = provider.allSongs.isNotEmpty
-        ? (provider.allSongs.toList()..shuffle())
-        : [];
+    final randomSongs =
+        allSongs.isNotEmpty ? (allSongs.toList()..shuffle()) : [];
 
     Song? recentSong = recentlyPlayed.isNotEmpty
         ? recentlyPlayed.first
@@ -1696,7 +1697,7 @@ class QuickAccessGrid extends StatelessWidget {
           decoration: BoxDecoration(
             border: Border.all(color: Colors.white.withOpacity(0.1)),
             color: Colors.grey.shade900.withOpacity(0.8),
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(24),
           ),
           child: child,
         ),
@@ -1805,7 +1806,8 @@ class QuickAccessGrid extends StatelessWidget {
 
           buildBox(
             onTap: () {
-              mainScreenKey.currentState?.switchToTab(3);
+              mainScreenKey.currentState
+                  ?.switchToTab(2); // Kitaplık/Çalma Listelerim (Index 2)
             },
             child: Row(
               children: [
@@ -1865,7 +1867,8 @@ class QuickAccessGrid extends StatelessWidget {
 
           buildBox(
             onTap: () {
-              mainScreenKey.currentState?.switchToTab(2);
+              mainScreenKey.currentState
+                  ?.switchToTab(1); // İndirmeler (Index 1)
               downloadsPageKey.currentState?.switchToAudio();
             },
             child: Row(
@@ -1896,7 +1899,8 @@ class QuickAccessGrid extends StatelessWidget {
 
           buildBox(
             onTap: () {
-              mainScreenKey.currentState?.switchToTab(2);
+              mainScreenKey.currentState
+                  ?.switchToTab(1); // İndirmeler (Index 1)
               downloadsPageKey.currentState?.switchToVideos();
             },
             child: Row(

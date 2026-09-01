@@ -471,7 +471,7 @@ class LanguageProvider with ChangeNotifier {
       'done': 'Bitti',
       'followed_artists_updated': 'Takip edilen sanatçılar güncellendi.',
       'add_artist': 'Sanatçı Ekle',
-      'quick_latest': 'En Son',
+      'quick_latest': 'Son Çalınan',
       'quick_listen': 'Dinle',
       'quick_most_played': 'En Çok',
       'quick_hit': 'Hit',
