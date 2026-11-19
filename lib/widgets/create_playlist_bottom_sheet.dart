@@ -25,8 +25,11 @@ class CreatePlaylistBottomSheet {
           return Scaffold(
             backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
             body: SafeArea(
-              child: StatefulBuilder(
-                builder: (modalContext, setModalState) => Column(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 580),
+                  child: StatefulBuilder(
+                    builder: (modalContext, setModalState) => Column(
                   children: [
                     Align(
                       alignment: Alignment.topRight,
@@ -241,8 +244,10 @@ class CreatePlaylistBottomSheet {
                 ),
               ),
             ),
-          );
-        },
+          ),
+        ),
+      );
+    },
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           const begin = Offset(0.0, 1.0);
           const end = Offset.zero;

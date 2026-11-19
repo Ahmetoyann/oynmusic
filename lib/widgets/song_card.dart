@@ -18,6 +18,7 @@ import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:muzik_app/widgets/device_cover_placeholder.dart';
 import 'package:muzik_app/services/custom_winning_add.dart';
+import 'package:muzik_app/utils/responsive.dart';
 
 class SongCard extends StatelessWidget {
   final Song song;
@@ -55,6 +56,11 @@ class SongCard extends StatelessWidget {
       (p) => p.favoriteSongs.any((s) => s.id == song.id),
     );
 
+    final bool isSpotify = song.coverUrl.contains('spotifycdn.com') ||
+        song.coverUrl.contains('scdn.co');
+    final double coverWidth = isSpotify ? 44.0 : 56.0;
+    final double coverHeight = isSpotify ? 44.0 : 32.0;
+
     return Card(
       color:
           isSelected ? theme.primaryColor.withOpacity(0.2) : Colors.transparent,
@@ -79,8 +85,8 @@ class SongCard extends StatelessWidget {
                   showDownloadButton: showDownloadButton,
                 ),
         leading: SizedBox(
-          width: 56, // 16:9 Formatı (Daha da küçültüldü)
-          height: 32,
+          width: coverWidth,
+          height: coverHeight,
           child: Stack(
             children: [
               ClipRRect(
@@ -146,8 +152,10 @@ class SongCard extends StatelessWidget {
   }
 
   Widget _buildImage(BuildContext context) {
-    const double w = 56;
-    const double h = 32;
+    final bool isSpotify = song.coverUrl.contains('spotifycdn.com') ||
+        song.coverUrl.contains('scdn.co');
+    final double w = isSpotify ? 44.0 : 56.0;
+    final double h = isSpotify ? 44.0 : 32.0;
 
     if (song.localImagePath != null &&
         File(song.localImagePath!).existsSync()) {
@@ -336,7 +344,10 @@ class SongCard extends StatelessWidget {
                   final theme = Theme.of(innerContext);
                   final langProvider = innerContext.read<LanguageProvider>();
 
-                  return Column(
+                  return Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 620),
+                      child: Column(
                     children: [
                       Align(
                         alignment: Alignment.topRight,
@@ -561,12 +572,14 @@ class SongCard extends StatelessWidget {
                           ),
                         ),
                     ],
-                  );
-                },
-              ),
-            ),
-          );
-        },
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    },
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           const begin = Offset(0.0, 1.0);
           const end = Offset.zero;
@@ -624,6 +637,11 @@ class SongCard extends StatelessWidget {
     // Menü açılırken cihaza modern bir titreşim (Haptic Feedback) gönderir
     HapticFeedback.mediumImpact();
 
+    final bool isSpotify = song.coverUrl.contains('spotifycdn.com') ||
+        song.coverUrl.contains('scdn.co');
+    final double menuCoverWidth = isSpotify ? 200.0 : 288.0;
+    final double menuCoverHeight = isSpotify ? 200.0 : 162.0;
+
     final provider = context.read<SongProvider>();
     final langProvider = context.read<LanguageProvider>();
     final primaryColor = Theme.of(context).primaryColor;
@@ -638,7 +656,10 @@ class SongCard extends StatelessWidget {
           return Scaffold(
             backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
             body: SafeArea(
-              child: Column(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 620),
+                  child: Column(
                 children: [
                   Align(
                     alignment: Alignment.topRight,
@@ -681,8 +702,8 @@ class SongCard extends StatelessWidget {
                   ],
                   // Şarkı Kapak Resmi (Boyutu biraz büyütüldü tam ekran uyumu için)
                   Container(
-                    width: 288,
-                    height: 162,
+                    width: menuCoverWidth,
+                    height: menuCoverHeight,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(8),
                       boxShadow: [
@@ -708,7 +729,8 @@ class SongCard extends StatelessWidget {
                               fit: BoxFit.cover,
                               memCacheHeight: 400,
                               errorWidget: (context, url, error) =>
-                                  _buildStaticPlaceholder(context, 288, 162),
+                                  _buildStaticPlaceholder(
+                                      context, menuCoverWidth, menuCoverHeight),
                             ),
                     ),
                   ),
@@ -1264,8 +1286,10 @@ class SongCard extends StatelessWidget {
                 ],
               ),
             ),
-          );
-        },
+          ),
+        ),
+      );
+    },
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           const begin = Offset(0.0, 1.0);
           const end = Offset.zero;
@@ -1364,7 +1388,10 @@ class SongCard extends StatelessWidget {
                     );
                   }
 
-                  return Column(
+                  return Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 620),
+                      child: Column(
                     children: [
                       Align(
                         alignment: Alignment.topRight,
@@ -1513,12 +1540,14 @@ class SongCard extends StatelessWidget {
                         ),
                       ),
                     ],
-                  );
-                },
-              ),
-            ),
-          );
-        },
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    },
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           const begin = Offset(0.0, 1.0);
           const end = Offset.zero;

@@ -230,6 +230,27 @@ class SongProvider with ChangeNotifier {
   // YouTube algoritmasını her seferinde baştan çözmemek (15 sn hız kazanmak) için
   // sınıf seviyesinde kalıcı (persistent ve önbellekli) tek bir nesne kullanıyoruz.
   final YoutubeExplode _yt = YoutubeExplode();
+
+  /// visionOS client - YouTube'un PO Token veya JS challenge gerektirmeyen
+  /// en güvenilir istemcisi. Paket sürümümüzde tanımlı olmadığı için manuel eklendi.
+  static const _visionOSClient = YoutubeApiClient({
+    'context': {
+      'client': {
+        'clientName': 'VISIONOS',
+        'clientVersion': '1.02',
+        'deviceMake': 'Apple',
+        'deviceModel': 'RealityDevice17,1',
+        'userAgent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15',
+        'osName': 'visionOS',
+        'osVersion': '26.5.23O471',
+        'hl': 'en',
+        'timeZone': 'UTC',
+        'utcOffsetMinutes': 0,
+      },
+    },
+  }, 'https://www.youtube.com/youtubei/v1/player?prettyPrint=false');
+
   bool _isFading =
       false; // Sesin kısılarak azalma/artma animasyon durumunu tutar
   bool _isFadingOutAtEnd =
@@ -501,6 +522,54 @@ class SongProvider with ChangeNotifier {
     CustomWinningAd.instance.loadAd();
   }
 
+  static Future<String?> saveArtworkBytesToLocalFile(
+    String songId,
+    List<int> bytes,
+  ) async {
+    if (bytes.isEmpty) return null;
+
+    try {
+      final tempDir = Directory.systemTemp;
+      final safeSongId = songId.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+      final file = File('${tempDir.path}/device_art_$safeSongId.jpg');
+      await file.writeAsBytes(bytes, flush: true);
+      return file.path;
+    } catch (e) {
+      debugPrint('Cihaz kapak dosyası kaydedilemedi: $e');
+      return null;
+    }
+  }
+
+  static Future<String?> saveArtworkFromSong(
+    Song song,
+    String imagePath,
+    Dio dio,
+  ) async {
+    if (song.coverUrl.isNotEmpty) {
+      try {
+        await dio.download(song.coverUrl, imagePath).timeout(
+              const Duration(seconds: 10),
+            );
+        return imagePath;
+      } catch (e) {
+        debugPrint('Kapak indirme hatası: $e');
+      }
+    }
+
+    if (song.localImagePath != null &&
+        song.localImagePath!.isNotEmpty &&
+        File(song.localImagePath!).existsSync()) {
+      try {
+        await File(song.localImagePath!).copy(imagePath);
+        return imagePath;
+      } catch (e) {
+        debugPrint('Yerel kapak kopyalanamadı: $e');
+      }
+    }
+
+    return null;
+  }
+
   Future<void> loadDeviceSongs({bool forceRefresh = false}) async {
     if (_isDeviceSongsLoaded && !forceRefresh) return;
 
@@ -534,17 +603,34 @@ class SongProvider with ChangeNotifier {
           ignoreCase: true,
         );
 
-        _deviceSongs = songs
-            .map((s) => Song(
-                  id: s.id.toString(),
-                  title: s.title,
-                  artist: s.artist ?? "Bilinmeyen Sanatçı",
-                  coverUrl: '', // Yerel dosyalar için kapak url boş
-                  audioUrl: s.data,
-                  localPath: s.data,
-                  duration: (s.duration ?? 0) ~/ 1000,
-                ))
-            .toList();
+        final deviceSongs = <Song>[];
+        for (final s in songs) {
+          final artworkBytes = await _audioQuery.queryArtwork(
+            s.id,
+            ArtworkType.AUDIO,
+            size: 512,
+            quality: 100,
+          );
+          final localImagePath = artworkBytes != null && artworkBytes.isNotEmpty
+              ? await SongProvider.saveArtworkBytesToLocalFile(
+                  s.id.toString(),
+                  artworkBytes,
+                )
+              : null;
+
+          deviceSongs.add(Song(
+            id: s.id.toString(),
+            title: s.title,
+            artist: s.artist ?? "Bilinmeyen Sanatçı",
+            coverUrl: '',
+            audioUrl: s.data,
+            localPath: s.data,
+            localImagePath: localImagePath,
+            duration: (s.duration ?? 0) ~/ 1000,
+          ));
+        }
+
+        _deviceSongs = deviceSongs;
         _isDeviceSongsLoaded = true;
         notifyListeners();
       } catch (e) {
@@ -1229,13 +1315,13 @@ class SongProvider with ChangeNotifier {
   Future<void> _updateFirestoreFollowedArtists() async {
     if (_currentUser == null) return;
     try {
-      final docRef = FirebaseFirestore.instance
-          .collection('users')
-          .doc(_currentUser!.uid);
+      final docRef =
+          FirebaseFirestore.instance.collection('users').doc(_currentUser!.uid);
       try {
         await docRef.update({'followedArtists': _followedArtists});
       } catch (e) {
-        await docRef.set({'followedArtists': _followedArtists}, SetOptions(merge: true));
+        await docRef.set(
+            {'followedArtists': _followedArtists}, SetOptions(merge: true));
       }
     } catch (e) {
       debugPrint("Firestore takip güncelleme hatası: $e");
@@ -1545,13 +1631,13 @@ class SongProvider with ChangeNotifier {
         return json;
       }).toList();
 
-      final docRef = FirebaseFirestore.instance
-          .collection('users')
-          .doc(_currentUser!.uid);
+      final docRef =
+          FirebaseFirestore.instance.collection('users').doc(_currentUser!.uid);
       try {
         await docRef.update({'favorites': cleanFavorites});
       } catch (e) {
-        await docRef.set({'favorites': cleanFavorites}, SetOptions(merge: true));
+        await docRef
+            .set({'favorites': cleanFavorites}, SetOptions(merge: true));
       }
     } catch (e) {
       debugPrint("Firestore güncelleme hatası: $e");
@@ -1585,9 +1671,8 @@ class SongProvider with ChangeNotifier {
         return folderJson;
       }).toList();
 
-      final docRef = FirebaseFirestore.instance
-          .collection('users')
-          .doc(_currentUser!.uid);
+      final docRef =
+          FirebaseFirestore.instance.collection('users').doc(_currentUser!.uid);
       try {
         await docRef.update({'folders': cleanFolders});
       } catch (e) {
@@ -2383,7 +2468,8 @@ class SongProvider with ChangeNotifier {
     if (query.trim().isEmpty) return;
     final cleanQuery = query.trim();
 
-    _searchHistory = List.from(_searchHistory); // Kopya oluştur (Reactivity için)
+    _searchHistory =
+        List.from(_searchHistory); // Kopya oluştur (Reactivity için)
 
     // Varsa çıkarıp en başa ekleyelim (son aranan üstte olsun)
     if (_searchHistory.contains(cleanQuery)) {
@@ -2693,9 +2779,8 @@ class SongProvider with ChangeNotifier {
   /// Ekolayzer ayarlarını Firestore'a kaydeder
   Future<void> _updateFirestoreEqualizer() async {
     if (_currentUser == null) return;
-    final docRef = FirebaseFirestore.instance
-        .collection('users')
-        .doc(_currentUser!.uid);
+    final docRef =
+        FirebaseFirestore.instance.collection('users').doc(_currentUser!.uid);
     final data = {
       'equalizer': {
         'enabled': _isEqualizerEnabled,
@@ -3131,12 +3216,16 @@ class SongProvider with ChangeNotifier {
         );
       }
 
-      // Resmi de indir
+      // Resmi de indir; boş/bozuk kapak URL'leri için yerel kapak fallback kullan
       try {
-        await dio
-            .download(song.coverUrl, imagePath)
-            .timeout(const Duration(seconds: 10));
-        song.localImagePath = imagePath;
+        final savedArtworkPath = await SongProvider.saveArtworkFromSong(
+          song,
+          imagePath,
+          dio,
+        );
+        if (savedArtworkPath != null) {
+          song.localImagePath = savedArtworkPath;
+        }
       } catch (e) {
         debugPrint("Resim indirme hatası: $e");
       }
@@ -3855,14 +3944,29 @@ class SongProvider with ChangeNotifier {
       return _resolvingTasks[cacheKey]!;
     }
 
-    final future =
-        _yt.videos.streamsClient.getManifest(songId).then((manifest) {
+    final future = () async {
+      StreamManifest manifest;
+      bool usedVisionOS = false;
+
+      try {
+        manifest = await _yt.videos.streamsClient.getManifest(
+          songId,
+          ytClients: [_visionOSClient],
+        );
+        usedVisionOS = true;
+      } catch (e) {
+        debugPrint(
+            "visionos client failed: $e, falling back to default client");
+        manifest = await _yt.videos.streamsClient.getManifest(songId);
+      }
+
       String getUrlFromStreams(Iterable<StreamInfo> streams) {
         final sortedList = streams.sortByBitrate().toList();
         if (isDownload && !isVideoDownload) {
           if (_downloadQuality == 'low') return sortedList.first.url.toString();
-          if (_downloadQuality == 'medium')
+          if (_downloadQuality == 'medium') {
             return sortedList[sortedList.length ~/ 2].url.toString();
+          }
           return sortedList.last.url.toString();
         } else {
           return _isLowDataMode
@@ -3873,9 +3977,20 @@ class SongProvider with ChangeNotifier {
 
       // Video indirme işlemiyse özel kalite seçimi yap
       if (isVideoDownload) {
-        final muxedList = manifest.muxed
+        var muxedList = manifest.muxed
             .where((s) => s.container.name.toString().toLowerCase() == 'mp4')
             .toList();
+
+        // Eğer visionOS kullandıysak ve muxed stream gelmediyse varsayılan istemciye geri dön
+        if (muxedList.isEmpty && usedVisionOS) {
+          debugPrint(
+              "visionos didn't return muxed for video, falling back to default manifest");
+          manifest = await _yt.videos.streamsClient.getManifest(songId);
+          muxedList = manifest.muxed
+              .where((s) => s.container.name.toString().toLowerCase() == 'mp4')
+              .toList();
+        }
+
         if (muxedList.isNotEmpty) {
           muxedList.sort((a, b) =>
               a.videoResolution.height.compareTo(b.videoResolution.height));
@@ -3888,18 +4003,20 @@ class SongProvider with ChangeNotifier {
             final mediums = muxedList
                 .where((s) => s.videoResolution.height <= 720)
                 .toList();
-            if (mediums.isNotEmpty)
+            if (mediums.isNotEmpty) {
               selectedStream = mediums.last;
-            else
+            } else {
               selectedStream = muxedList.first;
+            }
           } else if (_downloadQuality == 'low') {
             final lows = muxedList
                 .where((s) => s.videoResolution.height <= 480)
                 .toList();
-            if (lows.isNotEmpty)
+            if (lows.isNotEmpty) {
               selectedStream = lows.last;
-            else
+            } else {
               selectedStream = muxedList.first;
+            }
           }
 
           final url = selectedStream.url.toString();
@@ -3909,8 +4026,20 @@ class SongProvider with ChangeNotifier {
         }
         throw Exception("Video akışı bulunamadı");
       }
-      // YouTube'un audioOnly akışlara getirdiği kısıtlamalar (sonsuz yüklenme / 403)
-      // nedeniyle tamamen Muxed (ses+video) akışlarına dönüyoruz.
+
+      // Ses akışı için:
+      // visionOS istemcisi 403 sorunlarını çözdüğü için ses indirme/oynatmalarda
+      // visionOS başarılı olduysa doğrudan audioOnly akışını kullanabiliriz.
+      if (usedVisionOS && manifest.audioOnly.isNotEmpty) {
+        final url = getUrlFromStreams(manifest.audioOnly);
+        _resolvedStreamUrlCache[cacheKey] = url;
+        _resolvingTasks.remove(cacheKey);
+        return url;
+      }
+
+      // YouTube'un normal istemcilerde audioOnly akışlara getirdiği kısıtlamalar
+      // (sonsuz yüklenme / 403) nedeniyle, visionOS dışındaki mevcut yapımız olan
+      // Muxed (ses+video) akışlarına dönüyoruz.
       if (manifest.muxed.isNotEmpty) {
         final url = getUrlFromStreams(manifest.muxed);
         _resolvedStreamUrlCache[cacheKey] = url;
@@ -3919,7 +4048,8 @@ class SongProvider with ChangeNotifier {
       }
 
       throw Exception(_lang.t('audio_stream_not_found'));
-    }).catchError((Object e) {
+    }()
+        .catchError((Object e) {
       _resolvingTasks.remove(cacheKey);
       throw e;
     });
@@ -4128,6 +4258,15 @@ class SongProvider with ChangeNotifier {
       _isSongLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Arama işlemi sırasında MiniPlayer'ın anında görünmesini sağlamak için
+  /// geçici bir "Aranıyor..." şarkısı ayarlar.
+  void setSearchingSong(Song song) {
+    _playlist = [song];
+    _currentSongIndex = 0;
+    _isSongLoading = true;
+    notifyListeners();
   }
 
   /// Şarkıyı çalar ve arama sonuçlarındaki (genellikle aynı) diğer şarkılar yerine sanatçının popüler şarkılarından akıllı bir sıra oluşturur.

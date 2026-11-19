@@ -75,6 +75,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>myapp</string>
+				<string>oynmusic</string>
 			</array>
 		</dict>
 	</array>

@@ -60,6 +60,13 @@
                 <data android:scheme="myapp" android:host="oynmusic" />
             </intent-filter>
             
+            <!-- Spotify Deep Link Ayarı -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="oynmusic" android:host="callback" />
+            </intent-filter>
             <!-- Bu intent-filter, bildirime tıklandığında uygulamanın açılmasını sağlar -->
             <intent-filter>
                 <action android:name="com.ryanheise.audioservice.NOTIFICATION_CLICK" />

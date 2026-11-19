@@ -14,6 +14,7 @@ import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/widgets/custom_search_bar.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:muzik_app/utils/responsive.dart';
 
 class InitialArtistsPage extends StatefulWidget {
   final VoidCallback onCompleted;
@@ -189,6 +190,10 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
         widget.isOptionalSelection ? followedCount >= 0 : followedCount >= 3;
     final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
     final langProvider = context.watch<LanguageProvider>();
+    final isTablet = Responsive.isTabletOrLandscape(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final horizontalPadding =
+        isTablet ? (screenWidth > 950 ? (screenWidth - 860) / 2 : 32.0) : 24.0;
 
     // Eğer arama yapılıyorsa arama sonuçlarını, yapılmıyorsa önerileri göster
     final displayArtists = _searchQuery.isEmpty ? artists : _searchResults;
@@ -231,7 +236,8 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
                 children: [
                   const SizedBox(height: 20),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    padding:
+                        EdgeInsets.symmetric(horizontal: horizontalPadding),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -262,7 +268,8 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
                   const SizedBox(height: 12),
                   if (!widget.isOptionalSelection)
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                      padding:
+                          EdgeInsets.symmetric(horizontal: horizontalPadding),
                       child: Text(
                         "${langProvider.t('select_at_least_3')} ($followedCount/3)",
                         style: TextStyle(
@@ -274,7 +281,8 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
                   const SizedBox(height: 16),
                   // Arama Çubuğu
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    padding:
+                        EdgeInsets.symmetric(horizontal: horizontalPadding),
                     child: ClipRRect(
                       borderRadius:
                           BorderRadius.circular(CustomSearchBar.cornerRadius),
@@ -331,7 +339,8 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
                       height: 36,
                       child: ListView.builder(
                         scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: horizontalPadding),
                         itemCount: provider.followedArtists.length,
                         itemBuilder: (context, index) {
                           final artistName = provider.followedArtists[index];
@@ -404,19 +413,23 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
                                 ),
                               )
                             : GridView.builder(
-                                padding: const EdgeInsets.fromLTRB(
-                                  24,
+                                padding: EdgeInsets.fromLTRB(
+                                  horizontalPadding,
                                   8,
-                                  24,
+                                  horizontalPadding,
                                   120,
                                 ), // Alt buton için kaydırma boşluğu
                                 gridDelegate:
-                                    const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 2,
-                                  childAspectRatio:
-                                      0.8, // Altında isim yazması için dikeyde yer açtık
-                                  crossAxisSpacing: 16,
-                                  mainAxisSpacing: 16,
+                                    SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: Responsive.gridColumns(
+                                    context,
+                                    phone: 2,
+                                    tablet: 4,
+                                    wide: 6,
+                                  ),
+                                  childAspectRatio: isTablet ? 0.72 : 0.8,
+                                  crossAxisSpacing: isTablet ? 20 : 16,
+                                  mainAxisSpacing: isTablet ? 20 : 16,
                                 ),
                                 itemCount: displayArtists.length,
                                 itemBuilder: (context, index) {
@@ -517,7 +530,8 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
                                                             .check_circle_rounded,
                                                         color:
                                                             Colors.greenAccent,
-                                                        size: 54,
+                                                        size:
+                                                            isTablet ? 38 : 54,
                                                         shadows: [
                                                           Shadow(
                                                             color: Colors
@@ -564,27 +578,35 @@ class _InitialArtistsPageState extends State<InitialArtistsPage> {
                 bottom: 0,
                 left: 0,
                 right: 0,
-                child: Container(
-                  padding: EdgeInsets.fromLTRB(
-                    24,
-                    32,
-                    24,
-                    MediaQuery.of(context).padding.bottom + 24,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [
-                        const Color(0xFF121212).withOpacity(0.85),
-                        const Color(0xFF121212).withOpacity(0.6),
-                        Colors.transparent,
-                      ],
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: isTablet ? 440 : double.infinity,
+                    ),
+                    child: Container(
+                      padding: EdgeInsets.fromLTRB(
+                        24,
+                        isTablet ? 16 : 32,
+                        24,
+                        MediaQuery.of(context).padding.bottom +
+                            (isTablet ? 16 : 24),
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [
+                            const Color(0xFF121212).withOpacity(0.9),
+                            const Color(0xFF121212).withOpacity(0.6),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                      child: widget.isOptionalSelection
+                          ? _buildDoneButton(canContinue, langProvider)
+                          : _buildSkipContinueRow(canContinue, langProvider),
                     ),
                   ),
-                  child: widget.isOptionalSelection
-                      ? _buildDoneButton(canContinue, langProvider)
-                      : _buildSkipContinueRow(canContinue, langProvider),
                 ),
               ),
           ],

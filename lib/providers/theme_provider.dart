@@ -12,7 +12,7 @@ class ThemeProvider with ChangeNotifier {
   ThemeProvider(this._prefs) {
     _isDarkMode = _prefs.getBool('is_dark_mode') ?? true;
     final colorValue = _prefs.getInt('primary_color');
-    _primaryColor = colorValue != null ? Color(colorValue) : Colors.amber;
+    _primaryColor = colorValue != null ? Color(colorValue) : Colors.white;
   }
 
   void setPrimaryColor(Color color) {

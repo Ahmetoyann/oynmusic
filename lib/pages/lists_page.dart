@@ -27,6 +27,7 @@ import 'package:muzik_app/widgets/custom_drop_down.dart';
 import 'package:muzik_app/providers/language_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:muzik_app/widgets/device_cover_placeholder.dart';
+import 'package:muzik_app/utils/responsive.dart';
 
 class ListelerPage extends StatefulWidget {
   const ListelerPage({super.key});
@@ -61,98 +62,120 @@ class _ListelerPageState extends State<ListelerPage> {
     });
 
     final screenWidth = MediaQuery.of(context).size.width;
+    final isWide = Responsive.isTabletOrLandscape(context);
+    final contentWidth = Responsive.pageContentWidth(context);
 
     return Scaffold(
-      appBar: CustomAppBar(
-        title: langProvider.t('library'),
-        showLeading: false,
+      appBar: LimitedWidthAppBar(
+        child: CustomAppBar(
+          title: langProvider.t('library'),
+          showLeading: false,
+        ),
       ),
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                screenWidth * 0.025,
-                16,
-                screenWidth * 0.025,
-                12,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildFavoritesSquareCard(context),
-                  _buildRecentlyPlayedSquareCard(context),
-                ],
-              ),
-            ),
-          ),
-          if (sortedFolders.isNotEmpty || hasConnection)
+      body: Responsive.limitPageWidth(
+        context,
+        CustomScrollView(
+          slivers: [
             SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.fromLTRB(
                   screenWidth * 0.025,
-                  8,
+                  16,
                   screenWidth * 0.025,
-                  8,
+                  12,
                 ),
-                child: Text(
-                  langProvider.t(
-                      'my_playlists'), // "Çalma Listelerim" metnini dil dosyasından çeker
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                child: isWide
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        children: [
+                          _buildFavoritesSquareCard(context, isWide: true),
+                          const SizedBox(width: 16),
+                          _buildRecentlyPlayedSquareCard(context, isWide: true),
+                        ],
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildFavoritesSquareCard(context),
+                          _buildRecentlyPlayedSquareCard(context),
+                        ],
+                      ),
+              ),
+            ),
+            if (sortedFolders.isNotEmpty || hasConnection)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    screenWidth * 0.025,
+                    8,
+                    screenWidth * 0.025,
+                    8,
+                  ),
+                  child: Text(
+                    langProvider.t(
+                        'my_playlists'), // "Çalma Listelerim" metnini dil dosyasından çeker
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
-            ),
-          if (sortedFolders.isEmpty && !hasConnection)
-            SliverFillRemaining(
-              child: _buildEmptyState(context, hasConnection),
-              hasScrollBody: false,
-            )
-          else
-            SliverPadding(
-              padding: EdgeInsets.fromLTRB(
-                screenWidth * 0.025,
-                8,
-                screenWidth * 0.025,
-                8, // Alttaki boşluk azaltıldı, çünkü artık en altta değil.
-              ),
-              sliver: SliverGrid(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    if (hasConnection) {
-                      if (index < sortedFolders.length) {
-                        return _buildFolderGridCard(
-                          context,
-                          sortedFolders[index],
-                        );
-                      } else {
-                        return _buildCreateListGridCard(context);
+            if (sortedFolders.isEmpty && !hasConnection)
+              SliverFillRemaining(
+                child: _buildEmptyState(context, hasConnection),
+                hasScrollBody: false,
+              )
+            else
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(
+                  screenWidth * 0.025,
+                  8,
+                  screenWidth * 0.025,
+                  8, // Alttaki boşluk azaltıldı, çünkü artık en altta değil.
+                ),
+                sliver: SliverGrid(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      if (hasConnection) {
+                        if (index < sortedFolders.length) {
+                          return _buildFolderGridCard(
+                            context,
+                            sortedFolders[index],
+                          );
+                        } else {
+                          return _buildCreateListGridCard(context);
+                        }
                       }
-                    }
-                    return _buildFolderGridCard(
+                      return _buildFolderGridCard(
+                        context,
+                        sortedFolders[index],
+                      );
+                    },
+                    childCount: hasConnection
+                        ? sortedFolders.length + 1
+                        : sortedFolders.length,
+                  ),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: Responsive.gridColumns(
                       context,
-                      sortedFolders[index],
-                    );
-                  },
-                  childCount: hasConnection
-                      ? sortedFolders.length + 1
-                      : sortedFolders.length,
-                ),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 8,
-                  childAspectRatio: 1.15,
+                      phone: 3,
+                      tablet: 5,
+                      wide: 6,
+                      width: contentWidth,
+                    ),
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 8,
+                    childAspectRatio: 1.15,
+                  ),
                 ),
               ),
-            ),
-          if (followedArtists.isNotEmpty)
-            ..._buildFollowedArtistsSlivers(
-                context, songProvider, followedArtists, currentSongId),
-        ],
+            if (followedArtists.isNotEmpty)
+              ..._buildFollowedArtistsSlivers(
+                  context, songProvider, followedArtists, currentSongId),
+          ],
+        ),
       ),
     );
   }
@@ -406,13 +429,17 @@ class _ListelerPageState extends State<ListelerPage> {
     );
   }
 
-  Widget _buildFavoritesSquareCard(BuildContext context) {
+  Widget _buildFavoritesSquareCard(BuildContext context,
+      {bool isWide = false}) {
     final langProvider = context.watch<LanguageProvider>();
     final songProvider = context.watch<SongProvider>();
     final favorites = songProvider.favoriteSongs;
     final screenWidth = MediaQuery.of(context).size.width;
     // Toplam boşluk = 2 * (screenWidth * 0.025) + ortadaki 12px boşluk
-    final cardSize = (screenWidth - (screenWidth * 0.05) - 12) / 2;
+    final cardSize =
+        isWide ? 170.0 : (screenWidth - (screenWidth * 0.05) - 12) / 2;
+    final cardWidth = isWide ? 210.0 : cardSize;
+    final cardHeight = isWide ? 170.0 : cardSize;
 
     return RepaintBoundary(
       child: GestureDetector(
@@ -425,8 +452,8 @@ class _ListelerPageState extends State<ListelerPage> {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
           child: Container(
-            width: cardSize,
-            height: cardSize,
+            width: cardWidth,
+            height: cardHeight,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Theme.of(context).primaryColor.withOpacity(0.15),
@@ -577,12 +604,16 @@ class _ListelerPageState extends State<ListelerPage> {
     );
   }
 
-  Widget _buildRecentlyPlayedSquareCard(BuildContext context) {
+  Widget _buildRecentlyPlayedSquareCard(BuildContext context,
+      {bool isWide = false}) {
     final langProvider = context.watch<LanguageProvider>();
     final songProvider = context.watch<SongProvider>();
     final history = songProvider.recentlyPlayed;
     final screenWidth = MediaQuery.of(context).size.width;
-    final cardSize = (screenWidth - (screenWidth * 0.05) - 12) / 2;
+    final cardSize =
+        isWide ? 170.0 : (screenWidth - (screenWidth * 0.05) - 12) / 2;
+    final cardWidth = isWide ? 210.0 : cardSize;
+    final cardHeight = isWide ? 170.0 : cardSize;
 
     return RepaintBoundary(
       child: GestureDetector(
@@ -595,8 +626,8 @@ class _ListelerPageState extends State<ListelerPage> {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
           child: Container(
-            width: cardSize,
-            height: cardSize,
+            width: cardWidth,
+            height: cardHeight,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.grey.shade900,
@@ -954,21 +985,24 @@ class _ListelerPageState extends State<ListelerPage> {
           return Scaffold(
             backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
             body: SafeArea(
-              child: Column(
-                children: [
-                  Align(
-                    alignment: Alignment.topRight,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: IconButton(
-                        icon: const Icon(Icons.close_rounded,
-                            color: Colors.white, size: 32),
-                        onPressed: () => Navigator.pop(pageContext),
+              child: Responsive.limitPageWidth(
+                pageContext,
+                Column(
+                  children: [
+                    Align(
+                      alignment: Alignment.topRight,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: IconButton(
+                          icon: const Icon(Icons.close_rounded,
+                              color: Colors.white, size: 32),
+                          onPressed: () => Navigator.pop(pageContext),
+                        ),
                       ),
                     ),
-                  ),
-                  const Expanded(child: CreateListWithSongsSheet()),
-                ],
+                    const Expanded(child: CreateListWithSongsSheet()),
+                  ],
+                ),
               ),
             ),
           );
@@ -1079,8 +1113,14 @@ List<Widget> _buildFollowedArtistsSlivers(BuildContext context,
           },
           childCount: artists.length + 1,
         ),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: Responsive.gridColumns(
+            context,
+            phone: 3,
+            tablet: 6,
+            wide: 8,
+            width: Responsive.pageContentWidth(context),
+          ),
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
           childAspectRatio: 0.8,

@@ -13,6 +13,7 @@ import 'package:muzik_app/providers/language_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:muzik_app/widgets/device_cover_placeholder.dart';
 import 'package:palette_generator/palette_generator.dart';
+import 'package:muzik_app/utils/responsive.dart';
 
 class MiniPlayer extends StatefulWidget {
   const MiniPlayer({super.key});
@@ -196,13 +197,20 @@ class _MiniPlayerState extends State<MiniPlayer> {
     Color glowColor,
   ) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final isWide = Responsive.isTabletOrLandscape(context);
+    final double playerWidth = isWide
+        ? math.min(screenWidth * 0.9, 700.0)
+        : screenWidth * 0.95;
+    final isSpotify = song.coverUrl.contains('spotifycdn.com') ||
+        song.coverUrl.contains('scdn.co');
+    final double coverWidth = isSpotify ? 44.0 : 78.0;
 
     return Align(
       alignment: Alignment.bottomCenter,
       child: Padding(
         padding: EdgeInsets.only(
-          right: screenWidth * 0.025,
-          left: screenWidth * 0.025,
+          right: isWide ? 16 : screenWidth * 0.025,
+          left: isWide ? 16 : screenWidth * 0.025,
           bottom: 8,
           top: 8,
         ),
@@ -225,7 +233,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
           },
           child: RepaintBoundary(
             child: SizedBox(
-              width: screenWidth * 0.95,
+              width: playerWidth,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(7),
                 child: AnimatedContainer(
@@ -252,7 +260,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                   ? Image.file(
                                       File(song.localImagePath!),
                                       height: 44,
-                                      width: 78,
+                                      width: coverWidth,
                                       fit: BoxFit.cover,
                                       cacheHeight: 150,
                                       errorBuilder: (
@@ -261,7 +269,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                         stackTrace,
                                       ) =>
                                           DeviceCoverPlaceholder(
-                                        width: 78,
+                                        width: coverWidth,
                                         height: 44,
                                         borderRadius: 4,
                                         logoColor:
@@ -270,7 +278,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                     )
                                   : (song.coverUrl.isEmpty)
                                       ? DeviceCoverPlaceholder(
-                                          width: 78,
+                                          width: coverWidth,
                                           height: 44,
                                           borderRadius: 4,
                                           logoColor:
@@ -279,12 +287,12 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                       : CachedNetworkImage(
                                           imageUrl: song.coverUrl,
                                           height: 44,
-                                          width: 78,
+                                          width: coverWidth,
                                           fit: BoxFit.cover,
                                           memCacheHeight: 150,
                                           errorWidget: (context, url, error) =>
                                               DeviceCoverPlaceholder(
-                                            width: 78,
+                                            width: coverWidth,
                                             height: 44,
                                             borderRadius: 4,
                                             logoColor:
@@ -540,6 +548,10 @@ class _FloatingMiniPlayerState extends State<_FloatingMiniPlayer> {
     final song = provider.currentSong;
     if (song == null) return const SizedBox.shrink();
 
+    final isSpotify = song.coverUrl.contains('spotifycdn.com') ||
+        song.coverUrl.contains('scdn.co');
+    final double coverWidth = isSpotify ? 45.0 : 80.0;
+
     _updateColor(song);
     final glowColor = _dominantColor ?? Theme.of(context).primaryColor;
 
@@ -609,14 +621,14 @@ class _FloatingMiniPlayerState extends State<_FloatingMiniPlayer> {
                                           ).existsSync())
                                       ? Image.file(
                                           File(song.localImagePath!),
-                                          width: 80,
+                                          width: coverWidth,
                                           height: 45,
                                           fit: BoxFit.cover,
                                           cacheHeight: 200,
                                           errorBuilder:
                                               (context, error, stackTrace) =>
                                                   DeviceCoverPlaceholder(
-                                            width: 80,
+                                            width: coverWidth,
                                             height: 45,
                                             borderRadius: 4,
                                             logoColor:
@@ -625,7 +637,7 @@ class _FloatingMiniPlayerState extends State<_FloatingMiniPlayer> {
                                         )
                                       : (song.coverUrl.isEmpty)
                                           ? DeviceCoverPlaceholder(
-                                              width: 80,
+                                              width: coverWidth,
                                               height: 45,
                                               borderRadius: 4,
                                               logoColor: Theme.of(context)
@@ -633,7 +645,7 @@ class _FloatingMiniPlayerState extends State<_FloatingMiniPlayer> {
                                             )
                                           : CachedNetworkImage(
                                               imageUrl: song.coverUrl,
-                                              width: 80,
+                                              width: coverWidth,
                                               height: 45,
                                               fit: BoxFit.cover,
                                               memCacheHeight: 200,
@@ -643,7 +655,7 @@ class _FloatingMiniPlayerState extends State<_FloatingMiniPlayer> {
                                                 error,
                                               ) =>
                                                   DeviceCoverPlaceholder(
-                                                width: 80,
+                                                width: coverWidth,
                                                 height: 45,
                                                 borderRadius: 4,
                                                 logoColor: Theme.of(context)

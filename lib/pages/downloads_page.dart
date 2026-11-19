@@ -26,6 +26,7 @@ import 'package:muzik_app/pages/downloaded_videos_view.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:muzik_app/widgets/device_cover_placeholder.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:muzik_app/utils/responsive.dart';
 
 enum SortOption { dateNewest, dateOldest, nameAZ, nameZA }
 
@@ -193,7 +194,10 @@ class DownloadsPageState extends State<DownloadsPage> {
           return Scaffold(
             backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
             body: SafeArea(
-              child: Consumer<SongProvider>(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 620),
+                  child: Consumer<SongProvider>(
                 builder: (innerContext, songProvider, child) {
                   final folders = songProvider.folders;
                   final theme = Theme.of(innerContext);
@@ -419,7 +423,9 @@ class DownloadsPageState extends State<DownloadsPage> {
                 },
               ),
             ),
-          );
+          ),
+        ),
+      );
         },
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           const begin = Offset(0.0, 1.0);
@@ -1217,9 +1223,17 @@ class DownloadsPageState extends State<DownloadsPage> {
                         SliverToBoxAdapter(
                           child: Padding(
                             padding: EdgeInsets.fromLTRB(
-                              MediaQuery.of(context).size.width * 0.025,
+                              Responsive.isTabletOrLandscape(context)
+                                  ? (MediaQuery.of(context).size.width - 850)
+                                          .clamp(24.0, MediaQuery.of(context).size.width) /
+                                      2
+                                  : MediaQuery.of(context).size.width * 0.025,
                               16,
-                              MediaQuery.of(context).size.width * 0.025,
+                              Responsive.isTabletOrLandscape(context)
+                                  ? (MediaQuery.of(context).size.width - 850)
+                                          .clamp(24.0, MediaQuery.of(context).size.width) /
+                                      2
+                                  : MediaQuery.of(context).size.width * 0.025,
                               8,
                             ),
                             child: Row(
@@ -1320,9 +1334,13 @@ class DownloadsPageState extends State<DownloadsPage> {
                         SliverToBoxAdapter(
                           child: Padding(
                             padding: EdgeInsets.symmetric(
-                                horizontal:
-                                    MediaQuery.of(context).size.width * 0.025,
-                                vertical: 8.0),
+                              horizontal: Responsive.isTabletOrLandscape(context)
+                                  ? (MediaQuery.of(context).size.width - 850)
+                                          .clamp(24.0, MediaQuery.of(context).size.width) /
+                                      2
+                                  : MediaQuery.of(context).size.width * 0.025,
+                              vertical: 8.0,
+                            ),
                             child: Container(
                               decoration: BoxDecoration(
                                 border: Border(
@@ -1857,15 +1875,20 @@ class DownloadsPageState extends State<DownloadsPage> {
                       else if (_isGridMode)
                         SliverPadding(
                           padding: EdgeInsets.fromLTRB(
-                            MediaQuery.of(context).size.width * 0.025,
+                            Responsive.isTabletOrLandscape(context)
+                                ? 24.0
+                                : MediaQuery.of(context).size.width * 0.025,
                             16,
-                            MediaQuery.of(context).size.width * 0.025,
+                            Responsive.isTabletOrLandscape(context)
+                                ? 24.0
+                                : MediaQuery.of(context).size.width * 0.025,
                             currentSongId != null ? 160 : 100,
                           ),
                           sliver: SliverGrid(
                             gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 3,
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: Responsive.gridColumns(context,
+                                  phone: 3, tablet: 5, wide: 6),
                               childAspectRatio: 0.85,
                               crossAxisSpacing: 10,
                               mainAxisSpacing: 12,
@@ -2100,9 +2123,17 @@ class DownloadsPageState extends State<DownloadsPage> {
                       else
                         SliverPadding(
                           padding: EdgeInsets.fromLTRB(
-                            MediaQuery.of(context).size.width * 0.025,
+                            Responsive.isTabletOrLandscape(context)
+                                ? (MediaQuery.of(context).size.width - 850)
+                                        .clamp(24.0, MediaQuery.of(context).size.width) /
+                                    2
+                                : MediaQuery.of(context).size.width * 0.025,
                             16,
-                            MediaQuery.of(context).size.width * 0.025,
+                            Responsive.isTabletOrLandscape(context)
+                                ? (MediaQuery.of(context).size.width - 850)
+                                        .clamp(24.0, MediaQuery.of(context).size.width) /
+                                    2
+                                : MediaQuery.of(context).size.width * 0.025,
                             currentSongId != null ? 160 : 100,
                           ),
                           sliver: SliverList(

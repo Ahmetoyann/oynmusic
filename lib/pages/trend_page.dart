@@ -6,6 +6,7 @@
 import 'package:muzik_app/models/song_model.dart';
 import 'dart:ui';
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -32,6 +33,7 @@ import 'package:muzik_app/pages/downloads_page.dart';
 import 'package:muzik_app/pages/recently_played_page.dart';
 import 'package:muzik_app/main.dart';
 import 'package:muzik_app/widgets/playing_equalizer_indicator.dart';
+import 'package:muzik_app/utils/responsive.dart';
 
 /// Trend şarkıları gösteren ana sayfa widget'ı
 class TrendPage extends StatefulWidget {
@@ -43,6 +45,19 @@ class TrendPage extends StatefulWidget {
 
 class _TrendPageState extends State<TrendPage> {
   ScrollController? _primaryScrollController;
+  Timer? _collectionTimer;
+  int _collectionOffset = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _collectionTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted) return;
+      setState(() {
+        _collectionOffset++;
+      });
+    });
+  }
 
   String _getGreeting(LanguageProvider langProvider, String? displayName) {
     final hour = DateTime.now().hour;
@@ -95,6 +110,7 @@ class _TrendPageState extends State<TrendPage> {
 
   @override
   void dispose() {
+    _collectionTimer?.cancel();
     _primaryScrollController?.removeListener(_onScroll);
     super.dispose();
   }
@@ -203,32 +219,24 @@ class _TrendPageState extends State<TrendPage> {
         centerTitle: false,
         leading: Padding(
           padding: const EdgeInsets.all(8.0),
-          child: GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const ProfilePage()),
-              );
-            },
-            child: CircleAvatar(
-              backgroundColor: Colors.grey.shade800,
-              backgroundImage: authProvider.user?.photoURL != null
-                  ? (authProvider.user!.photoURL!.startsWith('http')
-                          ? CachedNetworkImageProvider(
-                              authProvider.user!.photoURL!,
-                              maxHeight: 150,
-                            )
-                          : FileImage(File(authProvider.user!.photoURL!)))
-                      as ImageProvider
-                  : null,
-              child: authProvider.user?.photoURL == null
-                  ? CustomIcons.svgIcon(
-                      CustomIcons.person,
-                      color: Colors.white,
-                      size: 20,
-                    )
-                  : null,
-            ),
+          child: CircleAvatar(
+            backgroundColor: Colors.grey.shade800,
+            backgroundImage: authProvider.user?.photoURL != null
+                ? (authProvider.user!.photoURL!.startsWith('http')
+                        ? CachedNetworkImageProvider(
+                            authProvider.user!.photoURL!,
+                            maxHeight: 150,
+                          )
+                        : FileImage(File(authProvider.user!.photoURL!)))
+                    as ImageProvider
+                : null,
+            child: authProvider.user?.photoURL == null
+                ? CustomIcons.svgIcon(
+                    CustomIcons.person,
+                    color: Colors.white,
+                    size: 20,
+                  )
+                : null,
           ),
         ),
         title: FittedBox(
@@ -586,106 +594,155 @@ class _TrendPageState extends State<TrendPage> {
       BuildContext context, List<Song> collections) {
     if (collections.isEmpty) return const SizedBox.shrink();
 
-    // 3'ten az varsa olanları göster
-    final List<Song> top3 = collections.take(3).toList();
+    final startIndex = _collectionOffset % collections.length;
+    final rotatedCollections = [
+      ...collections.skip(startIndex),
+      ...collections.take(startIndex),
+    ];
+    final List<Song> top3 = rotatedCollections.take(3).toList();
     final langProvider = context.read<LanguageProvider>();
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
-      child: GestureDetector(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) =>
-                  const CollectionsPage(), // Yeni oluşturduğumuz sayfa
-            ),
-          );
-        },
-        child: Column(
-          children: [
-            // 3D Katmanlı Kapaklar
-            SizedBox(
-              height: MediaQuery.of(context).size.width * 0.65, // Stack alanı
-              width: double.infinity,
-              child: Stack(
-                alignment: Alignment.center,
-                children: List.generate(top3.length, (index) {
-                  final reversedIndex = top3.length - 1 - index;
-                  final song = top3[reversedIndex];
+    final isWide = Responsive.isTabletOrLandscape(context);
+    final double stackCardWidth =
+        isWide ? 440.0 : MediaQuery.of(context).size.width * 0.8;
+    final double stackCardHeight = stackCardWidth * (9 / 16);
+    final double stackAreaHeight = isWide
+        ? stackCardHeight + 50
+        : MediaQuery.of(context).size.width * 0.65;
 
-                  // En öndeki (reversedIndex == 0) -> scale: 1.0, topOffset: 40
-                  // Ortadaki (reversedIndex == 1) -> scale: 0.9, topOffset: 20
-                  // En arkadaki (reversedIndex == 2) -> scale: 0.8, topOffset: 0
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: isWide ? 950 : double.infinity),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+          child: GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      const CollectionsPage(), // Yeni oluşturduğumuz sayfa
+                ),
+              );
+            },
+            child: Column(
+              children: [
+                // 3D Katmanlı Kapaklar
+                SizedBox(
+                  height: stackAreaHeight, // Stack alanı
+                  width: double.infinity,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: List.generate(top3.length, (index) {
+                      final reversedIndex = top3.length - 1 - index;
+                      final song = top3[reversedIndex];
 
-                  final double scale = 1.0 - (reversedIndex * 0.1);
-                  final double topOffset =
-                      (top3.length - 1 - reversedIndex) * 20.0;
+                      // En öndeki (reversedIndex == 0) -> scale: 1.0, topOffset: 40
+                      // Ortadaki (reversedIndex == 1) -> scale: 0.9, topOffset: 20
+                      // En arkadaki (reversedIndex == 2) -> scale: 0.8, topOffset: 0
 
-                  return Positioned(
-                    top: topOffset,
-                    child: RepaintBoundary(
-                      child: Transform.scale(
-                        scale: scale,
-                        alignment: Alignment.topCenter,
-                        child: Container(
-                          width: MediaQuery.of(context).size.width * 0.8,
-                          height: MediaQuery.of(context).size.width *
-                              0.8 *
-                              (9 / 16),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.5),
-                                blurRadius: 15,
-                                offset: const Offset(0, 10),
+                      final double scale = 1.0 - (reversedIndex * 0.1);
+                      final double topOffset =
+                          (top3.length - 1 - reversedIndex) * 20.0;
+
+                      return AnimatedPositioned(
+                        key: ValueKey(song.id),
+                        duration: const Duration(milliseconds: 700),
+                        curve: Curves.easeInOutCubic,
+                        top: topOffset,
+                        child: RepaintBoundary(
+                          child: AnimatedScale(
+                            scale: scale,
+                            duration: const Duration(milliseconds: 700),
+                            curve: Curves.easeInOutCubic,
+                            alignment: Alignment.topCenter,
+                            child: Container(
+                              width: stackCardWidth,
+                              height: stackCardHeight,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.5),
+                                    blurRadius: 15,
+                                    offset: const Offset(0, 10),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: SongGridCard(
-                              song: song,
-                              imageUrl: song.coverUrl,
-                              title: song.title,
-                              showFavorite: false,
-                              titleMaxLines: 1,
-                              showTitle: false,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: SongGridCard(
+                                  song: song,
+                                  imageUrl: song.coverUrl,
+                                  title: song.title,
+                                  showFavorite: false,
+                                  titleMaxLines: 1,
+                                  showTitle: false,
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // "Koleksiyonlar" Yazısı
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  langProvider.t('featured_collections'),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
+                      );
+                    }),
                   ),
                 ),
-                const SizedBox(width: 8),
-                const Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  color: Colors.white70,
-                  size: 16,
+
+                const SizedBox(height: 8),
+                Row(
+                  children: List.generate(top3.length, (index) {
+                    final collection = top3[index];
+                    final isFront = index == 0;
+                    return Expanded(
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 700),
+                        curve: Curves.easeInOutCubic,
+                        opacity: 1,
+                        child: Text(
+                          collection.title,
+                          key: ValueKey(collection.id),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: isFront ? Colors.white : Colors.white54,
+                            fontSize: isFront ? 11 : 10,
+                            fontWeight:
+                                isFront ? FontWeight.w800 : FontWeight.w700,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+
+                const SizedBox(height: 12),
+
+                // "Koleksiyonlar" Yazısı
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      langProvider.t('featured_collections'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: Colors.white70,
+                      size: 16,
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -778,144 +835,158 @@ class _TrendPageState extends State<TrendPage> {
 
   Widget _buildDailySongsList(BuildContext context, List<Song> songs) {
     if (songs.isEmpty) return const SizedBox.shrink();
+    final isWide = Responsive.isTabletOrLandscape(context);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        DailySongCard(song: songs.first, playlist: songs),
-        const QuickAccessGrid(),
-      ],
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: isWide ? 950 : double.infinity),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DailySongCard(song: songs.first, playlist: songs),
+            const QuickAccessGrid(),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _buildYourMixList(BuildContext context, List<Song> mostPlayed) {
     final langProvider = context.read<LanguageProvider>();
     final screenWidth = MediaQuery.of(context).size.width;
-    final artistSongWidth = (screenWidth - 60) / 2.8;
+    final isWide = Responsive.isTabletOrLandscape(context);
+    final artistSongWidth = isWide ? 180.0 : (screenWidth - 60) / 2.8;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(
-            MediaQuery.of(context).size.width * 0.025,
-            12,
-            MediaQuery.of(context).size.width * 0.025,
-            12,
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.auto_awesome,
-                color: Theme.of(context).primaryColor,
-                size: 20,
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: isWide ? 950 : double.infinity),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                MediaQuery.of(context).size.width * 0.025,
+                12,
+                MediaQuery.of(context).size.width * 0.025,
+                12,
               ),
-              const SizedBox(width: 8),
-              Text(
-                langProvider.t('your_weekly_mix'),
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
-        SizedBox(
-          height: (artistSongWidth * 9 / 16) + 48,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(
-              horizontal: MediaQuery.of(context).size.width * 0.025,
-            ),
-            itemCount: mostPlayed.length > 20 ? 20 : mostPlayed.length,
-            itemBuilder: (context, index) {
-              final song = mostPlayed[index];
-
-              Widget imageWidget;
-              if (song.localImagePath != null &&
-                  File(song.localImagePath!).existsSync()) {
-                imageWidget = Image.file(
-                  File(song.localImagePath!),
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: double.infinity,
-                  cacheWidth: 300, // EKLENDİ (Performans için)
-                );
-              } else if (song.coverUrl.isEmpty) {
-                imageWidget = DeviceCoverPlaceholder(
-                  logoColor: Theme.of(context).primaryColor,
-                  borderRadius: 4,
-                );
-              } else {
-                imageWidget = CachedNetworkImage(
-                  imageUrl: song.coverUrl,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: double.infinity,
-                  memCacheWidth: 300, // EKLENDİ (Performans için)
-                  fadeInDuration: const Duration(milliseconds: 150), // EKLENDİ
-                  errorWidget: (context, url, error) => DeviceCoverPlaceholder(
-                    logoColor: Theme.of(context).primaryColor,
-                    borderRadius: 4,
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.auto_awesome,
+                    color: Theme.of(context).primaryColor,
+                    size: 20,
                   ),
-                );
-              }
-
-              return Container(
-                  width: artistSongWidth,
-                  margin: const EdgeInsets.only(right: 16),
-                  child: GestureDetector(
-                    onTap: () {
-                      SongCard.showModernMenu(
-                        context,
-                        song,
-                        onTap: () {
-                          final provider = context.read<SongProvider>();
-                          if (provider.currentSong?.id == song.id) {
-                            if (provider.audioPlayer.playing) {
-                              provider.audioPlayer.pause();
-                            } else {
-                              provider.audioPlayer.play();
-                            }
-                          } else {
-                            provider.playSong(song, mostPlayed);
-                          }
-                        },
-                      );
-                    },
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        AspectRatio(
-                          aspectRatio: 16 / 9,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: imageWidget,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(song.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13)),
-                        const SizedBox(height: 2),
-                        Text(song.artist,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                                color: Colors.grey.shade400, fontSize: 11)),
-                      ],
+                  const SizedBox(width: 8),
+                  Text(
+                    langProvider.t('your_weekly_mix'),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
                     ),
-                  ));
-            },
-          ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              height: (artistSongWidth * 9 / 16) + 48,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: EdgeInsets.symmetric(
+                  horizontal: MediaQuery.of(context).size.width * 0.025,
+                ),
+                itemCount: mostPlayed.length > 20 ? 20 : mostPlayed.length,
+                itemBuilder: (context, index) {
+                  final song = mostPlayed[index];
+
+                  Widget imageWidget;
+                  if (song.localImagePath != null &&
+                      File(song.localImagePath!).existsSync()) {
+                    imageWidget = Image.file(
+                      File(song.localImagePath!),
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                      cacheWidth: 300, // EKLENDİ (Performans için)
+                    );
+                  } else if (song.coverUrl.isEmpty) {
+                    imageWidget = DeviceCoverPlaceholder(
+                      logoColor: Theme.of(context).primaryColor,
+                      borderRadius: 4,
+                    );
+                  } else {
+                    imageWidget = CachedNetworkImage(
+                      imageUrl: song.coverUrl,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                      memCacheWidth: 300, // EKLENDİ (Performans için)
+                      fadeInDuration:
+                          const Duration(milliseconds: 150), // EKLENDİ
+                      errorWidget: (context, url, error) =>
+                          DeviceCoverPlaceholder(
+                        logoColor: Theme.of(context).primaryColor,
+                        borderRadius: 4,
+                      ),
+                    );
+                  }
+
+                  return Container(
+                      width: artistSongWidth,
+                      margin: const EdgeInsets.only(right: 16),
+                      child: GestureDetector(
+                        onTap: () {
+                          SongCard.showModernMenu(
+                            context,
+                            song,
+                            onTap: () {
+                              final provider = context.read<SongProvider>();
+                              if (provider.currentSong?.id == song.id) {
+                                if (provider.audioPlayer.playing) {
+                                  provider.audioPlayer.pause();
+                                } else {
+                                  provider.audioPlayer.play();
+                                }
+                              } else {
+                                provider.playSong(song, mostPlayed);
+                              }
+                            },
+                          );
+                        },
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            AspectRatio(
+                              aspectRatio: 16 / 9,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: imageWidget,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(song.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13)),
+                            const SizedBox(height: 2),
+                            Text(song.artist,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                    color: Colors.grey.shade400, fontSize: 11)),
+                          ],
+                        ),
+                      ));
+                },
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
@@ -938,6 +1009,7 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final isWide = Responsive.isTabletOrLandscape(context);
     final isFollowed = context.select<SongProvider, bool>(
         (p) => p.isArtistFollowed(widget.artistName));
     final isFirebaseLoggedIn =
@@ -945,180 +1017,189 @@ class _ArtistSectionWidgetState extends State<ArtistSectionWidget> {
     final langProvider = context.watch<LanguageProvider>();
     final primaryColor = Theme.of(context).primaryColor;
 
-    return Padding(
-        padding: EdgeInsets.fromLTRB(
-          screenWidth * 0.025,
-          16,
-          screenWidth * 0.025,
-          12, // Sanatçı blokları arası mesafe daraltıldı
-        ),
-        child: IntrinsicHeight(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 1. Sanatçı Adı ve Takip Butonu
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ArtistDetailPage(
-                              artistName: widget.artistName,
-                              songs: widget.initialSongs,
-                            ),
-                          ),
-                        );
-                      },
-                      child: Row(
+    return Center(
+        child: ConstrainedBox(
+            constraints:
+                BoxConstraints(maxWidth: isWide ? 950 : double.infinity),
+            child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  screenWidth * 0.025,
+                  16,
+                  screenWidth * 0.025,
+                  12, // Sanatçı blokları arası mesafe daraltıldı
+                ),
+                child: IntrinsicHeight(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 1. Sanatçı Adı ve Takip Butonu
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          _SmallArtistAvatar(
-                            artistName: widget.artistName,
-                            songProvider: context.read<SongProvider>(),
-                          ),
-                          const SizedBox(width: 12),
                           Expanded(
-                            child: Text(
-                              widget.artistName,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 19,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.3,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: () {
-                      if (!isFirebaseLoggedIn) {
-                        _showLoginBottomSheet(context);
-                        return;
-                      }
-                      context
-                          .read<SongProvider>()
-                          .toggleFollowArtist(widget.artistName);
-                      CustomSnackBar.showInfo(
-                          context: context,
-                          message: isFollowed
-                              ? langProvider
-                                  .t('artist_unfollowed')
-                                  .replaceAll('%s', widget.artistName)
-                              : langProvider
-                                  .t('artist_followed_snack')
-                                  .replaceAll('%s', widget.artistName));
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isFollowed
-                            ? primaryColor.withOpacity(0.15)
-                            : Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: isFollowed
-                              ? primaryColor.withOpacity(0.5)
-                              : Colors.white.withOpacity(0.1),
-                          width: 1,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            isFollowed
-                                ? Icons.check_rounded
-                                : Icons.person_add_alt_1_rounded,
-                            color: isFollowed ? primaryColor : Colors.white70,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            isFollowed
-                                ? langProvider.t('followed')
-                                : langProvider.t('follow'),
-                            style: TextStyle(
-                              color: isFollowed ? primaryColor : Colors.white70,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              // 2. Şarkılar Alanı (Kapak ve Liste)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Sol: İlk Şarkı (16:9 Kapak ve Başlık)
-                  if (widget.initialSongs.isNotEmpty)
-                    SizedBox(
-                      width: screenWidth * 0.38,
-                      child: _buildSongCard(widget.initialSongs.first),
-                    ),
-                  const SizedBox(width: 12),
-                  // Sağ: Şarkı Listesi ve +Sayı
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (widget.initialSongs.length > 1)
-                          _buildCompactListSong(widget.initialSongs[1]),
-                        if (widget.initialSongs.length > 2)
-                          _buildCompactListSong(widget.initialSongs[2]),
-                        if (widget.initialSongs.length > 3)
-                          GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => ArtistDetailPage(
-                                    artistName: widget.artistName,
-                                    songs: widget.initialSongs,
+                            child: GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ArtistDetailPage(
+                                      artistName: widget.artistName,
+                                      songs: widget.initialSongs,
+                                    ),
                                   ),
-                                ),
-                              );
-                            },
-                            child: Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 4.0),
-                              child: Text(
-                                langProvider.t('see_more'),
-                                style: TextStyle(
-                                  color: primaryColor,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                );
+                              },
+                              child: Row(
+                                children: [
+                                  _SmallArtistAvatar(
+                                    artistName: widget.artistName,
+                                    songProvider: context.read<SongProvider>(),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      widget.artistName,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 19,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 0.3,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
-                      ],
-                    ),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () {
+                              if (!isFirebaseLoggedIn) {
+                                _showLoginBottomSheet(context);
+                                return;
+                              }
+                              context
+                                  .read<SongProvider>()
+                                  .toggleFollowArtist(widget.artistName);
+                              CustomSnackBar.showInfo(
+                                  context: context,
+                                  message: isFollowed
+                                      ? langProvider
+                                          .t('artist_unfollowed')
+                                          .replaceAll('%s', widget.artistName)
+                                      : langProvider
+                                          .t('artist_followed_snack')
+                                          .replaceAll('%s', widget.artistName));
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isFollowed
+                                    ? primaryColor.withOpacity(0.15)
+                                    : Colors.white.withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: isFollowed
+                                      ? primaryColor.withOpacity(0.5)
+                                      : Colors.white.withOpacity(0.1),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    isFollowed
+                                        ? Icons.check_rounded
+                                        : Icons.person_add_alt_1_rounded,
+                                    color: isFollowed
+                                        ? primaryColor
+                                        : Colors.white70,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    isFollowed
+                                        ? langProvider.t('followed')
+                                        : langProvider.t('follow'),
+                                    style: TextStyle(
+                                      color: isFollowed
+                                          ? primaryColor
+                                          : Colors.white70,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      // 2. Şarkılar Alanı (Kapak ve Liste)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Sol: İlk Şarkı (16:9 Kapak ve Başlık)
+                          if (widget.initialSongs.isNotEmpty)
+                            SizedBox(
+                              width: isWide ? 260.0 : screenWidth * 0.38,
+                              child: _buildSongCard(widget.initialSongs.first),
+                            ),
+                          const SizedBox(width: 12),
+                          // Sağ: Şarkı Listesi ve +Sayı
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (widget.initialSongs.length > 1)
+                                  _buildCompactListSong(widget.initialSongs[1]),
+                                if (widget.initialSongs.length > 2)
+                                  _buildCompactListSong(widget.initialSongs[2]),
+                                if (widget.initialSongs.length > 3)
+                                  GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              ArtistDetailPage(
+                                            artistName: widget.artistName,
+                                            songs: widget.initialSongs,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 4.0),
+                                      child: Text(
+                                        langProvider.t('see_more'),
+                                        style: TextStyle(
+                                          color: primaryColor,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ],
-          ),
-        ));
+                ))));
   }
 
   Widget _buildSongCard(Song song) {
@@ -1466,6 +1547,7 @@ class _DailySongCardState extends State<DailySongCard> {
       authProvider.user?.displayName,
     );
     final horizontalPadding = MediaQuery.of(context).size.width * 0.025;
+    final isWide = Responsive.isTabletOrLandscape(context);
 
     return Padding(
         padding: EdgeInsets.fromLTRB(
@@ -1496,43 +1578,46 @@ class _DailySongCardState extends State<DailySongCard> {
               );
             },
             child: Container(
-              decoration:
-                  BoxDecoration(borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(isWide ? 16 : 12),
+              ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(isWide ? 16 : 12),
                 child: Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: EdgeInsets.all(isWide ? 16 : 12),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade900.withOpacity(0.8),
-                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.grey.shade900.withOpacity(0.85),
+                    borderRadius: BorderRadius.circular(isWide ? 16 : 12),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.1),
+                      color: isWide
+                          ? primaryColor.withOpacity(0.35)
+                          : Colors.white.withOpacity(0.1),
                       width: 1.5,
                     ),
                   ),
                   child: Row(children: [
                     // Kapak Resmi
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(5),
+                      borderRadius: BorderRadius.circular(isWide ? 8 : 5),
                       child: CachedNetworkImage(
                         imageUrl: widget.song.coverUrl,
-                        width: 112,
-                        height: 63,
+                        width: isWide ? 144 : 112,
+                        height: isWide ? 81 : 63,
                         fit: BoxFit.cover,
-                        memCacheWidth: 250, // EKLENDİ (Performans için)
+                        memCacheWidth: 300, // EKLENDİ (Performans için)
                         fadeInDuration:
                             const Duration(milliseconds: 150), // EKLENDİ
                         errorWidget: (context, url, error) =>
                             DeviceCoverPlaceholder(
-                          width: 112,
-                          height: 63,
-                          borderRadius: 10,
+                          width: isWide ? 144 : 112,
+                          height: isWide ? 81 : 63,
+                          borderRadius: isWide ? 8 : 10,
                           logoColor: Theme.of(context).primaryColor,
                         ),
                       ),
                     ),
 
-                    const SizedBox(width: 16),
+                    SizedBox(width: isWide ? 20 : 16),
                     // Şarkı Bilgileri
                     Expanded(
                       child: Column(
@@ -1544,7 +1629,7 @@ class _DailySongCardState extends State<DailySongCard> {
                               Icon(
                                 Icons.local_fire_department_rounded,
                                 color: primaryColor,
-                                size: 16,
+                                size: isWide ? 18 : 16,
                               ),
                               const SizedBox(width: 4),
                               Expanded(
@@ -1554,7 +1639,7 @@ class _DailySongCardState extends State<DailySongCard> {
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     color: primaryColor,
-                                    fontSize: 10,
+                                    fontSize: isWide ? 12 : 10,
                                     fontWeight: FontWeight.bold,
                                     letterSpacing: 0.5,
                                     height: 1.2,
@@ -1563,14 +1648,14 @@ class _DailySongCardState extends State<DailySongCard> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 6),
+                          SizedBox(height: isWide ? 8 : 6),
                           Text(
                             widget.song.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: Colors.white,
-                              fontSize: 14,
+                              fontSize: isWide ? 16 : 14,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -1581,7 +1666,7 @@ class _DailySongCardState extends State<DailySongCard> {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: Colors.grey.shade400,
-                              fontSize: 12,
+                              fontSize: isWide ? 13 : 12,
                             ),
                           ),
                         ],
@@ -1603,8 +1688,8 @@ class _DailySongCardState extends State<DailySongCard> {
                         }
                       },
                       child: Container(
-                        width: 44,
-                        height: 44,
+                        width: isWide ? 48 : 44,
+                        height: isWide ? 48 : 44,
                         decoration: BoxDecoration(
                           color: primaryColor.withOpacity(0.2),
                           shape: BoxShape.circle,
@@ -1624,7 +1709,7 @@ class _DailySongCardState extends State<DailySongCard> {
                                     ? CustomIcons.pauseRounded
                                     : CustomIcons.playArrowRounded,
                                 color: Colors.white,
-                                size: 20,
+                                size: isWide ? 24 : 20,
                               );
                             },
                           ),
@@ -1687,19 +1772,62 @@ class QuickAccessGrid extends StatelessWidget {
             ? provider.popularArtists[1]
             : 'Müslüm Gürses');
 
-    Widget buildBox({
-      required Widget child,
+    final isWide = Responsive.isTabletOrLandscape(context);
+
+    Widget buildQuickTile({
+      required Widget iconWidget,
+      required Color iconColor,
+      required String title,
       required VoidCallback onTap,
+      Widget? trailing,
     }) {
       return GestureDetector(
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
-            color: Colors.grey.shade900.withOpacity(0.8),
-            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: isWide
+                  ? Colors.white.withOpacity(0.12)
+                  : Colors.white.withOpacity(0.1),
+              width: 1.0,
+            ),
+            color: isWide
+                ? Colors.white.withOpacity(0.06)
+                : Colors.grey.shade900.withOpacity(0.8),
+            borderRadius: BorderRadius.circular(isWide ? 14 : 24),
           ),
-          child: child,
+          child: Row(
+            children: [
+              SizedBox(width: isWide ? 10 : 10),
+              if (isWide)
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: iconColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Center(child: iconWidget),
+                )
+              else
+                iconWidget,
+              SizedBox(width: isWide ? 10 : 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: isWide ? 14 : 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (trailing != null) trailing,
+              if (trailing == null && isWide) const SizedBox(width: 8),
+            ],
+          ),
         ),
       );
     }
@@ -1707,53 +1835,41 @@ class QuickAccessGrid extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.fromLTRB(horizontalPadding, 0, horizontalPadding, 16),
       child: GridView.count(
-        crossAxisCount: 2,
+        crossAxisCount: isWide ? 3 : 2,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
-        childAspectRatio: 3.8,
+        mainAxisSpacing: isWide ? 10 : 8,
+        crossAxisSpacing: isWide ? 10 : 8,
+        childAspectRatio: isWide ? 3.4 : 3.8,
         padding: EdgeInsets.zero,
         children: [
           // 1. Favoriler
-
-          buildBox(
+          buildQuickTile(
             onTap: () {
               Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) => const FavoritesPage()));
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const FavoritesPage(),
+                ),
+              );
             },
-            child: Row(
-              children: [
-                const SizedBox(width: 12),
-                Icon(
-                  Icons.favorite_rounded,
-                  color: Colors.redAccent,
-                  size: 26,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    langProvider.t('favorites'),
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (provider.currentSong != null &&
+            iconColor: Colors.redAccent,
+            iconWidget: Icon(
+              Icons.favorite_rounded,
+              color: Colors.redAccent,
+              size: isWide ? 22 : 26,
+            ),
+            title: langProvider.t('favorites'),
+            trailing: (provider.currentSong != null &&
                     provider.favoriteSongs
                         .any((s) => s.id == provider.currentSong!.id))
-                  StreamBuilder<bool>(
+                ? StreamBuilder<bool>(
                     stream: provider.audioPlayer.playingStream,
                     builder: (context, snapshot) {
                       final isPlaying = snapshot.data ?? false;
                       if (!isPlaying) return const SizedBox.shrink();
                       return Padding(
-                        padding: const EdgeInsets.only(right: 30.0),
+                        padding: EdgeInsets.only(right: isWide ? 12.0 : 30.0),
                         child: PlayingEqualizerIndicator(
                           color: Theme.of(context).primaryColor,
                           width: 14,
@@ -1762,169 +1878,90 @@ class QuickAccessGrid extends StatelessWidget {
                         ),
                       );
                     },
-                  ),
-              ],
-            ),
+                  )
+                : null,
           ),
 
           // 2. En Son
-
-          buildBox(
+          buildQuickTile(
             onTap: () {
               Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) => const RecentlyPlayedPage()));
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const RecentlyPlayedPage(),
+                ),
+              );
             },
-            child: Row(
-              children: [
-                const SizedBox(width: 8),
-                Icon(
-                  Icons.history_rounded,
-                  color: Colors.amber,
-                  size: 26,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    recentlyPlayed.isNotEmpty
-                        ? langProvider.t('quick_latest')
-                        : langProvider.t('quick_listen'),
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
+            iconColor: Colors.amber,
+            iconWidget: Icon(
+              Icons.history_rounded,
+              color: Colors.amber,
+              size: isWide ? 22 : 26,
             ),
+            title: recentlyPlayed.isNotEmpty
+                ? langProvider.t('quick_latest')
+                : langProvider.t('quick_listen'),
           ),
 
           // 3. Çalma Listelerim
-
-          buildBox(
+          buildQuickTile(
             onTap: () {
               mainScreenKey.currentState
-                  ?.switchToTab(2); // Kitaplık/Çalma Listelerim (Index 2)
+                  ?.switchToTab(3); // Kitaplık/Çalma Listelerim (Index 3)
             },
-            child: Row(
-              children: [
-                const SizedBox(width: 8),
-                Icon(
-                  Icons.queue_music_rounded,
-                  color: Colors.blueAccent,
-                  size: 26,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    langProvider.t('my_playlists'),
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
+            iconColor: Colors.blueAccent,
+            iconWidget: Icon(
+              Icons.queue_music_rounded,
+              color: Colors.blueAccent,
+              size: isWide ? 22 : 26,
             ),
+            title: langProvider.t('my_playlists'),
           ),
 
           // 4. Takip
-
-          buildBox(
+          buildQuickTile(
             onTap: () {
               ProfilePage.showFollowedArtists(context, provider);
             },
-            child: Row(
-              children: [
-                const SizedBox(width: 8),
-                Icon(
-                  Icons.people_rounded,
-                  color: Colors.purpleAccent,
-                  size: 26,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    langProvider.t('following'),
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
+            iconColor: Colors.purpleAccent,
+            iconWidget: Icon(
+              Icons.people_rounded,
+              color: Colors.purpleAccent,
+              size: isWide ? 22 : 26,
             ),
+            title: langProvider.t('following'),
           ),
 
           // 5. İndirmeler
-
-          buildBox(
+          buildQuickTile(
             onTap: () {
               mainScreenKey.currentState
-                  ?.switchToTab(1); // İndirmeler (Index 1)
+                  ?.switchToTab(2); // İndirmeler (Index 2)
               downloadsPageKey.currentState?.switchToAudio();
             },
-            child: Row(
-              children: [
-                const SizedBox(width: 8),
-                CustomIcons.svgIcon(
-                  CustomIcons.downloadingRounded,
-                  color: Colors.greenAccent,
-                  size: 26,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    langProvider.t('downloads'),
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
+            iconColor: Colors.greenAccent,
+            iconWidget: CustomIcons.svgIcon(
+              CustomIcons.downloadingRounded,
+              color: Colors.greenAccent,
+              size: isWide ? 22 : 26,
             ),
+            title: langProvider.t('downloads'),
           ),
 
           // 6. Videolarım
-
-          buildBox(
+          buildQuickTile(
             onTap: () {
               mainScreenKey.currentState
-                  ?.switchToTab(1); // İndirmeler (Index 1)
+                  ?.switchToTab(2); // İndirmeler (Index 2)
               downloadsPageKey.currentState?.switchToVideos();
             },
-            child: Row(
-              children: [
-                const SizedBox(width: 8),
-                Icon(
-                  Icons.video_library_rounded,
-                  color: Colors.deepOrangeAccent,
-                  size: 26,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    langProvider.t('quick_my_videos'),
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
+            iconColor: Colors.deepOrangeAccent,
+            iconWidget: Icon(
+              Icons.video_library_rounded,
+              color: Colors.deepOrangeAccent,
+              size: isWide ? 22 : 26,
             ),
+            title: langProvider.t('quick_my_videos'),
           ),
         ],
       ),

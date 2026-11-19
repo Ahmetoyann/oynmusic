@@ -11,6 +11,7 @@ import 'package:muzik_app/pages/search_page.dart';
 import 'package:muzik_app/pages/trend_page.dart';
 import 'package:muzik_app/pages/downloads_page.dart';
 import 'package:muzik_app/pages/offline_downloads_page.dart';
+import 'package:muzik_app/pages/profile_page.dart';
 import 'package:muzik_app/providers/song_provider.dart';
 import 'package:muzik_app/widgets/mini_player.dart';
 import 'package:provider/provider.dart';
@@ -24,7 +25,6 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:muzik_app/pages/login_page.dart';
 import 'package:muzik_app/pages/player_page.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:muzik_app/pages/settings_page.dart';
 import 'package:muzik_app/pages/splash_screen.dart';
 import 'package:muzik_app/custom_icons.dart';
 import 'package:muzik_app/pages/onboarding_page.dart';
@@ -42,6 +42,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:muzik_app/utils/responsive.dart';
 
 // Global Navigator Key
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -490,7 +491,7 @@ class MainScreenState extends State<MainScreen> {
       ScrollController(),
       ScrollController(),
       ScrollController(),
-      ScrollController(), // Arama sekmesi için 5. controller
+      ScrollController(),
     ];
 
     _pages = [
@@ -500,19 +501,19 @@ class MainScreenState extends State<MainScreen> {
       ),
       PrimaryScrollController(
         controller: _scrollControllers[1],
-        child: DownloadsPage(key: downloadsPageKey),
+        child: SearchPage(key: SearchPage.pageKey),
       ),
       PrimaryScrollController(
         controller: _scrollControllers[2],
-        child: const ListelerPage(),
+        child: DownloadsPage(key: downloadsPageKey),
       ),
       PrimaryScrollController(
         controller: _scrollControllers[3],
-        child: const SettingsPage(), // Profil yerine Ayarlar eklendi
+        child: const ListelerPage(),
       ),
       PrimaryScrollController(
         controller: _scrollControllers[4],
-        child: const SearchPage(), // Arama ayrı bir sekme oldu (index 4)
+        child: const ProfilePage(),
       ),
     ];
 
@@ -533,12 +534,11 @@ class MainScreenState extends State<MainScreen> {
       launchCount++;
       await prefs.setInt('app_launch_count', launchCount);
 
-      if (launchCount == 2) {
+      if (launchCount >= 2) {
         // Uygulamanın tamamen yüklenmesi için kısa bir süre bekle
         await Future.delayed(const Duration(seconds: 2));
         if (mounted) {
           ReviewBottomSheet.show(context);
-          prefs.setBool('has_seen_review', true);
         }
       }
     }
@@ -630,134 +630,139 @@ class MainScreenState extends State<MainScreen> {
               child: Dialog(
                 backgroundColor: Colors.transparent,
                 elevation: 0,
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E1E1E),
-                    borderRadius: BorderRadius.circular(28),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.1),
-                      width: 1.5,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 480),
+                  child: Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E1E1E),
+                      borderRadius: BorderRadius.circular(28),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.1),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color:
+                              Theme.of(context).primaryColor.withOpacity(0.2),
+                          blurRadius: 40,
+                          spreadRadius: -10,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Theme.of(context).primaryColor.withOpacity(0.2),
-                        blurRadius: 40,
-                        spreadRadius: -10,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Modern İkon Başlığı
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).primaryColor.withOpacity(0.15),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.rocket_launch_rounded,
-                          color: Theme.of(context).primaryColor,
-                          size: 48,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      // Başlık
-                      Text(
-                        langProvider.t('new_version_ready'),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      // Açıklama Metni
-                      Text(
-                        updateMessage.isNotEmpty
-                            ? updateMessage
-                            : langProvider.t('update_message_default'),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
-                          fontSize: 15,
-                          height: 1.5,
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                      // Tam Genişlikte Güncelle Butonu
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Theme.of(context).primaryColor,
-                            foregroundColor: Theme.of(
-                                      context,
-                                    ).primaryColor.computeLuminance() >
-                                    0.5
-                                ? Colors.black
-                                : Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            elevation: 8,
-                            shadowColor: Theme.of(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Modern İkon Başlığı
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Theme.of(
                               context,
-                            ).primaryColor.withOpacity(0.5),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
+                            ).primaryColor.withOpacity(0.15),
+                            shape: BoxShape.circle,
                           ),
-                          onPressed: () async {
-                            final url = storeUrl.isNotEmpty
-                                ? storeUrl
-                                : 'https://play.google.com/store/apps/details?id=com.ahmed.oyn_music';
-                            final uri = Uri.parse(url);
-                            if (await canLaunchUrl(uri)) {
-                              await launchUrl(
-                                uri,
-                                mode: LaunchMode.externalApplication,
-                              );
-                            }
-                          },
-                          child: Text(
-                            langProvider.t('update_now'),
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          child: Icon(
+                            Icons.rocket_launch_rounded,
+                            color: Theme.of(context).primaryColor,
+                            size: 48,
                           ),
                         ),
-                      ),
-                      // Daha Sonra Butonu (Zorunlu değilse)
-                      if (!forceUpdate) ...[
+                        const SizedBox(height: 24),
+                        // Başlık
+                        Text(
+                          langProvider.t('new_version_ready'),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         const SizedBox(height: 12),
+                        // Açıklama Metni
+                        Text(
+                          updateMessage.isNotEmpty
+                              ? updateMessage
+                              : langProvider.t('update_message_default'),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.7),
+                            fontSize: 15,
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        // Tam Genişlikte Güncelle Butonu
                         SizedBox(
                           width: double.infinity,
-                          child: TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            style: TextButton.styleFrom(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Theme.of(context).primaryColor,
+                              foregroundColor: Theme.of(
+                                        context,
+                                      ).primaryColor.computeLuminance() >
+                                      0.5
+                                  ? Colors.black
+                                  : Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 16),
+                              elevation: 8,
+                              shadowColor: Theme.of(
+                                context,
+                              ).primaryColor.withOpacity(0.5),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16),
                               ),
                             ),
+                            onPressed: () async {
+                              final url = storeUrl.isNotEmpty
+                                  ? storeUrl
+                                  : 'https://play.google.com/store/apps/details?id=com.ahmed.oyn_music';
+                              final uri = Uri.parse(url);
+                              if (await canLaunchUrl(uri)) {
+                                await launchUrl(
+                                  uri,
+                                  mode: LaunchMode.externalApplication,
+                                );
+                              }
+                            },
                             child: Text(
-                              langProvider.t('later'),
+                              langProvider.t('update_now'),
                               style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 15,
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
                         ),
+                        // Daha Sonra Butonu (Zorunlu değilse)
+                        if (!forceUpdate) ...[
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              style: TextButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: Text(
+                                langProvider.t('later'),
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -773,6 +778,9 @@ class MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).primaryColor;
+    final isWide = Responsive.isTabletOrLandscape(context);
+    final authProvider = context.watch<AuthProvider>();
+    final profilePhotoUrl = authProvider.user?.photoURL;
     final hasConnection = context.select<SongProvider, bool>(
       (p) => p.hasConnection,
     );
@@ -852,181 +860,183 @@ class MainScreenState extends State<MainScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const MiniPlayer(),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Container(
-                                margin: const EdgeInsets.only(
-                                    right: 12), // Arama topuna boşluk
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(100),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.2),
-                                      blurRadius: 20,
-                                      offset: const Offset(0, 10),
-                                    ),
-                                  ],
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(100),
-                                  child: BackdropFilter(
-                                    filter: ImageFilter.blur(
-                                        sigmaX: 15, sigmaY: 15),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 4, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.15),
-                                        border: Border.all(
-                                          color: Colors.white.withOpacity(0.2),
-                                          width: 1,
-                                        ),
-                                        borderRadius:
-                                            BorderRadius.circular(100),
+                      Center(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: isWide ? 520 : double.infinity,
+                          ),
+                          child: Padding(
+                            padding: isWide
+                                ? const EdgeInsets.symmetric(horizontal: 16)
+                                : const EdgeInsets.fromLTRB(24, 0, 24, 0),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(100),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.2),
+                                    blurRadius: 20,
+                                    offset: const Offset(0, 10),
+                                  ),
+                                ],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(100),
+                                child: BackdropFilter(
+                                  filter:
+                                      ImageFilter.blur(sigmaX: 7, sigmaY: 7),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 2, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.1),
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(0.16),
+                                        width: 1,
                                       ),
-                                      child: Row(
-                                        children: List.generate(4, (index) {
-                                          final isSelected =
-                                              _selectedIndex == index;
+                                      borderRadius: BorderRadius.circular(100),
+                                    ),
+                                    child: Row(
+                                      children: List.generate(5, (index) {
+                                        final isSelected =
+                                            _selectedIndex == index;
 
-                                          String label;
-                                          String iconStr;
-                                          if (index == 0) {
-                                            label = langProvider.t('trends');
-                                            iconStr = CustomIcons.trending;
-                                          } else if (index == 1) {
-                                            label = langProvider.t('downloads');
-                                            iconStr =
-                                                CustomIcons.downloadingRounded;
-                                          } else if (index == 2) {
-                                            label = langProvider.t('library');
-                                            iconStr = CustomIcons.library;
-                                          } else {
-                                            label =
-                                                langProvider.currentLanguage ==
-                                                        'tr'
-                                                    ? 'Ayarlar'
-                                                    : 'Settings';
-                                            iconStr = CustomIcons.settings;
-                                          }
+                                        String iconStr;
+                                        if (index == 0) {
+                                          iconStr = CustomIcons.trending;
+                                        } else if (index == 1) {
+                                          iconStr = isSelected
+                                              ? CustomIcons.searchActive
+                                              : CustomIcons.search;
+                                        } else if (index == 2) {
+                                          iconStr =
+                                              CustomIcons.downloadingRounded;
+                                        } else if (index == 3) {
+                                          iconStr = CustomIcons.library;
+                                        } else {
+                                          iconStr = '';
+                                        }
 
-                                          return Expanded(
-                                            child: GestureDetector(
-                                              onTap: () => _onItemTapped(index),
-                                              behavior: HitTestBehavior.opaque,
-                                              child: AnimatedContainer(
-                                                duration: const Duration(
-                                                    milliseconds: 300),
-                                                curve: Curves.easeOutQuint,
-                                                height: 60,
-                                                decoration: BoxDecoration(
-                                                  color: isSelected
-                                                      ? Colors.white
-                                                          .withOpacity(0.2)
-                                                      : Colors.transparent,
-                                                  borderRadius:
-                                                      BorderRadius.circular(50),
-                                                ),
-                                                child: Column(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  mainAxisAlignment:
-                                                      MainAxisAlignment.center,
-                                                  children: [
-                                                    CustomIcons.svgIcon(
-                                                      iconStr,
-                                                      color: isSelected
-                                                          ? primaryColor
-                                                          : Colors.white
-                                                              .withOpacity(0.6),
-                                                      size: 24,
-                                                    ),
-                                                    const SizedBox(height: 4),
-                                                    Text(
-                                                      label,
-                                                      style: TextStyle(
+                                        return Expanded(
+                                          child: GestureDetector(
+                                            onTap: () => _onItemTapped(index),
+                                            behavior: HitTestBehavior.opaque,
+                                            child: AnimatedContainer(
+                                              duration: const Duration(
+                                                  milliseconds: 300),
+                                              curve: Curves.easeOutQuint,
+                                              height: 44,
+                                              decoration: BoxDecoration(
+                                                color: isSelected
+                                                    ? Colors.white
+                                                        .withOpacity(0.2)
+                                                    : Colors.transparent,
+                                                borderRadius:
+                                                    BorderRadius.circular(50),
+                                              ),
+                                              child: Center(
+                                                child: index == 4
+                                                    ? Container(
+                                                        width: 30,
+                                                        height: 30,
+                                                        padding: isSelected
+                                                            ? const EdgeInsets
+                                                                .all(2)
+                                                            : EdgeInsets.zero,
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          shape:
+                                                              BoxShape.circle,
+                                                          border: isSelected
+                                                              ? Border.all(
+                                                                  color:
+                                                                      primaryColor,
+                                                                  width: 2,
+                                                                )
+                                                              : null,
+                                                        ),
+                                                        child: ClipOval(
+                                                          child: profilePhotoUrl ==
+                                                                      null ||
+                                                                  profilePhotoUrl
+                                                                      .isEmpty
+                                                              ? Container(
+                                                                  color: Colors
+                                                                      .grey
+                                                                      .shade800,
+                                                                  alignment:
+                                                                      Alignment
+                                                                          .center,
+                                                                  child: Icon(
+                                                                    Icons
+                                                                        .person,
+                                                                    size: 22,
+                                                                    color: isSelected
+                                                                        ? primaryColor
+                                                                        : Colors
+                                                                            .white
+                                                                            .withOpacity(0.7),
+                                                                  ),
+                                                                )
+                                                              : profilePhotoUrl
+                                                                      .startsWith(
+                                                                          'http')
+                                                                  ? Image
+                                                                      .network(
+                                                                      profilePhotoUrl,
+                                                                      fit: BoxFit
+                                                                          .cover,
+                                                                      errorBuilder: (context,
+                                                                              error,
+                                                                              stackTrace) =>
+                                                                          const Icon(
+                                                                        Icons
+                                                                            .person,
+                                                                        size:
+                                                                            22,
+                                                                        color: Colors
+                                                                            .white70,
+                                                                      ),
+                                                                    )
+                                                                  : Image.file(
+                                                                      File(
+                                                                          profilePhotoUrl),
+                                                                      fit: BoxFit
+                                                                          .cover,
+                                                                      errorBuilder: (context,
+                                                                              error,
+                                                                              stackTrace) =>
+                                                                          const Icon(
+                                                                        Icons
+                                                                            .person,
+                                                                        size:
+                                                                            22,
+                                                                        color: Colors
+                                                                            .white70,
+                                                                      ),
+                                                                    ),
+                                                        ),
+                                                      )
+                                                    : CustomIcons.svgIcon(
+                                                        iconStr,
                                                         color: isSelected
                                                             ? primaryColor
                                                             : Colors.white
                                                                 .withOpacity(
-                                                                    0.6),
-                                                        fontWeight: isSelected
-                                                            ? FontWeight.bold
-                                                            : FontWeight.w500,
-                                                        fontSize: 8,
+                                                                    0.4),
+                                                        size: 28,
                                                       ),
-                                                      maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                  ],
-                                                ),
                                               ),
                                             ),
-                                          );
-                                        }),
-                                      ),
+                                          ),
+                                        );
+                                      }),
                                     ),
                                   ),
                                 ),
                               ),
                             ),
-                            // En sağdaki ayrı Arama topu
-                            GestureDetector(
-                              onTap: () => _onItemTapped(4),
-                              behavior: HitTestBehavior.opaque,
-                              child: Container(
-                                width: 64,
-                                height: 64,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.2),
-                                      blurRadius: 20,
-                                      offset: const Offset(0, 10),
-                                    ),
-                                  ],
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(100),
-                                  child: BackdropFilter(
-                                    filter: ImageFilter.blur(
-                                        sigmaX: 15, sigmaY: 15),
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: _selectedIndex == 4
-                                            ? Colors.white.withOpacity(0.35)
-                                            : Colors.white.withOpacity(0.15),
-                                        border: Border.all(
-                                          color: _selectedIndex == 4
-                                              ? Colors.white.withOpacity(0.5)
-                                              : Colors.white.withOpacity(0.2),
-                                          width: 1,
-                                        ),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Center(
-                                        child: CustomIcons.svgIcon(
-                                          _selectedIndex == 4
-                                              ? CustomIcons.searchActive
-                                              : CustomIcons.search,
-                                          color: _selectedIndex == 4
-                                              ? primaryColor
-                                              : Colors.white.withOpacity(0.6),
-                                          size: 24,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ],

@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:muzik_app/providers/song_provider.dart';
 import 'package:muzik_app/providers/language_provider.dart';
 import 'package:muzik_app/pages/artist_detail_page.dart';
+import 'package:muzik_app/utils/responsive.dart';
 
 class TopArtistsPage extends StatelessWidget {
   const TopArtistsPage({super.key});
@@ -14,6 +15,11 @@ class TopArtistsPage extends StatelessWidget {
     final songProvider = context.watch<SongProvider>();
     final langProvider = context.watch<LanguageProvider>();
     final artists = songProvider.popularArtists;
+    final isTablet = Responsive.isTabletOrLandscape(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final horizontalPadding = isTablet
+        ? ((screenWidth - 950).clamp(24.0, screenWidth) / 2)
+        : 16.0;
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
@@ -57,16 +63,21 @@ class TopArtistsPage extends StatelessWidget {
             bottom: false,
             child: GridView.builder(
               padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
                 16,
-                16,
-                16,
+                horizontalPadding,
                 MediaQuery.of(context).padding.bottom + 80,
               ),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                childAspectRatio: 0.8,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: Responsive.gridColumns(
+                  context,
+                  phone: 3,
+                  tablet: 5,
+                  wide: 7,
+                ),
+                childAspectRatio: isTablet ? 0.85 : 0.8,
+                crossAxisSpacing: isTablet ? 20 : 16,
+                mainAxisSpacing: isTablet ? 20 : 16,
               ),
               physics: const BouncingScrollPhysics(),
               itemCount: artists.length,

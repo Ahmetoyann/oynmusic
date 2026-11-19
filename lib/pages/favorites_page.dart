@@ -23,6 +23,7 @@ import 'package:muzik_app/providers/language_provider.dart';
 import 'package:muzik_app/widgets/mini_player.dart';
 import 'package:muzik_app/widgets/custom_search_bar.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:muzik_app/utils/responsive.dart';
 
 enum SortOption { dateNewest, dateOldest, nameAZ, nameZA }
 
@@ -75,8 +76,6 @@ class _FavoritesPageState extends State<FavoritesPage> {
     _searchController.dispose();
     super.dispose();
   }
-
-
 
   void _toggleSelection(Song song) {
     setState(() {
@@ -843,40 +842,42 @@ class _FavoritesPageState extends State<FavoritesPage> {
       child: Stack(
         children: [
           Scaffold(
-            appBar: CustomAppBar(
-              showLeading: canPopNavigator,
-              title: _isSelectionMode
-                  ? '${_selectedSongs.length} Seçildi'
-                  : langProvider.t('favorites'),
-              leading: _isSelectionMode
-                  ? IconButton(
-                      icon: CustomIcons.svgIcon(CustomIcons.close, size: 24),
-                      onPressed: () {
-                        setState(() {
-                          _isSelectionMode = false;
-                          _selectedSongs.clear();
-                        });
-                      },
-                    )
-                  : canPopNavigator
-                      ? const BackButton(color: Colors.white)
-                      : null,
-              actions: [
-                if (_isSelectionMode) ...[
-                  IconButton(
-                    icon: Icon(Icons.playlist_add, size: 24),
-                    onPressed: () => _showAddToPlaylistBottomSheet(context),
-                  ),
-                  IconButton(
-                    icon: CustomIcons.svgIcon(
-                      CustomIcons.delete,
-                      color: Colors.redAccent,
+            appBar: LimitedWidthAppBar(
+              child: CustomAppBar(
+                showLeading: canPopNavigator,
+                title: _isSelectionMode
+                    ? '${_selectedSongs.length} Seçildi'
+                    : langProvider.t('favorites'),
+                leading: _isSelectionMode
+                    ? IconButton(
+                        icon: CustomIcons.svgIcon(CustomIcons.close, size: 24),
+                        onPressed: () {
+                          setState(() {
+                            _isSelectionMode = false;
+                            _selectedSongs.clear();
+                          });
+                        },
+                      )
+                    : canPopNavigator
+                        ? const BackButton(color: Colors.white)
+                        : null,
+                actions: [
+                  if (_isSelectionMode) ...[
+                    IconButton(
+                      icon: Icon(Icons.playlist_add, size: 24),
+                      onPressed: () => _showAddToPlaylistBottomSheet(context),
                     ),
-                    tooltip: "Favorilerden Çıkar",
-                    onPressed: () => _showDeleteSelectedDialog(context),
-                  ),
+                    IconButton(
+                      icon: CustomIcons.svgIcon(
+                        CustomIcons.delete,
+                        color: Colors.redAccent,
+                      ),
+                      tooltip: "Favorilerden Çıkar",
+                      onPressed: () => _showDeleteSelectedDialog(context),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
             backgroundColor: const Color(0xFF121212),
             extendBody: true,
@@ -911,600 +912,613 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     ),
                   )
                 : null,
-            body: Column(
-              children: [
-                Expanded(
-                  child: CustomScrollView(
-                    controller: _scrollController,
-                    keyboardDismissBehavior:
-                        ScrollViewKeyboardDismissBehavior.onDrag,
-                    slivers: [
-                      if (favoriteSongs.isNotEmpty)
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: EdgeInsets.fromLTRB(
-                              MediaQuery.of(context).size.width * 0.025,
-                              16,
-                              MediaQuery.of(context).size.width * 0.025,
-                              8,
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: CustomSearchBar(
-                                    controller: _searchController,
-                                    hintText:
-                                        langProvider.t('search_in_favorites'),
-                                    showClearButton: _searchText.isNotEmpty,
-                                    onClear: () {
-                                      setState(() => _searchText = '');
-                                      FocusScope.of(context).unfocus();
-                                    },
-                                    onChanged: (value) =>
-                                        setState(() => _searchText = value),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Center(
-                                  child: Container(
-                                    height: 48,
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade900,
-                                      borderRadius: BorderRadius.circular(5),
+            body: Responsive.limitPageWidth(
+              context,
+              Column(
+                children: [
+                  Expanded(
+                    child: CustomScrollView(
+                      controller: _scrollController,
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      slivers: [
+                        if (favoriteSongs.isNotEmpty)
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                MediaQuery.of(context).size.width * 0.025,
+                                16,
+                                MediaQuery.of(context).size.width * 0.025,
+                                8,
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: CustomSearchBar(
+                                      controller: _searchController,
+                                      hintText:
+                                          langProvider.t('search_in_favorites'),
+                                      showClearButton: _searchText.isNotEmpty,
+                                      onClear: () {
+                                        setState(() => _searchText = '');
+                                        FocusScope.of(context).unfocus();
+                                      },
+                                      onChanged: (value) =>
+                                          setState(() => _searchText = value),
                                     ),
-                                    child: CustomDropDown<SortOption>(
-                                      icon: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            langProvider.t('sort') ?? "Sırala",
-                                            style: TextStyle(
-                                              color: Colors.grey.shade400,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 14,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Center(
+                                    child: Container(
+                                      height: 48,
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade900,
+                                        borderRadius: BorderRadius.circular(5),
+                                      ),
+                                      child: CustomDropDown<SortOption>(
+                                        icon: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              langProvider.t('sort') ??
+                                                  "Sırala",
+                                              style: TextStyle(
+                                                color: Colors.grey.shade400,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 14,
+                                              ),
                                             ),
+                                            const SizedBox(width: 4),
+                                          ],
+                                        ),
+                                        tooltip: langProvider.t('sort'),
+                                        onSelected: (SortOption result) {
+                                          setState(() {
+                                            _sortOption = result;
+                                          });
+                                        },
+                                        items: [
+                                          CustomDropdownItem.build<SortOption>(
+                                            context: context,
+                                            value: SortOption.dateNewest,
+                                            icon: Icon(
+                                              Icons.arrow_downward_rounded,
+                                              size: 20,
+                                              color: Theme.of(context)
+                                                  .primaryColor,
+                                            ),
+                                            text: langProvider
+                                                .t('sort_date_newest'),
                                           ),
-                                          const SizedBox(width: 4),
+                                          CustomDropdownItem.build<SortOption>(
+                                            context: context,
+                                            value: SortOption.dateOldest,
+                                            icon: Icon(
+                                              Icons.arrow_upward_rounded,
+                                              size: 20,
+                                              color: Theme.of(context)
+                                                  .primaryColor,
+                                            ),
+                                            text: langProvider
+                                                .t('sort_date_oldest'),
+                                          ),
+                                          CustomDropdownItem.build<SortOption>(
+                                            context: context,
+                                            value: SortOption.nameAZ,
+                                            icon: Icon(
+                                              Icons.sort_by_alpha_rounded,
+                                              size: 20,
+                                              color: Theme.of(context)
+                                                  .primaryColor,
+                                            ),
+                                            text:
+                                                langProvider.t('sort_name_az'),
+                                          ),
+                                          CustomDropdownItem.build<SortOption>(
+                                            context: context,
+                                            value: SortOption.nameZA,
+                                            icon: Icon(
+                                              Icons.sort_by_alpha_rounded,
+                                              size: 20,
+                                              color: Theme.of(context)
+                                                  .primaryColor,
+                                            ),
+                                            text:
+                                                langProvider.t('sort_name_za'),
+                                          ),
                                         ],
                                       ),
-                                      tooltip: langProvider.t('sort'),
-                                      onSelected: (SortOption result) {
-                                        setState(() {
-                                          _sortOption = result;
-                                        });
-                                      },
-                                      items: [
-                                        CustomDropdownItem.build<SortOption>(
-                                          context: context,
-                                          value: SortOption.dateNewest,
-                                          icon: Icon(
-                                            Icons.arrow_downward_rounded,
-                                            size: 20,
-                                            color:
-                                                Theme.of(context).primaryColor,
-                                          ),
-                                          text: langProvider
-                                              .t('sort_date_newest'),
-                                        ),
-                                        CustomDropdownItem.build<SortOption>(
-                                          context: context,
-                                          value: SortOption.dateOldest,
-                                          icon: Icon(
-                                            Icons.arrow_upward_rounded,
-                                            size: 20,
-                                            color:
-                                                Theme.of(context).primaryColor,
-                                          ),
-                                          text: langProvider
-                                              .t('sort_date_oldest'),
-                                        ),
-                                        CustomDropdownItem.build<SortOption>(
-                                          context: context,
-                                          value: SortOption.nameAZ,
-                                          icon: Icon(
-                                            Icons.sort_by_alpha_rounded,
-                                            size: 20,
-                                            color:
-                                                Theme.of(context).primaryColor,
-                                          ),
-                                          text: langProvider.t('sort_name_az'),
-                                        ),
-                                        CustomDropdownItem.build<SortOption>(
-                                          context: context,
-                                          value: SortOption.nameZA,
-                                          icon: Icon(
-                                            Icons.sort_by_alpha_rounded,
-                                            size: 20,
-                                            color:
-                                                Theme.of(context).primaryColor,
-                                          ),
-                                          text: langProvider.t('sort_name_za'),
-                                        ),
-                                      ],
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      // --- PLAY / SHUFFLE BUTONLARI ---
-                      if (favoriteSongs.isNotEmpty)
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal:
-                                  MediaQuery.of(context).size.width * 0.025,
-                              vertical: 8.0,
-                            ),
-                            child: Row(
-                              children: [
-                                // 1. Karışık Çal Butonu
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(30),
-                                  child: BackdropFilter(
-                                    filter: ImageFilter.blur(
-                                      sigmaX: 10,
-                                      sigmaY: 10,
-                                    ),
-                                    child: Container(
-                                      width: 44,
-                                      height: 44,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(30),
-                                        border: Border.all(
-                                          color: Colors.white.withOpacity(0.2),
-                                          width: 1.5,
-                                        ),
+                        // --- PLAY / SHUFFLE BUTONLARI ---
+                        if (favoriteSongs.isNotEmpty)
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal:
+                                    MediaQuery.of(context).size.width * 0.025,
+                                vertical: 8.0,
+                              ),
+                              child: Row(
+                                children: [
+                                  // 1. Karışık Çal Butonu
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(30),
+                                    child: BackdropFilter(
+                                      filter: ImageFilter.blur(
+                                        sigmaX: 10,
+                                        sigmaY: 10,
                                       ),
-                                      child: Material(
-                                        color: Colors.transparent,
-                                        child: InkWell(
-                                          onTap: () {
-                                            if (filteredSongs.isNotEmpty) {
-                                              songProvider.toggleShuffle();
-                                              CustomSnackBar.showInfo(
-                                                context: context,
-                                                message: songProvider
-                                                        .isShuffleEnabled
-                                                    ? "Karışık çalma açık."
-                                                    : "Karışık çalma kapalı.",
-                                                icon: const Icon(
-                                                  Icons.shuffle_rounded,
-                                                  color: Colors.white,
-                                                  size: 24,
-                                                ),
-                                              );
-                                            }
-                                          },
-                                          borderRadius: BorderRadius.circular(
-                                            30,
-                                          ),
-                                          child: Center(
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                const Icon(
-                                                  Icons.shuffle_rounded,
-                                                  color: Colors.white,
-                                                  size: 20,
-                                                ),
-                                                if (songProvider
-                                                    .isShuffleEnabled)
-                                                  Container(
-                                                    margin:
-                                                        const EdgeInsets.only(
-                                                      top: 2,
-                                                    ),
-                                                    width: 4,
-                                                    height: 4,
-                                                    decoration:
-                                                        const BoxDecoration(
-                                                      color: Colors.white,
-                                                      shape: BoxShape.circle,
-                                                    ),
-                                                  ),
-                                              ],
-                                            ),
+                                      child: Container(
+                                        width: 44,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.1),
+                                          borderRadius:
+                                              BorderRadius.circular(30),
+                                          border: Border.all(
+                                            color:
+                                                Colors.white.withOpacity(0.2),
+                                            width: 1.5,
                                           ),
                                         ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                // 2. Oynat Butonu
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(30),
-                                  child: BackdropFilter(
-                                    filter: ImageFilter.blur(
-                                      sigmaX: 10,
-                                      sigmaY: 10,
-                                    ),
-                                    child: Container(
-                                      width: 44,
-                                      height: 44,
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(
-                                          context,
-                                        ).primaryColor.withOpacity(0.2),
-                                        borderRadius: BorderRadius.circular(30),
-                                        border: Border.all(
-                                          color: Theme.of(
-                                            context,
-                                          ).primaryColor.withOpacity(0.5),
-                                          width: 1.5,
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Theme.of(
-                                              context,
-                                            ).primaryColor.withOpacity(0.2),
-                                            blurRadius: 15,
-                                            spreadRadius: 1,
-                                          ),
-                                        ],
-                                      ),
-                                      child: Material(
-                                        color: Colors.transparent,
-                                        child: InkWell(
-                                          onTap: handlePlayTap,
-                                          borderRadius: BorderRadius.circular(
-                                            30,
-                                          ),
-                                          child: Center(
-                                            child: StreamBuilder<bool>(
-                                              stream: songProvider
-                                                  .audioPlayer.playingStream,
-                                              builder: (context, snapshot) {
-                                                final playing =
-                                                    snapshot.data ?? false;
-                                                final isPlayingNow =
-                                                    isAnyFavoriteLoaded &&
-                                                        playing;
-                                                return AnimatedSwitcher(
-                                                  duration: const Duration(
-                                                    milliseconds: 300,
-                                                  ),
-                                                  child: Icon(
-                                                    isPlayingNow
-                                                        ? Icons.pause_rounded
-                                                        : Icons
-                                                            .play_arrow_rounded,
-                                                    key: ValueKey<bool>(
-                                                      isPlayingNow,
-                                                    ),
-                                                    color: isPlayingNow
-                                                        ? Colors.greenAccent
-                                                        : Colors.white,
-                                                    size: 26,
+                                        child: Material(
+                                          color: Colors.transparent,
+                                          child: InkWell(
+                                            onTap: () {
+                                              if (filteredSongs.isNotEmpty) {
+                                                songProvider.toggleShuffle();
+                                                CustomSnackBar.showInfo(
+                                                  context: context,
+                                                  message: songProvider
+                                                          .isShuffleEnabled
+                                                      ? "Karışık çalma açık."
+                                                      : "Karışık çalma kapalı.",
+                                                  icon: const Icon(
+                                                    Icons.shuffle_rounded,
+                                                    color: Colors.white,
+                                                    size: 24,
                                                   ),
                                                 );
-                                              },
+                                              }
+                                            },
+                                            borderRadius: BorderRadius.circular(
+                                              30,
+                                            ),
+                                            child: Center(
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  const Icon(
+                                                    Icons.shuffle_rounded,
+                                                    color: Colors.white,
+                                                    size: 20,
+                                                  ),
+                                                  if (songProvider
+                                                      .isShuffleEnabled)
+                                                    Container(
+                                                      margin:
+                                                          const EdgeInsets.only(
+                                                        top: 2,
+                                                      ),
+                                                      width: 4,
+                                                      height: 4,
+                                                      decoration:
+                                                          const BoxDecoration(
+                                                        color: Colors.white,
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
                                             ),
                                           ),
                                         ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    '${filteredSongs.length} ${langProvider.t('song')}$durationText',
-                                    textAlign: TextAlign.center,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.7),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                // 3. Ekle (+) Butonu
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(30),
-                                  child: BackdropFilter(
-                                    filter: ImageFilter.blur(
-                                      sigmaX: 10,
-                                      sigmaY: 10,
-                                    ),
-                                    child: Container(
-                                      width: 44,
-                                      height: 44,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(30),
-                                        border: Border.all(
-                                          color: Colors.white.withOpacity(0.2),
-                                          width: 1.5,
-                                        ),
+                                  const SizedBox(width: 12),
+                                  // 2. Oynat Butonu
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(30),
+                                    child: BackdropFilter(
+                                      filter: ImageFilter.blur(
+                                        sigmaX: 10,
+                                        sigmaY: 10,
                                       ),
-                                      child: Material(
-                                        color: Colors.transparent,
-                                        child: InkWell(
-                                          onTap: () {
-                                            setState(() {
-                                              _isSelectionMode = true;
-                                            });
-                                          },
-                                          borderRadius: BorderRadius.circular(
-                                            30,
+                                      child: Container(
+                                        width: 44,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(
+                                            context,
+                                          ).primaryColor.withOpacity(0.2),
+                                          borderRadius:
+                                              BorderRadius.circular(30),
+                                          border: Border.all(
+                                            color: Theme.of(
+                                              context,
+                                            ).primaryColor.withOpacity(0.5),
+                                            width: 1.5,
                                           ),
-                                          child: Center(
-                                            child: CustomIcons.svgIcon(
-                                              CustomIcons.addRounded,
-                                              color: Colors.white,
-                                              size: 24,
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Theme.of(
+                                                context,
+                                              ).primaryColor.withOpacity(0.2),
+                                              blurRadius: 15,
+                                              spreadRadius: 1,
+                                            ),
+                                          ],
+                                        ),
+                                        child: Material(
+                                          color: Colors.transparent,
+                                          child: InkWell(
+                                            onTap: handlePlayTap,
+                                            borderRadius: BorderRadius.circular(
+                                              30,
+                                            ),
+                                            child: Center(
+                                              child: StreamBuilder<bool>(
+                                                stream: songProvider
+                                                    .audioPlayer.playingStream,
+                                                builder: (context, snapshot) {
+                                                  final playing =
+                                                      snapshot.data ?? false;
+                                                  final isPlayingNow =
+                                                      isAnyFavoriteLoaded &&
+                                                          playing;
+                                                  return AnimatedSwitcher(
+                                                    duration: const Duration(
+                                                      milliseconds: 300,
+                                                    ),
+                                                    child: Icon(
+                                                      isPlayingNow
+                                                          ? Icons.pause_rounded
+                                                          : Icons
+                                                              .play_arrow_rounded,
+                                                      key: ValueKey<bool>(
+                                                        isPlayingNow,
+                                                      ),
+                                                      color: isPlayingNow
+                                                          ? Colors.greenAccent
+                                                          : Colors.white,
+                                                      size: 26,
+                                                    ),
+                                                  );
+                                                },
+                                              ),
                                             ),
                                           ),
                                         ),
                                       ),
                                     ),
                                   ),
+                                  Expanded(
+                                    child: Text(
+                                      '${filteredSongs.length} ${langProvider.t('song')}$durationText',
+                                      textAlign: TextAlign.center,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.7),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  // 3. Ekle (+) Butonu
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(30),
+                                    child: BackdropFilter(
+                                      filter: ImageFilter.blur(
+                                        sigmaX: 10,
+                                        sigmaY: 10,
+                                      ),
+                                      child: Container(
+                                        width: 44,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.1),
+                                          borderRadius:
+                                              BorderRadius.circular(30),
+                                          border: Border.all(
+                                            color:
+                                                Colors.white.withOpacity(0.2),
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                        child: Material(
+                                          color: Colors.transparent,
+                                          child: InkWell(
+                                            onTap: () {
+                                              setState(() {
+                                                _isSelectionMode = true;
+                                              });
+                                            },
+                                            borderRadius: BorderRadius.circular(
+                                              30,
+                                            ),
+                                            child: Center(
+                                              child: CustomIcons.svgIcon(
+                                                CustomIcons.addRounded,
+                                                color: Colors.white,
+                                                size: 24,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        if (favoriteFolders.isNotEmpty &&
+                            !_isSelectionMode &&
+                            _searchText.isEmpty)
+                          SliverToBoxAdapter(
+                            child: Column(
+                              children: [
+                                Padding(
+                                  padding: EdgeInsets.fromLTRB(
+                                    MediaQuery.of(context).size.width * 0.025,
+                                    12,
+                                    MediaQuery.of(context).size.width * 0.025,
+                                    8,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      CustomIcons.svgIcon(
+                                        CustomIcons.folderSpecialRounded,
+                                        color: Theme.of(context).primaryColor,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        langProvider.t('favorite_lists'),
+                                        style: TextStyle(
+                                          color: Theme.of(context).primaryColor,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
+                                SizedBox(
+                                  height: 125,
+                                  child: ListView.builder(
+                                    scrollDirection: Axis.horizontal,
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal:
+                                          MediaQuery.of(context).size.width *
+                                              0.025,
+                                    ),
+                                    itemCount: favoriteFolders.length,
+                                    itemBuilder: (context, index) {
+                                      return Container(
+                                        width: 170,
+                                        margin: const EdgeInsets.symmetric(
+                                          horizontal: 4,
+                                        ),
+                                        child: _buildFolderCard(
+                                          context,
+                                          favoriteFolders[index],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                const Divider(
+                                    color: Colors.white10, height: 24),
                               ],
                             ),
                           ),
-                        ),
-                      if (favoriteFolders.isNotEmpty &&
-                          !_isSelectionMode &&
-                          _searchText.isEmpty)
-                        SliverToBoxAdapter(
-                          child: Column(
-                            children: [
-                              Padding(
-                                padding: EdgeInsets.fromLTRB(
-                                  MediaQuery.of(context).size.width * 0.025,
-                                  12,
-                                  MediaQuery.of(context).size.width * 0.025,
-                                  8,
-                                ),
-                                child: Row(
-                                  children: [
-                                    CustomIcons.svgIcon(
-                                      CustomIcons.folderSpecialRounded,
+                        if (favoriteSongs.isEmpty)
+                          SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(32),
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context)
+                                          .primaryColor
+                                          .withOpacity(0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      Icons.favorite,
+                                      size: 80,
                                       color: Theme.of(context).primaryColor,
-                                      size: 20,
                                     ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      langProvider.t('favorite_lists'),
-                                      style: TextStyle(
-                                        color: Theme.of(context).primaryColor,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                  Text(
+                                    langProvider.t('no_favorites_yet'),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
                                     ),
-                                  ],
-                                ),
-                              ),
-                              SizedBox(
-                                height: 125,
-                                child: ListView.builder(
-                                  scrollDirection: Axis.horizontal,
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal:
-                                        MediaQuery.of(context).size.width *
-                                            0.025,
-                                  ),
-                                  itemCount: favoriteFolders.length,
-                                  itemBuilder: (context, index) {
-                                    return Container(
-                                      width: 170,
-                                      margin: const EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                      ),
-                                      child: _buildFolderCard(
-                                        context,
-                                        favoriteFolders[index],
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                              const Divider(color: Colors.white10, height: 24),
-                            ],
-                          ),
-                        ),
-                      if (favoriteSongs.isEmpty)
-                        SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(32),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context)
-                                        .primaryColor
-                                        .withOpacity(0.1),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(
-                                    Icons.favorite,
-                                    size: 80,
-                                    color: Theme.of(context).primaryColor,
-                                  ),
-                                ),
-                                const SizedBox(height: 24),
-                                Text(
-                                  langProvider.t('no_favorites_yet'),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: 12),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 48),
-                                  child: Text(
-                                    langProvider.t('no_favorites_desc'),
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: Colors.grey.shade400,
-                                      fontSize: 15,
-                                      height: 1.4,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 48),
+                                    child: Text(
+                                      langProvider.t('no_favorites_desc'),
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: Colors.grey.shade400,
+                                        fontSize: 15,
+                                        height: 1.4,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(height: 40),
-                                InkWell(
-                                  onTap: () {
-                                    mainScreenKey.currentState?.switchToTab(0);
-                                  },
-                                  borderRadius: BorderRadius.circular(30),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 16, vertical: 8),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(8),
-                                          decoration: BoxDecoration(
-                                            color: Theme.of(context)
-                                                .primaryColor
-                                                .withOpacity(0.15),
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
+                                  const SizedBox(height: 40),
+                                  InkWell(
+                                    onTap: () {
+                                      mainScreenKey.currentState
+                                          ?.switchToTab(0);
+                                    },
+                                    borderRadius: BorderRadius.circular(30),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 8),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
                                               color: Theme.of(context)
                                                   .primaryColor
-                                                  .withOpacity(0.5),
-                                              width: 1.5,
+                                                  .withOpacity(0.15),
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: Theme.of(context)
+                                                    .primaryColor
+                                                    .withOpacity(0.5),
+                                                width: 1.5,
+                                              ),
+                                            ),
+                                            child: Icon(
+                                              Icons.add_rounded,
+                                              color: Theme.of(context)
+                                                  .primaryColor,
+                                              size: 20,
                                             ),
                                           ),
-                                          child: Icon(
-                                            Icons.add_rounded,
-                                            color:
-                                                Theme.of(context).primaryColor,
-                                            size: 20,
+                                          const SizedBox(width: 12),
+                                          Text(
+                                            langProvider.t('discover_songs'),
+                                            style: TextStyle(
+                                              color: Theme.of(context)
+                                                  .primaryColor,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                           ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Text(
-                                          langProvider.t('discover_songs'),
-                                          style: TextStyle(
-                                            color:
-                                                Theme.of(context).primaryColor,
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      else if (filteredSongs.isEmpty)
-                        SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: Center(
-                            child: Text(
-                              langProvider.t('no_results'),
-                              style: const TextStyle(
-                                color: Colors.grey,
-                                fontSize: 16,
+                                ],
                               ),
                             ),
-                          ),
-                        )
-                      else
-                        SliverPadding(
-                          padding: EdgeInsets.fromLTRB(
-                            MediaQuery.of(context).size.width * 0.025,
-                            12,
-                            MediaQuery.of(context).size.width * 0.025,
-                            currentSongId != null ? 160 : 100,
-                          ),
-                          sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate((
-                              context,
-                              index,
-                            ) {
-                              final song = filteredSongs[index];
-                              final isSelected = _selectedSongs.contains(song);
+                          )
+                        else if (filteredSongs.isEmpty)
+                          SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: Center(
+                              child: Text(
+                                langProvider.t('no_results'),
+                                style: const TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                          )
+                        else
+                          SliverPadding(
+                            padding: EdgeInsets.fromLTRB(
+                              MediaQuery.of(context).size.width * 0.025,
+                              12,
+                              MediaQuery.of(context).size.width * 0.025,
+                              currentSongId != null ? 160 : 100,
+                            ),
+                            sliver: SliverList(
+                              delegate: SliverChildBuilderDelegate((
+                                context,
+                                index,
+                              ) {
+                                final song = filteredSongs[index];
+                                final isSelected =
+                                    _selectedSongs.contains(song);
 
-                              // Tarihi göstermek için geçici bir Song nesnesi oluşturuyoruz
-                              final displaySong = Song(
-                                id: song.id,
-                                title: song.title,
-                                artist:
-                                    song.artist,
-                                coverUrl: song.coverUrl,
-                                audioUrl: song.audioUrl,
-                                duration: song.duration,
-                                localPath: song.localPath,
-                                localImagePath: song.localImagePath,
-                                dateAdded: song.dateAdded,
-                              );
+                                // Tarihi göstermek için geçici bir Song nesnesi oluşturuyoruz
+                                final displaySong = Song(
+                                  id: song.id,
+                                  title: song.title,
+                                  artist: song.artist,
+                                  coverUrl: song.coverUrl,
+                                  audioUrl: song.audioUrl,
+                                  duration: song.duration,
+                                  localPath: song.localPath,
+                                  localImagePath: song.localImagePath,
+                                  dateAdded: song.dateAdded,
+                                );
 
-                              return SongCard(
-                                song: displaySong,
-                                isSelected: isSelected,
-                                showBorder: _isSelectionMode,
-                                showOptions: !_isSelectionMode,
-                                isPlaying: currentSongId == song.id,
-                                trailing: _isSelectionMode
-                                    ? CustomIcons.svgIcon(
-                                        isSelected
-                                            ? CustomIcons.checkCircle
-                                            : CustomIcons.circleOutlined,
-                                        color: isSelected
-                                            ? Theme.of(context).primaryColor
-                                            : Colors.grey,
-                                        size: 24,
-                                      )
-                                    : null,
-                                onTap: () {
-                                  if (_isSelectionMode) {
-                                    _toggleSelection(song);
-                                  } else {
-                                    final isCurrentSong =
-                                        currentSongId == song.id;
-                                    if (isCurrentSong &&
-                                        songProvider.audioPlayer.playing) {
-                                      songProvider.audioPlayer.pause();
-                                    } else if (isCurrentSong) {
-                                      songProvider.audioPlayer.play();
+                                return SongCard(
+                                  song: displaySong,
+                                  isSelected: isSelected,
+                                  showBorder: _isSelectionMode,
+                                  showOptions: !_isSelectionMode,
+                                  isPlaying: currentSongId == song.id,
+                                  trailing: _isSelectionMode
+                                      ? CustomIcons.svgIcon(
+                                          isSelected
+                                              ? CustomIcons.checkCircle
+                                              : CustomIcons.circleOutlined,
+                                          color: isSelected
+                                              ? Theme.of(context).primaryColor
+                                              : Colors.grey,
+                                          size: 24,
+                                        )
+                                      : null,
+                                  onTap: () {
+                                    if (_isSelectionMode) {
+                                      _toggleSelection(song);
                                     } else {
-                                      songProvider.playSong(
-                                        song,
-                                        favoriteSongs,
-                                      );
+                                      final isCurrentSong =
+                                          currentSongId == song.id;
+                                      if (isCurrentSong &&
+                                          songProvider.audioPlayer.playing) {
+                                        songProvider.audioPlayer.pause();
+                                      } else if (isCurrentSong) {
+                                        songProvider.audioPlayer.play();
+                                      } else {
+                                        songProvider.playSong(
+                                          song,
+                                          favoriteSongs,
+                                        );
+                                      }
                                     }
-                                  }
-                                },
-                                onLongPress: () {
-                                  if (!_isSelectionMode) {
-                                    setState(() {
-                                      _isSelectionMode = true;
-                                      _selectedSongs.add(song);
-                                    });
-                                  } else {
-                                    _toggleSelection(song);
-                                  }
-                                },
-                              );
-                            }, childCount: filteredSongs.length),
+                                  },
+                                  onLongPress: () {
+                                    if (!_isSelectionMode) {
+                                      setState(() {
+                                        _isSelectionMode = true;
+                                        _selectedSongs.add(song);
+                                      });
+                                    } else {
+                                      _toggleSelection(song);
+                                    }
+                                  },
+                                );
+                              }, childCount: filteredSongs.length),
+                            ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                // Banner Reklam Alanı
-                // Reklamlar geçici olarak kapatıldığı için gizlendi.
-                // const CustomBannerAd(),
-              ],
+                  // Banner Reklam Alanı
+                  // Reklamlar geçici olarak kapatıldığı için gizlendi.
+                  // const CustomBannerAd(),
+                ],
+              ),
             ),
           ),
           if (!_isSelectionMode && filteredSongs.isNotEmpty)

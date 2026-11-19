@@ -94,6 +94,16 @@ class CustomSnackBar {
                             ),
                           ),
                         ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: hideCurrent,
+                          behavior: HitTestBehavior.opaque,
+                          child: const Icon(
+                            Icons.close_rounded,
+                            color: Colors.white70,
+                            size: 20,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -549,6 +559,9 @@ class _DownloadProgressOverlayWidgetState
     int percentage,
     String detailsValue,
   ) {
+    final isSpotify = widget.song.coverUrl.contains('spotifycdn.com') ||
+        widget.song.coverUrl.contains('scdn.co');
+
     return FittedBox(
         fit: BoxFit.none,
         alignment: Alignment.centerLeft,
@@ -570,7 +583,7 @@ class _DownloadProgressOverlayWidgetState
                     ClipRRect(
                       borderRadius: BorderRadius.circular(4),
                       child: SizedBox(
-                        width: 78,
+                        width: isSpotify ? 44 : 78,
                         height: 44,
                         child: Stack(
                           children: [

@@ -8,7 +8,7 @@ import 'package:muzik_app/providers/language_provider.dart';
 import 'package:muzik_app/widgets/custom_snack_bar.dart';
 import 'package:muzik_app/widgets/custom_bottom_sheet.dart';
 import 'package:flutter/foundation.dart';
-
+import 'package:muzik_app/utils/responsive.dart';
 
 class EmailLoginPage extends StatefulWidget {
   const EmailLoginPage({super.key});
@@ -183,12 +183,318 @@ class _EmailLoginPageState extends State<EmailLoginPage> {
     );
   }
 
+  Future<void> _handleLogin() async {
+    final lang = context.read<LanguageProvider>();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      CustomSnackBar.showError(
+        context: context,
+        message: lang.t('enter_email_password'),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final authProvider = context.read<AuthProvider>();
+      final user = await authProvider.signInWithEmailPassword(email, password);
+
+      if (user != null && mounted) {
+        context.read<SongProvider>().fetchSongsFromApi();
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    } catch (e) {
+      if (mounted) {
+        CustomSnackBar.showError(
+          context: context,
+          message: e.toString().replaceAll('Exception: ', ''),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Widget _buildLoginButton(
+      BuildContext context, Color primaryColor, LanguageProvider langProvider) {
+    return SizedBox(
+      width: double.infinity,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            decoration: BoxDecoration(
+              color: primaryColor.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: primaryColor.withOpacity(0.5),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: primaryColor.withOpacity(0.2),
+                  blurRadius: 15,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _isLoading ? null : _handleLogin,
+                borderRadius: BorderRadius.circular(16),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2.5),
+                          )
+                        : Text(
+                            langProvider.t('login'),
+                            style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white),
+                          ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormFields(
+      BuildContext context, Color primaryColor, LanguageProvider langProvider) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextField(
+          controller: _emailController,
+          style: const TextStyle(color: Colors.white),
+          keyboardType: TextInputType.emailAddress,
+          decoration: InputDecoration(
+            hintText: langProvider.t('email'),
+            hintStyle: TextStyle(color: Colors.grey.shade500),
+            prefixIcon:
+                Icon(Icons.email_outlined, color: Colors.grey.shade400),
+            filled: true,
+            fillColor: Colors.white.withOpacity(0.05),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _passwordController,
+          obscureText: _obscurePassword,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: langProvider.t('password'),
+            hintStyle: TextStyle(color: Colors.grey.shade500),
+            prefixIcon:
+                Icon(Icons.lock_outline, color: Colors.grey.shade400),
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscurePassword
+                    ? Icons.visibility_off
+                    : Icons.visibility,
+                color: Colors.grey.shade400,
+              ),
+              onPressed: () =>
+                  setState(() => _obscurePassword = !_obscurePassword),
+            ),
+            filled: true,
+            fillColor: Colors.white.withOpacity(0.05),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Theme(
+                  data: ThemeData(unselectedWidgetColor: Colors.grey.shade500),
+                  child: Checkbox(
+                    value: _rememberMe,
+                    activeColor: primaryColor.withOpacity(0.7),
+                    checkColor: Colors.white,
+                    onChanged: (val) =>
+                        setState(() => _rememberMe = val ?? false),
+                  ),
+                ),
+                Text(langProvider.t('remember_me'),
+                    style: TextStyle(color: Colors.grey.shade400)),
+              ],
+            ),
+            TextButton(
+              onPressed: () => _showForgotPasswordBottomSheet(context),
+              child: Text(
+                langProvider.t('forgot_password'),
+                style: TextStyle(
+                    color: primaryColor, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        _buildLoginButton(context, primaryColor, langProvider),
+        const SizedBox(height: 24),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              langProvider.t('no_account'),
+              style: TextStyle(color: Colors.grey.shade400),
+            ),
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const RegisterPage()),
+                );
+              },
+              child: Text(
+                langProvider.t('register'),
+                style: TextStyle(
+                    color: primaryColor, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTabletLayout(
+      BuildContext context, Color primaryColor, LanguageProvider langProvider) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 880),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.03),
+              borderRadius: BorderRadius.circular(32),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.08),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.5),
+                  blurRadius: 30,
+                  offset: const Offset(0, 15),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(32),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                child: Padding(
+                  padding: const EdgeInsets.all(40.0),
+                  child: Row(
+                    children: [
+                      // Sol Bölüm: Başlık ve Logo
+                      Expanded(
+                        flex: 5,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const BackButton(color: Colors.white),
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.05),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: primaryColor.withOpacity(0.3),
+                                  width: 2,
+                                ),
+                              ),
+                              child: Image.asset(
+                                'assets/icon/OYN_ana_logo_seffaf.png',
+                                height: 60,
+                                width: 60,
+                                color: primaryColor,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            Text(
+                              langProvider.t('welcome'),
+                              style: TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.w900,
+                                color: primaryColor,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              langProvider.t('login_email_desc'),
+                              style: TextStyle(
+                                  fontSize: 16, color: Colors.grey.shade400),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        height: 340,
+                        width: 1,
+                        margin: const EdgeInsets.symmetric(horizontal: 32),
+                        color: Colors.white.withOpacity(0.08),
+                      ),
+                      // Sağ Bölüm: Form Kutucukları
+                      Expanded(
+                        flex: 6,
+                        child: _buildFormFields(
+                            context, primaryColor, langProvider),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).primaryColor;
-    final textColor =
-        primaryColor.computeLuminance() > 0.5 ? Colors.black : Colors.white;
     final langProvider = context.watch<LanguageProvider>();
+    final isTablet = Responsive.isTabletOrLandscape(context);
+
+    if (isTablet) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF121212),
+        body: SafeArea(
+          child: _buildTabletLayout(context, primaryColor, langProvider),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
@@ -217,208 +523,7 @@ class _EmailLoginPageState extends State<EmailLoginPage> {
                 style: TextStyle(fontSize: 16, color: Colors.grey.shade400),
               ),
               const SizedBox(height: 48),
-              // E-posta Kutucuğu
-              TextField(
-                controller: _emailController,
-                style: const TextStyle(color: Colors.white),
-                keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(
-                  hintText: langProvider.t('email'),
-                  hintStyle: TextStyle(color: Colors.grey.shade500),
-                  prefixIcon:
-                      Icon(Icons.email_outlined, color: Colors.grey.shade400),
-                  filled: true,
-                  fillColor: Colors.white.withOpacity(0.05),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Şifre Kutucuğu
-              TextField(
-                controller: _passwordController,
-                obscureText: _obscurePassword,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: langProvider.t('password'),
-                  hintStyle: TextStyle(color: Colors.grey.shade500),
-                  prefixIcon:
-                      Icon(Icons.lock_outline, color: Colors.grey.shade400),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_off
-                          : Icons.visibility,
-                      color: Colors.grey.shade400,
-                    ),
-                    onPressed: () =>
-                        setState(() => _obscurePassword = !_obscurePassword),
-                  ),
-                  filled: true,
-                  fillColor: Colors.white.withOpacity(0.05),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Theme(
-                        data: ThemeData(
-                            unselectedWidgetColor: Colors.grey.shade500),
-                        child: Checkbox(
-                          value: _rememberMe,
-                          activeColor: primaryColor.withOpacity(0.7),
-                          checkColor: Colors.white,
-                          onChanged: (val) =>
-                              setState(() => _rememberMe = val ?? false),
-                        ),
-                      ),
-                      Text(langProvider.t('remember_me'),
-                          style: TextStyle(color: Colors.grey.shade400)),
-                    ],
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      _showForgotPasswordBottomSheet(context);
-                    },
-                    child: Text(
-                      langProvider.t('forgot_password'),
-                      style: TextStyle(
-                          color: primaryColor, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: primaryColor.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: primaryColor.withOpacity(0.5),
-                          width: 1.5,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: primaryColor.withOpacity(0.2),
-                            blurRadius: 15,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: _isLoading
-                              ? null
-                              : () async {
-                                  final lang = context.read<LanguageProvider>();
-                                  final email = _emailController.text.trim();
-                                  final password =
-                                      _passwordController.text.trim();
-
-                                  if (email.isEmpty || password.isEmpty) {
-                                    CustomSnackBar.showError(
-                                      context: context,
-                                      message: lang.t('enter_email_password'),
-                                    );
-                                    return;
-                                  }
-
-                                  setState(() => _isLoading = true);
-                                  try {
-                                    final authProvider =
-                                        context.read<AuthProvider>();
-                                    final user = await authProvider
-                                        .signInWithEmailPassword(
-                                            email, password);
-
-                                    if (user != null && mounted) {
-                                      context
-                                          .read<SongProvider>()
-                                          .fetchSongsFromApi();
-                                      Navigator.of(context)
-                                          .popUntil((route) => route.isFirst);
-                                    }
-                                  } catch (e) {
-                                    if (mounted) {
-                                      CustomSnackBar.showError(
-                                        context: context,
-                                        message: e
-                                            .toString()
-                                            .replaceAll('Exception: ', ''),
-                                      );
-                                    }
-                                  } finally {
-                                    if (mounted)
-                                      setState(() => _isLoading = false);
-                                  }
-                                },
-                          borderRadius: BorderRadius.circular(16),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            child: Center(
-                              child: _isLoading
-                                  ? const SizedBox(
-                                      width: 24,
-                                      height: 24,
-                                      child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2.5),
-                                    )
-                                  : Text(
-                                      langProvider.t('login'),
-                                      style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white),
-                                    ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 40),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    langProvider.t('no_account'),
-                    style: TextStyle(color: Colors.grey.shade400),
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => const RegisterPage()),
-                      );
-                    },
-                    child: Text(
-                      langProvider.t('register'),
-                      style: TextStyle(
-                          color: primaryColor, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
-              ),
+              _buildFormFields(context, primaryColor, langProvider),
             ],
           ),
         ),

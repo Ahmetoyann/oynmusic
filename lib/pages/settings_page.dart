@@ -16,6 +16,7 @@ import 'package:muzik_app/widgets/mini_player.dart';
 import 'package:muzik_app/pages/player_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:muzik_app/utils/responsive.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -52,387 +53,50 @@ class _SettingsPageState extends State<SettingsPage> {
 
     const textColor = Colors.white;
     final subTextColor = Colors.grey.shade600;
+    final isTablet = Responsive.isTabletOrLandscape(context);
 
     return Scaffold(
       extendBody: true,
       appBar: CustomAppBar(
         title: languageProvider.t('settings'),
         centerTitle: true,
+        showLeading: true,
       ),
-      body: ListView(
-        padding: EdgeInsets.fromLTRB(
-          16,
-          16,
-          16,
-          (hasCurrentSong ? 160.0 : 40.0) +
-              MediaQuery.of(context).padding.bottom,
-        ),
-        children: [
-          const _UpdateCheckButton(),
-          // Dil Ayarları
-          _buildSectionHeader(context, languageProvider.t('language')),
-          _buildSettingsCard(
-            context,
-            children: [
-              ListTile(
-                leading: _buildLeadingIcon(
-                  Colors.blueGrey,
-                  const Icon(
-                    Icons.language_rounded,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-                title: Text(
-                  languageProvider.t('language'),
-                  style: const TextStyle(color: textColor),
-                ),
-                subtitle: Text(
-                  languageProvider.getCurrentLanguageName(),
-                  style: TextStyle(color: subTextColor, fontSize: 12),
-                ),
-                trailing: Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  color: Colors.grey.shade600,
-                  size: 14,
-                ),
-                onTap: () => _showLanguageFullScreen(context),
-              ),
-            ],
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: isTablet ? 720 : double.infinity,
           ),
-
-          // 1. Görünüm Ayarları
-          _buildSectionHeader(
-            context,
-            languageProvider.t('appearance') ?? 'Görünüm',
-          ),
-          _buildSettingsCard(
-            context,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        _buildLeadingIcon(
-                          Theme.of(context).primaryColor,
-                          const Icon(
-                            Icons.color_lens_rounded,
-                            color: Colors.white,
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                languageProvider.t('theme_color'),
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                languageProvider.t('theme_color_desc'),
-                                style: TextStyle(
-                                  color: subTextColor,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      height: 60,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        children: [
-                          _buildColorOption(context, Colors.white),
-                          _buildColorOption(context, Colors.amber),
-                          _buildColorOption(context, Colors.green),
-                          _buildColorOption(context, Colors.teal),
-                          _buildColorOption(context, Colors.cyan),
-                          _buildColorOption(context, Colors.lightBlue),
-                          _buildColorOption(context, Colors.blue),
-                          _buildColorOption(context, Colors.indigo),
-                          _buildColorOption(context, Colors.deepPurple),
-                          _buildColorOption(context, Colors.purple),
-                          _buildColorOption(context, Colors.pink),
-                          _buildColorOption(context, Colors.red),
-                          _buildColorOption(context, const Color(0xFF8B0000)),
-                          _buildColorOption(context, Colors.deepOrange),
-                          _buildColorOption(context, Colors.orange),
-                          _buildColorOption(
-                            context,
-                            const Color.fromARGB(255, 101, 144, 32),
-                          ),
-                          _buildColorOption(context, Colors.yellow),
-                          _buildColorOption(context, Colors.brown),
-                          _buildColorOption(context, Colors.blueGrey),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          // 2. Müzik Ayarları
-          _buildSectionHeader(context, languageProvider.t('music')),
-          _buildSettingsCard(
-            context,
-            children: [
-              ListTile(
-                leading: _buildLeadingIcon(
-                  Colors.orange,
-                  CustomIcons.svgIcon(
-                    CustomIcons.timerRounded,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-                title: Text(
-                  languageProvider.t('sleep_timer'),
-                  style: const TextStyle(color: Colors.white),
-                ),
-                subtitle: Text(
-                  isSleepTimerActive
-                      ? 'Bitiş: ${_formatTime(sleepTimerEndTime!)}'
-                      : languageProvider.t('off'),
-                  style: TextStyle(color: subTextColor, fontSize: 12),
-                ),
-                trailing: Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  color: Colors.grey.shade600,
-                  size: 14,
-                ),
-                onTap: () => _showSleepTimerFullScreen(context),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Divider(
-                  height: 1,
-                  color: Colors.white.withOpacity(0.05),
-                ),
-              ),
-              Consumer<SongProvider>(
-                builder: (context, provider, child) {
-                  return SwitchListTile(
-                    secondary: _buildLeadingIcon(
-                      Colors.blueAccent,
-                      const Icon(
-                        Icons.data_usage_rounded,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                    ),
-                    title: Text(
-                      languageProvider.t('data_saver'),
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    subtitle: Text(
-                      languageProvider.t('data_saver_desc'),
-                      style: TextStyle(color: subTextColor, fontSize: 12),
-                    ),
-                    value: provider.isLowDataMode,
-                    activeColor: Theme.of(context).primaryColor,
-                    onChanged: (bool value) {
-                      provider.toggleLowDataMode(value);
-                    },
-                  );
-                },
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Divider(
-                  height: 1,
-                  color: Colors.white.withOpacity(0.05),
-                ),
-              ),
-              ListTile(
-                leading: _buildLeadingIcon(
-                  Colors.purpleAccent,
-                  const Icon(
-                    Icons.equalizer_rounded,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-                title: Text(
-                  languageProvider.t('equalizer'),
-                  style: const TextStyle(color: Colors.white),
-                ),
-                subtitle: Text(
-                  languageProvider.t('equalizer_desc'),
-                  style: TextStyle(color: subTextColor, fontSize: 12),
-                ),
-                trailing: Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  color: Colors.grey.shade600,
-                  size: 14,
-                ),
-                onTap: () => _showEqualizerFullScreen(context),
-              ),
-            ],
-          ),
-
-          // 3. Veri ve Depolama
-          _buildSectionHeader(context, languageProvider.t('data_storage')),
-          _buildSettingsCard(
-            context,
-            children: [
-              Consumer<SongProvider>(
-                builder: (context, provider, child) {
-                  return SwitchListTile(
-                    secondary: _buildLeadingIcon(
-                      Colors.teal,
-                      const Icon(
-                        Icons.wifi_rounded,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                    ),
-                    title: Text(
-                      languageProvider.t('download_wifi_only'),
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    value: provider.downloadWifiOnly,
-                    activeColor: Theme.of(context).primaryColor,
-                    onChanged: (bool value) {
-                      provider.setDownloadWifiOnly(value);
-                    },
-                  );
-                },
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Divider(
-                  height: 1,
-                  color: Colors.white.withOpacity(0.05),
-                ),
-              ),
-              ListTile(
-                leading: _buildLeadingIcon(
-                  Colors.indigoAccent,
-                  const Icon(
-                    Icons.hd_rounded,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-                title: Text(
-                  languageProvider.t('download_quality'),
-                  style: TextStyle(color: textColor),
-                ),
-                subtitle: Text(
-                  _getQualityText(downloadQuality, languageProvider),
-                  style: TextStyle(color: subTextColor, fontSize: 12),
-                ),
-                trailing: Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  color: Colors.grey.shade600,
-                  size: 14,
-                ),
-                onTap: () => _showDownloadQualityFullScreen(context),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Divider(
-                  height: 1,
-                  color: Colors.white.withOpacity(0.05),
-                ),
-              ),
-              ListTile(
-                leading: _buildLeadingIcon(
-                  Colors.orange,
-                  const Icon(
-                    Icons.cleaning_services_rounded,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-                title: Text(
-                  languageProvider.t('clear_search_cache'),
-                  style: TextStyle(color: textColor),
-                ),
-                subtitle: Text(
-                  languageProvider.t('clear_search_cache_desc'),
-                  style: TextStyle(color: subTextColor, fontSize: 12),
-                ),
-                trailing: Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  color: Colors.grey.shade600,
-                  size: 14,
-                ),
-                onTap: () => _showClearApiCacheDialog(context),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Divider(
-                  height: 1,
-                  color: Colors.white.withOpacity(0.05),
-                ),
-              ),
-              ListTile(
-                leading: _buildLeadingIcon(
-                  Colors.red,
-                  CustomIcons.svgIcon(CustomIcons.delete, color: Colors.white),
-                ),
-                title: Text(
-                  languageProvider.t('clear_cache'),
-                  style: TextStyle(color: textColor),
-                ),
-                subtitle: Text(
-                  languageProvider.t('clear_cache_desc'),
-                  style: TextStyle(color: subTextColor, fontSize: 12),
-                ),
-                trailing: Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  color: Colors.grey.shade600,
-                  size: 14,
-                ),
-                onTap: () => _showClearCacheDialog(context),
-              ),
-            ],
-          ),
-
-          // 4. Hesap Ayarları
-          if (user != null) ...[
-            _buildSectionHeader(
-              context,
-              languageProvider.currentLanguage == 'tr' ? 'Hesap' : 'Account',
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(
+              isTablet ? 24 : 16,
+              16,
+              isTablet ? 24 : 16,
+              (hasCurrentSong ? 160.0 : 40.0) +
+                  MediaQuery.of(context).padding.bottom,
             ),
-            _buildSettingsCard(
-              context,
-              children: [
-                if (user.email != null &&
-                    user.providerData
-                        .any((info) => info.providerId == 'password')) ...[
+            children: [
+              const _UpdateCheckButton(),
+              // Dil Ayarları
+              _buildSectionHeader(context, languageProvider.t('language')),
+              _buildSettingsCard(
+                context,
+                children: [
                   ListTile(
                     leading: _buildLeadingIcon(
-                      Colors.blueAccent,
+                      Colors.blueGrey,
                       const Icon(
-                        Icons.lock_reset_rounded,
+                        Icons.language_rounded,
                         color: Colors.white,
                         size: 24,
                       ),
                     ),
                     title: Text(
-                      languageProvider.t('change_password'),
+                      languageProvider.t('language'),
                       style: const TextStyle(color: textColor),
                     ),
                     subtitle: Text(
-                      languageProvider.t('change_password_desc'),
+                      languageProvider.getCurrentLanguageName(),
                       style: TextStyle(color: subTextColor, fontSize: 12),
                     ),
                     trailing: Icon(
@@ -440,38 +104,159 @@ class _SettingsPageState extends State<SettingsPage> {
                       color: Colors.grey.shade600,
                       size: 14,
                     ),
-                    onTap: () {
-                      CustomBottomSheet.show(
-                        context: context,
-                        title: languageProvider.t('change_password'),
-                        message: languageProvider.currentLanguage == 'tr'
-                            ? 'Şifre sıfırlama bağlantısı e-posta adresinize (${user.email}) gönderilecektir. Onaylıyor musunuz?'
-                            : 'A password reset link will be sent to your email address (${user.email}). Do you confirm?',
-                        primaryButtonText:
-                            languageProvider.currentLanguage == 'tr'
-                                ? 'Evet, Gönder'
-                                : 'Yes, Send',
-                        primaryButtonColor: Colors.blueAccent,
-                        secondaryButtonText: languageProvider.t('cancel'),
-                        onPrimaryButtonTap: () async {
-                          Navigator.pop(context); // Önce onay penceresini kapat
-                          try {
-                            await authProvider.resetPassword(user.email!);
-                            if (context.mounted) {
-                              CustomSnackBar.showSuccess(
-                                context: context,
-                                message: languageProvider.t('reset_link_sent'),
-                              );
-                            }
-                          } catch (e) {
-                            if (context.mounted) {
-                              CustomSnackBar.showError(
-                                context: context,
-                                message:
-                                    e.toString().replaceAll('Exception: ', ''),
-                              );
-                            }
-                          }
+                    onTap: () => _showLanguageFullScreen(context),
+                  ),
+                ],
+              ),
+
+              // 1. Görünüm Ayarları
+              _buildSectionHeader(
+                context,
+                languageProvider.t('appearance') ?? 'Görünüm',
+              ),
+              _buildSettingsCard(
+                context,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            _buildLeadingIcon(
+                              Theme.of(context).primaryColor,
+                              const Icon(
+                                Icons.color_lens_rounded,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    languageProvider.t('theme_color'),
+                                    style: TextStyle(
+                                      color: textColor,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    languageProvider.t('theme_color_desc'),
+                                    style: TextStyle(
+                                      color: subTextColor,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          height: 60,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            children: [
+                              _buildColorOption(context, Colors.white),
+                              _buildColorOption(context, Colors.amber),
+                              _buildColorOption(context, Colors.green),
+                              _buildColorOption(context, Colors.teal),
+                              _buildColorOption(context, Colors.cyan),
+                              _buildColorOption(context, Colors.lightBlue),
+                              _buildColorOption(context, Colors.blue),
+                              _buildColorOption(context, Colors.indigo),
+                              _buildColorOption(context, Colors.deepPurple),
+                              _buildColorOption(context, Colors.purple),
+                              _buildColorOption(context, Colors.pink),
+                              _buildColorOption(context, Colors.red),
+                              _buildColorOption(
+                                  context, const Color(0xFF8B0000)),
+                              _buildColorOption(context, Colors.deepOrange),
+                              _buildColorOption(context, Colors.orange),
+                              _buildColorOption(
+                                context,
+                                const Color.fromARGB(255, 101, 144, 32),
+                              ),
+                              _buildColorOption(context, Colors.yellow),
+                              _buildColorOption(context, Colors.brown),
+                              _buildColorOption(context, Colors.blueGrey),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              // 2. Müzik Ayarları
+              _buildSectionHeader(context, languageProvider.t('music')),
+              _buildSettingsCard(
+                context,
+                children: [
+                  ListTile(
+                    leading: _buildLeadingIcon(
+                      Colors.orange,
+                      CustomIcons.svgIcon(
+                        CustomIcons.timerRounded,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    title: Text(
+                      languageProvider.t('sleep_timer'),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    subtitle: Text(
+                      isSleepTimerActive
+                          ? 'Bitiş: ${_formatTime(sleepTimerEndTime!)}'
+                          : languageProvider.t('off'),
+                      style: TextStyle(color: subTextColor, fontSize: 12),
+                    ),
+                    trailing: Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: Colors.grey.shade600,
+                      size: 14,
+                    ),
+                    onTap: () => _showSleepTimerFullScreen(context),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Divider(
+                      height: 1,
+                      color: Colors.white.withOpacity(0.05),
+                    ),
+                  ),
+                  Consumer<SongProvider>(
+                    builder: (context, provider, child) {
+                      return SwitchListTile(
+                        secondary: _buildLeadingIcon(
+                          Colors.blueAccent,
+                          const Icon(
+                            Icons.data_usage_rounded,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                        title: Text(
+                          languageProvider.t('data_saver'),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        subtitle: Text(
+                          languageProvider.t('data_saver_desc'),
+                          style: TextStyle(color: subTextColor, fontSize: 12),
+                        ),
+                        value: provider.isLowDataMode,
+                        activeColor: Theme.of(context).primaryColor,
+                        onChanged: (bool value) {
+                          provider.toggleLowDataMode(value);
                         },
                       );
                     },
@@ -483,108 +268,341 @@ class _SettingsPageState extends State<SettingsPage> {
                       color: Colors.white.withOpacity(0.05),
                     ),
                   ),
+                  ListTile(
+                    leading: _buildLeadingIcon(
+                      Colors.purpleAccent,
+                      const Icon(
+                        Icons.equalizer_rounded,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    title: Text(
+                      languageProvider.t('equalizer'),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    subtitle: Text(
+                      languageProvider.t('equalizer_desc'),
+                      style: TextStyle(color: subTextColor, fontSize: 12),
+                    ),
+                    trailing: Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: Colors.grey.shade600,
+                      size: 14,
+                    ),
+                    onTap: () => _showEqualizerFullScreen(context),
+                  ),
                 ],
-                ListTile(
-                  leading: _buildLeadingIcon(
-                    Colors.redAccent,
-                    const Icon(
-                      Icons.person_remove_rounded,
-                      color: Colors.white,
-                      size: 24,
+              ),
+
+              // 3. Veri ve Depolama
+              _buildSectionHeader(context, languageProvider.t('data_storage')),
+              _buildSettingsCard(
+                context,
+                children: [
+                  Consumer<SongProvider>(
+                    builder: (context, provider, child) {
+                      return SwitchListTile(
+                        secondary: _buildLeadingIcon(
+                          Colors.teal,
+                          const Icon(
+                            Icons.wifi_rounded,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                        title: Text(
+                          languageProvider.t('download_wifi_only'),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        value: provider.downloadWifiOnly,
+                        activeColor: Theme.of(context).primaryColor,
+                        onChanged: (bool value) {
+                          provider.setDownloadWifiOnly(value);
+                        },
+                      );
+                    },
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Divider(
+                      height: 1,
+                      color: Colors.white.withOpacity(0.05),
                     ),
                   ),
-                  title: Text(
-                    languageProvider.currentLanguage == 'tr'
-                        ? 'Hesabı Sil'
-                        : 'Delete Account',
-                    style: const TextStyle(color: textColor),
+                  ListTile(
+                    leading: _buildLeadingIcon(
+                      Colors.indigoAccent,
+                      const Icon(
+                        Icons.hd_rounded,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    title: Text(
+                      languageProvider.t('download_quality'),
+                      style: TextStyle(color: textColor),
+                    ),
+                    subtitle: Text(
+                      _getQualityText(downloadQuality, languageProvider),
+                      style: TextStyle(color: subTextColor, fontSize: 12),
+                    ),
+                    trailing: Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: Colors.grey.shade600,
+                      size: 14,
+                    ),
+                    onTap: () => _showDownloadQualityFullScreen(context),
                   ),
-                  subtitle: Text(
-                    languageProvider.currentLanguage == 'tr'
-                        ? 'Hesabınızı ve tüm verilerinizi kalıcı olarak silin'
-                        : 'Permanently delete your account and all data',
-                    style: TextStyle(color: subTextColor, fontSize: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Divider(
+                      height: 1,
+                      color: Colors.white.withOpacity(0.05),
+                    ),
                   ),
-                  trailing: Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    color: Colors.grey.shade600,
-                    size: 14,
+                  ListTile(
+                    leading: _buildLeadingIcon(
+                      Colors.orange,
+                      const Icon(
+                        Icons.cleaning_services_rounded,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    title: Text(
+                      languageProvider.t('clear_search_cache'),
+                      style: TextStyle(color: textColor),
+                    ),
+                    subtitle: Text(
+                      languageProvider.t('clear_search_cache_desc'),
+                      style: TextStyle(color: subTextColor, fontSize: 12),
+                    ),
+                    trailing: Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: Colors.grey.shade600,
+                      size: 14,
+                    ),
+                    onTap: () => _showClearApiCacheDialog(context),
                   ),
-                  onTap: () {
-                    CustomBottomSheet.show(
-                      context: context,
-                      title: languageProvider.currentLanguage == 'tr'
-                          ? 'Hesabı Sil'
-                          : 'Delete Account',
-                      message: languageProvider.currentLanguage == 'tr'
-                          ? 'Hesabınızı ve tüm verilerinizi kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.'
-                          : 'Are you sure you want to permanently delete your account and all data? This action cannot be undone.',
-                      primaryButtonText:
-                          languageProvider.currentLanguage == 'tr'
-                              ? 'Evet, Sil'
-                              : 'Yes, Delete',
-                      primaryButtonColor: Colors.redAccent,
-                      secondaryButtonText: languageProvider.t('cancel'),
-                      onPrimaryButtonTap: () async {
-                        Navigator.pop(context);
-                        final Uri url = Uri.parse(
-                            'https://oynmusic.duckdns.org/hesap_silme.html');
-                        if (!await launchUrl(url,
-                            mode: LaunchMode.externalApplication)) {
-                          if (context.mounted) {
-                            CustomSnackBar.showError(
-                              context: context,
-                              message: languageProvider.currentLanguage == 'tr'
-                                  ? 'Bağlantı açılamadı'
-                                  : 'Could not launch URL',
-                            );
-                          }
-                        }
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Divider(
+                      height: 1,
+                      color: Colors.white.withOpacity(0.05),
+                    ),
+                  ),
+                  ListTile(
+                    leading: _buildLeadingIcon(
+                      Colors.red,
+                      CustomIcons.svgIcon(CustomIcons.delete,
+                          color: Colors.white),
+                    ),
+                    title: Text(
+                      languageProvider.t('clear_cache'),
+                      style: TextStyle(color: textColor),
+                    ),
+                    subtitle: Text(
+                      languageProvider.t('clear_cache_desc'),
+                      style: TextStyle(color: subTextColor, fontSize: 12),
+                    ),
+                    trailing: Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: Colors.grey.shade600,
+                      size: 14,
+                    ),
+                    onTap: () => _showClearCacheDialog(context),
+                  ),
+                ],
+              ),
+
+              // 4. Hesap Ayarları
+              if (user != null) ...[
+                _buildSectionHeader(
+                  context,
+                  languageProvider.currentLanguage == 'tr'
+                      ? 'Hesap'
+                      : 'Account',
+                ),
+                _buildSettingsCard(
+                  context,
+                  children: [
+                    if (user.email != null &&
+                        user.providerData
+                            .any((info) => info.providerId == 'password')) ...[
+                      ListTile(
+                        leading: _buildLeadingIcon(
+                          Colors.blueAccent,
+                          const Icon(
+                            Icons.lock_reset_rounded,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                        title: Text(
+                          languageProvider.t('change_password'),
+                          style: const TextStyle(color: textColor),
+                        ),
+                        subtitle: Text(
+                          languageProvider.t('change_password_desc'),
+                          style: TextStyle(color: subTextColor, fontSize: 12),
+                        ),
+                        trailing: Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          color: Colors.grey.shade600,
+                          size: 14,
+                        ),
+                        onTap: () {
+                          CustomBottomSheet.show(
+                            context: context,
+                            title: languageProvider.t('change_password'),
+                            message: languageProvider.currentLanguage == 'tr'
+                                ? 'Şifre sıfırlama bağlantısı e-posta adresinize (${user.email}) gönderilecektir. Onaylıyor musunuz?'
+                                : 'A password reset link will be sent to your email address (${user.email}). Do you confirm?',
+                            primaryButtonText:
+                                languageProvider.currentLanguage == 'tr'
+                                    ? 'Evet, Gönder'
+                                    : 'Yes, Send',
+                            primaryButtonColor: Colors.blueAccent,
+                            secondaryButtonText: languageProvider.t('cancel'),
+                            onPrimaryButtonTap: () async {
+                              Navigator.pop(
+                                  context); // Önce onay penceresini kapat
+                              try {
+                                await authProvider.resetPassword(user.email!);
+                                if (context.mounted) {
+                                  CustomSnackBar.showSuccess(
+                                    context: context,
+                                    message:
+                                        languageProvider.t('reset_link_sent'),
+                                  );
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  CustomSnackBar.showError(
+                                    context: context,
+                                    message: e
+                                        .toString()
+                                        .replaceAll('Exception: ', ''),
+                                  );
+                                }
+                              }
+                            },
+                          );
+                        },
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Divider(
+                          height: 1,
+                          color: Colors.white.withOpacity(0.05),
+                        ),
+                      ),
+                    ],
+                    ListTile(
+                      leading: _buildLeadingIcon(
+                        Colors.redAccent,
+                        const Icon(
+                          Icons.person_remove_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                      title: Text(
+                        languageProvider.currentLanguage == 'tr'
+                            ? 'Hesabı Sil'
+                            : 'Delete Account',
+                        style: const TextStyle(color: textColor),
+                      ),
+                      subtitle: Text(
+                        languageProvider.currentLanguage == 'tr'
+                            ? 'Hesabınızı ve tüm verilerinizi kalıcı olarak silin'
+                            : 'Permanently delete your account and all data',
+                        style: TextStyle(color: subTextColor, fontSize: 12),
+                      ),
+                      trailing: Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        color: Colors.grey.shade600,
+                        size: 14,
+                      ),
+                      onTap: () {
+                        CustomBottomSheet.show(
+                          context: context,
+                          title: languageProvider.currentLanguage == 'tr'
+                              ? 'Hesabı Sil'
+                              : 'Delete Account',
+                          message: languageProvider.currentLanguage == 'tr'
+                              ? 'Hesabınızı ve tüm verilerinizi kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.'
+                              : 'Are you sure you want to permanently delete your account and all data? This action cannot be undone.',
+                          primaryButtonText:
+                              languageProvider.currentLanguage == 'tr'
+                                  ? 'Evet, Sil'
+                                  : 'Yes, Delete',
+                          primaryButtonColor: Colors.redAccent,
+                          secondaryButtonText: languageProvider.t('cancel'),
+                          onPrimaryButtonTap: () async {
+                            Navigator.pop(context);
+                            final Uri url = Uri.parse(
+                                'https://oynmusic.duckdns.org/hesap_silme.html');
+                            if (!await launchUrl(url,
+                                mode: LaunchMode.externalApplication)) {
+                              if (context.mounted) {
+                                CustomSnackBar.showError(
+                                  context: context,
+                                  message:
+                                      languageProvider.currentLanguage == 'tr'
+                                          ? 'Bağlantı açılamadı'
+                                          : 'Could not launch URL',
+                                );
+                              }
+                            }
+                          },
+                        );
                       },
-                    );
-                  },
+                    ),
+                  ],
                 ),
               ],
-            ),
-          ],
 
-          // 5. Uygulama Hakkında
-          _buildSectionHeader(context, languageProvider.t('app')),
-          _buildSettingsCard(
-            context,
-            children: [
-              ListTile(
-                leading: _buildLeadingIcon(
-                  Colors.black,
-                  Image.asset(
-                    'assets/icon/OYN_ana_logo_seffaf.png',
-                    width: 24,
-                    height: 24,
-                    color: Colors.white,
-                  ),
-                ),
-                title: Text(
-                  languageProvider.t('app_version'),
-                  style: const TextStyle(color: textColor),
-                ),
-                trailing: FutureBuilder<PackageInfo>(
-                  future: _packageInfoFuture,
-                  builder: (context, snapshot) {
-                    final version =
-                        snapshot.hasData ? snapshot.data!.version : '...';
-                    return Text(
-                      version,
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontWeight: FontWeight.bold,
+              // 5. Uygulama Hakkında
+              _buildSectionHeader(context, languageProvider.t('app')),
+              _buildSettingsCard(
+                context,
+                children: [
+                  ListTile(
+                    leading: _buildLeadingIcon(
+                      Colors.black,
+                      Image.asset(
+                        'assets/icon/OYN_ana_logo_seffaf.png',
+                        width: 24,
+                        height: 24,
+                        color: Colors.white,
                       ),
-                    );
-                  },
-                ),
+                    ),
+                    title: Text(
+                      languageProvider.t('app_version'),
+                      style: const TextStyle(color: textColor),
+                    ),
+                    trailing: FutureBuilder<PackageInfo>(
+                      future: _packageInfoFuture,
+                      builder: (context, snapshot) {
+                        final version =
+                            snapshot.hasData ? snapshot.data!.version : '...';
+                        return Text(
+                          version,
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -600,159 +618,174 @@ class _SettingsPageState extends State<SettingsPage> {
           return Scaffold(
             backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
             body: SafeArea(
-              child: StatefulBuilder(
-                builder: (context, setState) {
-                  final primaryColor = Theme.of(context).primaryColor;
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: Responsive.isTabletOrLandscape(pageContext)
+                        ? 600
+                        : double.infinity,
+                  ),
+                  child: StatefulBuilder(
+                    builder: (context, setState) {
+                      final primaryColor = Theme.of(context).primaryColor;
 
-                  Widget buildLangOption(
-                      String code, String name, String flag) {
-                    final isSelected = selectedLanguage == code;
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() => selectedLanguage = code);
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? primaryColor.withOpacity(0.2)
-                              : Colors.white.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: isSelected
-                                ? primaryColor.withOpacity(0.5)
-                                : Colors.white.withOpacity(0.1),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
+                      Widget buildLangOption(
+                          String code, String name, String flag) {
+                        final isSelected = selectedLanguage == code;
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() => selectedLanguage = code);
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? primaryColor.withOpacity(0.2)
+                                  : Colors.white.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
                                 color: isSelected
-                                    ? primaryColor.withOpacity(0.2)
+                                    ? primaryColor.withOpacity(0.5)
                                     : Colors.white.withOpacity(0.1),
-                                shape: BoxShape.circle,
+                                width: 1.5,
                               ),
-                              alignment: Alignment.center,
-                              child: Text(flag,
-                                  style: const TextStyle(fontSize: 20)),
                             ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Text(
-                                name,
-                                style: TextStyle(
-                                  color:
-                                      isSelected ? primaryColor : Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? primaryColor.withOpacity(0.2)
+                                        : Colors.white.withOpacity(0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(flag,
+                                      style: const TextStyle(fontSize: 20)),
                                 ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Text(
+                                    name,
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? primaryColor
+                                          : Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                if (isSelected)
+                                  Icon(Icons.check_circle_rounded,
+                                      color: primaryColor, size: 24),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      return Column(
+                        children: [
+                          Align(
+                            alignment: Alignment.topRight,
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: IconButton(
+                                icon: const Icon(Icons.close_rounded,
+                                    color: Colors.white, size: 32),
+                                onPressed: () => Navigator.pop(pageContext),
                               ),
                             ),
-                            if (isSelected)
-                              Icon(Icons.check_circle_rounded,
-                                  color: primaryColor, size: 24),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
-
-                  return Column(
-                    children: [
-                      Align(
-                        alignment: Alignment.topRight,
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: IconButton(
-                            icon: const Icon(Icons.close_rounded,
-                                color: Colors.white, size: 32),
-                            onPressed: () => Navigator.pop(pageContext),
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Icon(Icons.language_rounded,
-                          size: 64, color: primaryColor),
-                      const SizedBox(height: 16),
-                      Text(
-                        provider.t('language_selection'),
-                        style: TextStyle(
-                          color: primaryColor,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                      Expanded(
-                        child: ListView(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          physics: const BouncingScrollPhysics(),
-                          children: [
-                            buildLangOption('en', 'English', '🇬🇧'),
-                            buildLangOption('tr', 'Türkçe', '🇹🇷'),
-                            buildLangOption('fr', 'Français', '🇫🇷'),
-                            buildLangOption('de', 'Deutsch', '🇩🇪'),
-                            buildLangOption('es', 'Español', '🇪🇸'),
-                            buildLangOption('ar', 'العربية', '🇸🇦'),
-                            buildLangOption('pt', 'Português', '🇧🇷'),
-                            buildLangOption('ja', '日本語', '🇯🇵'),
-                            buildLangOption('ko', '한국어', '🇰🇷'),
-                            buildLangOption('ru', 'Русский', '🇷🇺'),
-                            const SizedBox(height: 40),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 55,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(24),
-                                child: BackdropFilter(
-                                  filter:
-                                      ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                                  child: InkWell(
-                                    onTap: () async {
-                                      provider.setLanguage(selectedLanguage);
-                                      pageContext
-                                          .read<SongProvider>()
-                                          .rescheduleAllNotifications();
-                                      Navigator.pop(pageContext);
-                                    },
+                          const SizedBox(height: 8),
+                          Icon(Icons.language_rounded,
+                              size: 64, color: primaryColor),
+                          const SizedBox(height: 16),
+                          Text(
+                            provider.t('language_selection'),
+                            style: TextStyle(
+                              color: primaryColor,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+                          Expanded(
+                            child: ListView(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 24),
+                              physics: const BouncingScrollPhysics(),
+                              children: [
+                                buildLangOption('en', 'English', '🇬🇧'),
+                                buildLangOption('tr', 'Türkçe', '🇹🇷'),
+                                buildLangOption('fr', 'Français', '🇫🇷'),
+                                buildLangOption('de', 'Deutsch', '🇩🇪'),
+                                buildLangOption('es', 'Español', '🇪🇸'),
+                                buildLangOption('ar', 'العربية', '🇸🇦'),
+                                buildLangOption('pt', 'Português', '🇧🇷'),
+                                buildLangOption('ja', '日本語', '🇯🇵'),
+                                buildLangOption('ko', '한국어', '🇰🇷'),
+                                buildLangOption('ru', 'Русский', '🇷🇺'),
+                                const SizedBox(height: 40),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 55,
+                                  child: ClipRRect(
                                     borderRadius: BorderRadius.circular(24),
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: primaryColor.withOpacity(0.2),
+                                    child: BackdropFilter(
+                                      filter: ImageFilter.blur(
+                                          sigmaX: 10, sigmaY: 10),
+                                      child: InkWell(
+                                        onTap: () async {
+                                          provider
+                                              .setLanguage(selectedLanguage);
+                                          pageContext
+                                              .read<SongProvider>()
+                                              .rescheduleAllNotifications();
+                                          Navigator.pop(pageContext);
+                                        },
                                         borderRadius: BorderRadius.circular(24),
-                                        border: Border.all(
-                                          color: primaryColor.withOpacity(0.5),
-                                          width: 1.5,
-                                        ),
-                                      ),
-                                      child: Center(
-                                        child: Text(
-                                          provider.t('save'),
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color:
+                                                primaryColor.withOpacity(0.2),
+                                            borderRadius:
+                                                BorderRadius.circular(24),
+                                            border: Border.all(
+                                              color:
+                                                  primaryColor.withOpacity(0.5),
+                                              width: 1.5,
+                                            ),
+                                          ),
+                                          child: Center(
+                                            child: Text(
+                                              provider.t('save'),
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
+                                const SizedBox(height: 24),
+                              ],
                             ),
-                            const SizedBox(height: 24),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
               ),
             ),
           );
@@ -794,191 +827,208 @@ class _SettingsPageState extends State<SettingsPage> {
           return Scaffold(
             backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
             body: SafeArea(
-              child: StatefulBuilder(
-                builder: (context, setState) {
-                  final primaryColor = Theme.of(context).primaryColor;
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: Responsive.isTabletOrLandscape(pageContext)
+                        ? 600
+                        : double.infinity,
+                  ),
+                  child: StatefulBuilder(
+                    builder: (context, setState) {
+                      final primaryColor = Theme.of(context).primaryColor;
 
-                  Widget buildQualityOption(String code, String title,
-                      String subtitle, IconData icon) {
-                    final isSelected = selectedQuality == code;
-                    return GestureDetector(
-                      onTap: () => setState(() => selectedQuality = code),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? primaryColor.withOpacity(0.2)
-                              : Colors.white.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: isSelected
-                                ? primaryColor.withOpacity(0.5)
-                                : Colors.white.withOpacity(0.1),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(icon,
-                                color:
-                                    isSelected ? primaryColor : Colors.white70,
-                                size: 32),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    title,
-                                    style: TextStyle(
-                                      color: isSelected
-                                          ? primaryColor
-                                          : Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    subtitle,
-                                    style: TextStyle(
-                                      color: Colors.grey.shade400,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
+                      Widget buildQualityOption(String code, String title,
+                          String subtitle, IconData icon) {
+                        final isSelected = selectedQuality == code;
+                        return GestureDetector(
+                          onTap: () => setState(() => selectedQuality = code),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? primaryColor.withOpacity(0.2)
+                                  : Colors.white.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: isSelected
+                                    ? primaryColor.withOpacity(0.5)
+                                    : Colors.white.withOpacity(0.1),
+                                width: 1.5,
                               ),
                             ),
-                            if (isSelected)
-                              Icon(Icons.check_circle_rounded,
-                                  color: primaryColor, size: 24),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
-
-                  return Column(
-                    children: [
-                      Align(
-                        alignment: Alignment.topRight,
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: IconButton(
-                            icon: const Icon(Icons.close_rounded,
-                                color: Colors.white, size: 32),
-                            onPressed: () => Navigator.pop(pageContext),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Icon(Icons.hd_rounded, size: 64, color: primaryColor),
-                      const SizedBox(height: 16),
-                      Text(
-                        langProvider.t('download_quality'),
-                        style: TextStyle(
-                          color: primaryColor,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                        child: Text(
-                          langProvider.currentLanguage == 'tr'
-                              ? "Bu ayar MP3 indirmelerinde ses kalitesini (Bitrate), MP4 video indirmelerinde ise görüntü çözünürlüğünü (1080p, 720p, 480p) belirler."
-                              : "This setting determines the audio quality (Bitrate) for MP3 downloads, and the video resolution (1080p, 720p, 480p) for MP4 downloads.",
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              color: Colors.grey.shade400,
-                              fontSize: 13,
-                              height: 1.4),
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                      Expanded(
-                        child: ListView(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          physics: const BouncingScrollPhysics(),
-                          children: [
-                            buildQualityOption(
-                              'high',
-                              langProvider.currentLanguage == 'tr'
-                                  ? 'Yüksek Kalite'
-                                  : 'High Quality',
-                              '1080p / 320kbps',
-                              Icons.hd_rounded,
-                            ),
-                            buildQualityOption(
-                              'medium',
-                              langProvider.currentLanguage == 'tr'
-                                  ? 'Orta Kalite'
-                                  : 'Medium Quality',
-                              '720p / 192kbps',
-                              Icons.sd_rounded,
-                            ),
-                            buildQualityOption(
-                              'low',
-                              langProvider.currentLanguage == 'tr'
-                                  ? 'Düşük Kalite'
-                                  : 'Low Quality',
-                              '480p / 128kbps',
-                              Icons.data_saver_on_rounded,
-                            ),
-                            const SizedBox(height: 40),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 55,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(24),
-                                child: BackdropFilter(
-                                  filter:
-                                      ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                                  child: InkWell(
-                                    onTap: () async {
-                                      provider
-                                          .setDownloadQuality(selectedQuality);
-                                      Navigator.pop(pageContext);
-                                    },
-                                    borderRadius: BorderRadius.circular(24),
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: primaryColor.withOpacity(0.2),
-                                        borderRadius: BorderRadius.circular(24),
-                                        border: Border.all(
-                                          color: primaryColor.withOpacity(0.5),
-                                          width: 1.5,
+                            child: Row(
+                              children: [
+                                Icon(icon,
+                                    color: isSelected
+                                        ? primaryColor
+                                        : Colors.white70,
+                                    size: 32),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        title,
+                                        style: TextStyle(
+                                          color: isSelected
+                                              ? primaryColor
+                                              : Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
                                         ),
                                       ),
-                                      child: Center(
-                                        child: Text(
-                                          langProvider.t('save') ??
-                                              (langProvider.currentLanguage ==
-                                                      'tr'
-                                                  ? 'Kaydet'
-                                                  : 'Save'),
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        subtitle,
+                                        style: TextStyle(
+                                          color: Colors.grey.shade400,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (isSelected)
+                                  Icon(Icons.check_circle_rounded,
+                                      color: primaryColor, size: 24),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      return Column(
+                        children: [
+                          Align(
+                            alignment: Alignment.topRight,
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: IconButton(
+                                icon: const Icon(Icons.close_rounded,
+                                    color: Colors.white, size: 32),
+                                onPressed: () => Navigator.pop(pageContext),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Icon(Icons.hd_rounded, size: 64, color: primaryColor),
+                          const SizedBox(height: 16),
+                          Text(
+                            langProvider.t('download_quality'),
+                            style: TextStyle(
+                              color: primaryColor,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 24.0),
+                            child: Text(
+                              langProvider.currentLanguage == 'tr'
+                                  ? "Bu ayar MP3 indirmelerinde ses kalitesini (Bitrate), MP4 video indirmelerinde ise görüntü çözünürlüğünü (1080p, 720p, 480p) belirler."
+                                  : "This setting determines the audio quality (Bitrate) for MP3 downloads, and the video resolution (1080p, 720p, 480p) for MP4 downloads.",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                  color: Colors.grey.shade400,
+                                  fontSize: 13,
+                                  height: 1.4),
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+                          Expanded(
+                            child: ListView(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 24),
+                              physics: const BouncingScrollPhysics(),
+                              children: [
+                                buildQualityOption(
+                                  'high',
+                                  langProvider.currentLanguage == 'tr'
+                                      ? 'Yüksek Kalite'
+                                      : 'High Quality',
+                                  '1080p / 320kbps',
+                                  Icons.hd_rounded,
+                                ),
+                                buildQualityOption(
+                                  'medium',
+                                  langProvider.currentLanguage == 'tr'
+                                      ? 'Orta Kalite'
+                                      : 'Medium Quality',
+                                  '720p / 192kbps',
+                                  Icons.sd_rounded,
+                                ),
+                                buildQualityOption(
+                                  'low',
+                                  langProvider.currentLanguage == 'tr'
+                                      ? 'Düşük Kalite'
+                                      : 'Low Quality',
+                                  '480p / 128kbps',
+                                  Icons.data_saver_on_rounded,
+                                ),
+                                const SizedBox(height: 40),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 55,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(24),
+                                    child: BackdropFilter(
+                                      filter: ImageFilter.blur(
+                                          sigmaX: 10, sigmaY: 10),
+                                      child: InkWell(
+                                        onTap: () async {
+                                          provider.setDownloadQuality(
+                                              selectedQuality);
+                                          Navigator.pop(pageContext);
+                                        },
+                                        borderRadius: BorderRadius.circular(24),
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color:
+                                                primaryColor.withOpacity(0.2),
+                                            borderRadius:
+                                                BorderRadius.circular(24),
+                                            border: Border.all(
+                                              color:
+                                                  primaryColor.withOpacity(0.5),
+                                              width: 1.5,
+                                            ),
+                                          ),
+                                          child: Center(
+                                            child: Text(
+                                              langProvider.t('save') ??
+                                                  (langProvider
+                                                              .currentLanguage ==
+                                                          'tr'
+                                                      ? 'Kaydet'
+                                                      : 'Save'),
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
+                                const SizedBox(height: 24),
+                              ],
                             ),
-                            const SizedBox(height: 24),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
               ),
             ),
           );
@@ -1168,119 +1218,131 @@ class _SettingsPageState extends State<SettingsPage> {
           return Scaffold(
             backgroundColor: Theme.of(pageContext).scaffoldBackgroundColor,
             body: SafeArea(
-              child: Consumer<SongProvider>(
-                builder: (context, provider, child) {
-                  final primaryColor = Theme.of(context).primaryColor;
-                  return Column(
-                    children: [
-                      Align(
-                        alignment: Alignment.topRight,
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: IconButton(
-                            icon: const Icon(Icons.close_rounded,
-                                color: Colors.white, size: 32),
-                            onPressed: () => Navigator.pop(pageContext),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Icon(Icons.timer_rounded, size: 64, color: primaryColor),
-                      const SizedBox(height: 16),
-                      Text(
-                        langProvider.t('sleep_timer'),
-                        style: TextStyle(
-                          color: primaryColor,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (provider.isSleepTimerActive &&
-                          provider.sleepTimerEndTime != null) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          "Kapanış: ${provider.sleepTimerEndTime!.hour.toString().padLeft(2, '0')}:${provider.sleepTimerEndTime!.minute.toString().padLeft(2, '0')}",
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 32),
-                      Expanded(
-                        child: ListView(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          physics: const BouncingScrollPhysics(),
-                          children: [
-                            Wrap(
-                              spacing: 16,
-                              runSpacing: 16,
-                              alignment: WrapAlignment.center,
-                              children: [
-                                _buildModernTimerOption(context, 15),
-                                _buildModernTimerOption(context, 30),
-                                _buildModernTimerOption(context, 45),
-                                _buildModernTimerOption(context, 60),
-                                _buildModernTimerOption(context, 90),
-                                _buildModernTimerOption(context, 120),
-                              ],
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: Responsive.isTabletOrLandscape(pageContext)
+                        ? 600
+                        : double.infinity,
+                  ),
+                  child: Consumer<SongProvider>(
+                    builder: (context, provider, child) {
+                      final primaryColor = Theme.of(context).primaryColor;
+                      return Column(
+                        children: [
+                          Align(
+                            alignment: Alignment.topRight,
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: IconButton(
+                                icon: const Icon(Icons.close_rounded,
+                                    color: Colors.white, size: 32),
+                                onPressed: () => Navigator.pop(pageContext),
+                              ),
                             ),
-                            const SizedBox(height: 40),
-                            if (provider.isSleepTimerActive)
-                              SizedBox(
-                                width: double.infinity,
-                                height: 55,
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(24),
-                                  child: BackdropFilter(
-                                    filter: ImageFilter.blur(
-                                        sigmaX: 10, sigmaY: 10),
-                                    child: InkWell(
-                                      onTap: () {
-                                        provider.cancelSleepTimer();
-                                        Navigator.pop(pageContext);
-                                        CustomSnackBar.showInfo(
-                                          context: context,
-                                          message:
-                                              langProvider.t('timer_canceled'),
-                                        );
-                                      },
+                          ),
+                          const SizedBox(height: 8),
+                          Icon(Icons.timer_rounded,
+                              size: 64, color: primaryColor),
+                          const SizedBox(height: 16),
+                          Text(
+                            langProvider.t('sleep_timer'),
+                            style: TextStyle(
+                              color: primaryColor,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (provider.isSleepTimerActive &&
+                              provider.sleepTimerEndTime != null) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              "Kapanış: ${provider.sleepTimerEndTime!.hour.toString().padLeft(2, '0')}:${provider.sleepTimerEndTime!.minute.toString().padLeft(2, '0')}",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 32),
+                          Expanded(
+                            child: ListView(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 24),
+                              physics: const BouncingScrollPhysics(),
+                              children: [
+                                Wrap(
+                                  spacing: 16,
+                                  runSpacing: 16,
+                                  alignment: WrapAlignment.center,
+                                  children: [
+                                    _buildModernTimerOption(context, 15),
+                                    _buildModernTimerOption(context, 30),
+                                    _buildModernTimerOption(context, 45),
+                                    _buildModernTimerOption(context, 60),
+                                    _buildModernTimerOption(context, 90),
+                                    _buildModernTimerOption(context, 120),
+                                  ],
+                                ),
+                                const SizedBox(height: 40),
+                                if (provider.isSleepTimerActive)
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 55,
+                                    child: ClipRRect(
                                       borderRadius: BorderRadius.circular(24),
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          color:
-                                              Colors.redAccent.withOpacity(0.2),
+                                      child: BackdropFilter(
+                                        filter: ImageFilter.blur(
+                                            sigmaX: 10, sigmaY: 10),
+                                        child: InkWell(
+                                          onTap: () {
+                                            provider.cancelSleepTimer();
+                                            Navigator.pop(pageContext);
+                                            CustomSnackBar.showInfo(
+                                              context: context,
+                                              message: langProvider
+                                                  .t('timer_canceled'),
+                                            );
+                                          },
                                           borderRadius:
                                               BorderRadius.circular(24),
-                                          border: Border.all(
-                                            color: Colors.redAccent
-                                                .withOpacity(0.5),
-                                            width: 1.5,
-                                          ),
-                                        ),
-                                        child: Center(
-                                          child: Text(
-                                            langProvider.t('cancel'),
-                                            style: const TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.redAccent
+                                                  .withOpacity(0.2),
+                                              borderRadius:
+                                                  BorderRadius.circular(24),
+                                              border: Border.all(
+                                                color: Colors.redAccent
+                                                    .withOpacity(0.5),
+                                                width: 1.5,
+                                              ),
+                                            ),
+                                            child: Center(
+                                              child: Text(
+                                                langProvider.t('cancel'),
+                                                style: const TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
                                             ),
                                           ),
                                         ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ),
-                            const SizedBox(height: 24),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
+                                const SizedBox(height: 24),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
               ),
             ),
           );
@@ -1573,183 +1635,195 @@ class _EqualizerFullScreenState extends State<_EqualizerFullScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
-        child: Column(
-          children: [
-            Align(
-              alignment: Alignment.topRight,
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: IconButton(
-                  icon: const Icon(Icons.close_rounded,
-                      color: Colors.white, size: 32),
-                  onPressed: () => Navigator.pop(context),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: Responsive.isTabletOrLandscape(context)
+                  ? 650
+                  : double.infinity,
+            ),
+            child: Column(
+              children: [
+                Align(
+                  alignment: Alignment.topRight,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: IconButton(
+                      icon: const Icon(Icons.close_rounded,
+                          color: Colors.white, size: 32),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Icon(Icons.equalizer_rounded, size: 64, color: primaryColor),
-            const SizedBox(height: 16),
-            Text(
-              langProvider.t('equalizer'),
-              style: TextStyle(
-                color: primaryColor,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 32),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                physics: const BouncingScrollPhysics(),
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                const SizedBox(height: 8),
+                Icon(Icons.equalizer_rounded, size: 64, color: primaryColor),
+                const SizedBox(height: 16),
+                Text(
+                  langProvider.t('equalizer'),
+                  style: TextStyle(
+                    color: primaryColor,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    physics: const BouncingScrollPhysics(),
                     children: [
-                      Text(
-                        _isEnabled
-                            ? langProvider.t('custom_setting')
-                            : langProvider.t('off'),
-                        style: TextStyle(
-                          color:
-                              _isEnabled ? primaryColor : Colors.grey.shade500,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _isEnabled
+                                ? langProvider.t('custom_setting')
+                                : langProvider.t('off'),
+                            style: TextStyle(
+                              color: _isEnabled
+                                  ? primaryColor
+                                  : Colors.grey.shade500,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Switch(
+                            value: _isEnabled,
+                            activeColor: primaryColor,
+                            onChanged: (val) {
+                              setState(() => _isEnabled = val);
+                              _saveToProvider();
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      Container(
+                        height: 300,
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 24, horizontal: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(24),
+                          border:
+                              Border.all(color: Colors.white.withOpacity(0.1)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: List.generate(5, (index) {
+                            return Column(
+                              children: [
+                                Text(
+                                  _values[index] > 0
+                                      ? "+${_values[index].toInt()}dB"
+                                      : "${_values[index].toInt()}dB",
+                                  style: TextStyle(
+                                    color: _isEnabled
+                                        ? Colors.white
+                                        : Colors.grey.shade700,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Expanded(
+                                  child: RotatedBox(
+                                    quarterTurns: 3,
+                                    child: SliderTheme(
+                                      data: SliderTheme.of(context).copyWith(
+                                        trackHeight: 6,
+                                        activeTrackColor: _isEnabled
+                                            ? primaryColor
+                                            : Colors.grey.shade800,
+                                        inactiveTrackColor: _isEnabled
+                                            ? Colors.white.withOpacity(0.08)
+                                            : Colors.white.withOpacity(0.02),
+                                        thumbColor: _isEnabled
+                                            ? Colors.white
+                                            : Colors.grey.shade600,
+                                        overlayColor:
+                                            primaryColor.withOpacity(0.2),
+                                        trackShape:
+                                            const RoundedRectSliderTrackShape(),
+                                      ),
+                                      child: Slider(
+                                        value: _values[index],
+                                        min: -15,
+                                        max: 15,
+                                        divisions: 30,
+                                        onChanged: _isEnabled
+                                            ? (val) {
+                                                setState(() {
+                                                  _values[index] = val;
+                                                });
+                                              }
+                                            : null,
+                                        onChangeEnd: _isEnabled
+                                            ? (val) => _saveToProvider()
+                                            : null,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                Text(
+                                  _freqs[index],
+                                  style: TextStyle(
+                                    color: _isEnabled
+                                        ? Colors.grey.shade400
+                                        : Colors.grey.shade700,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            );
+                          }),
                         ),
                       ),
-                      Switch(
-                        value: _isEnabled,
-                        activeColor: primaryColor,
-                        onChanged: (val) {
-                          setState(() => _isEnabled = val);
-                          _saveToProvider();
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  Container(
-                    height: 300,
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: Colors.white.withOpacity(0.1)),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: List.generate(5, (index) {
-                        return Column(
-                          children: [
-                            Text(
-                              _values[index] > 0
-                                  ? "+${_values[index].toInt()}dB"
-                                  : "${_values[index].toInt()}dB",
-                              style: TextStyle(
-                                color: _isEnabled
-                                    ? Colors.white
-                                    : Colors.grey.shade700,
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            Expanded(
-                              child: RotatedBox(
-                                quarterTurns: 3,
-                                child: SliderTheme(
-                                  data: SliderTheme.of(context).copyWith(
-                                    trackHeight: 6,
-                                    activeTrackColor: _isEnabled
-                                        ? primaryColor
-                                        : Colors.grey.shade800,
-                                    inactiveTrackColor: _isEnabled
-                                        ? Colors.white.withOpacity(0.08)
-                                        : Colors.white.withOpacity(0.02),
-                                    thumbColor: _isEnabled
-                                        ? Colors.white
-                                        : Colors.grey.shade600,
-                                    overlayColor: primaryColor.withOpacity(0.2),
-                                    trackShape:
-                                        const RoundedRectSliderTrackShape(),
-                                  ),
-                                  child: Slider(
-                                    value: _values[index],
-                                    min: -15,
-                                    max: 15,
-                                    divisions: 30,
-                                    onChanged: _isEnabled
-                                        ? (val) {
-                                            setState(() {
-                                              _values[index] = val;
-                                            });
-                                          }
-                                        : null,
-                                    onChangeEnd: _isEnabled
-                                        ? (val) => _saveToProvider()
-                                        : null,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            Text(
-                              _freqs[index],
-                              style: TextStyle(
-                                color: _isEnabled
-                                    ? Colors.grey.shade400
-                                    : Colors.grey.shade700,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        );
-                      }),
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-                  if (_isEnabled)
-                    SizedBox(
-                      width: double.infinity,
-                      height: 55,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(24),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                          child: InkWell(
-                            onTap: _reset,
+                      const SizedBox(height: 40),
+                      if (_isEnabled)
+                        SizedBox(
+                          width: double.infinity,
+                          height: 55,
+                          child: ClipRRect(
                             borderRadius: BorderRadius.circular(24),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: primaryColor.withOpacity(0.2),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                              child: InkWell(
+                                onTap: _reset,
                                 borderRadius: BorderRadius.circular(24),
-                                border: Border.all(
-                                  color: primaryColor.withOpacity(0.5),
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  langProvider.t('reset'),
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: primaryColor.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(24),
+                                    border: Border.all(
+                                      color: primaryColor.withOpacity(0.5),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      langProvider.t('reset'),
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                  const SizedBox(height: 24),
-                ],
-              ),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

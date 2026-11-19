@@ -17,6 +17,7 @@ import 'package:muzik_app/widgets/custom_search_bar.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:muzik_app/widgets/device_cover_placeholder.dart';
 import 'package:muzik_app/pages/artist_detail_page.dart';
+import 'package:muzik_app/utils/responsive.dart';
 
 class RecentlyPlayedPage extends StatefulWidget {
   const RecentlyPlayedPage({super.key});
@@ -157,7 +158,9 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
       backgroundColor:
           const Color(0xFF0F0F0F), // Çok hafif farklı modern bir siyah
       extendBody: true,
-      appBar: CustomAppBar(title: langProvider.t('recently_played')),
+      appBar: LimitedWidthAppBar(
+        child: CustomAppBar(title: langProvider.t('recently_played')),
+      ),
       bottomNavigationBar: songProvider.currentSong != null
           ? Container(
               decoration: BoxDecoration(
@@ -189,144 +192,154 @@ class _RecentlyPlayedPageState extends State<RecentlyPlayedPage> {
               ),
             )
           : null,
-      body: allSongs.isEmpty
-          ? _buildEmptyState(context, true)
-          : CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                // --- Arama Çubuğu ---
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    child: CustomSearchBar(
-                      controller: _searchController,
-                      hintText: langProvider.t('search_in_history'),
-                      showClearButton: _searchText.isNotEmpty,
-                      onClear: () {
-                        setState(() => _searchText = '');
-                      },
-                      onChanged: (value) => setState(() => _searchText = value),
-                    ),
-                  ),
-                ),
-
-                // --- Akıllı Filtre Çipleri ---
-                SliverToBoxAdapter(
-                  child: _buildFilterChips(context),
-                ),
-
-                // --- En Sık Dinlediğin Sanatçılar (Yatay Scroll) ---
-                if (_searchText.isEmpty &&
-                    topArtists.isNotEmpty &&
-                    _selectedFilterKey == 'all')
-                  SliverToBoxAdapter(
-                    child: _buildTopArtists(context, topArtists, songProvider),
-                  ),
-
-                // --- Bu Saatte En Çok Dinlediğin Akıllı Kart ---
-                if (_searchText.isEmpty &&
-                    allSongs.length > 5 &&
-                    _selectedFilterKey == 'all')
-                  SliverToBoxAdapter(
-                    child: _buildSmartReminder(context, allSongs, songProvider),
-                  ),
-
-                // --- Zaman Tüneli Mimarisi (Flattened Lazy List) ---
-                if (displayedSongs.isEmpty)
-                  SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: _buildEmptyState(context, false),
-                  )
-                else
-                  SliverPadding(
-                    padding: EdgeInsets.only(
-                      left: 16,
-                      right: 16,
-                      bottom: 24,
-                    ),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final item = timelineItems[index];
-
-                          if (item is String) {
-                            // Sticky Header Görünümü
-                            return Padding(
-                              padding:
-                                  const EdgeInsets.only(top: 24, bottom: 12),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 12,
-                                    height: 12,
-                                    decoration: BoxDecoration(
-                                        color: Theme.of(context).primaryColor,
-                                        shape: BoxShape.circle,
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Theme.of(context)
-                                                .primaryColor
-                                                .withOpacity(0.5),
-                                            blurRadius: 8,
-                                          )
-                                        ]),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    item,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
-
-                          final song = item as Song;
-                          final isCurrentSong =
-                              songProvider.currentSong?.id == song.id;
-
-                          // Oval ve Modern Swipe Destekli Şarkı Kartı
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12.0),
-                            child: _buildSwipeableModernSongCard(context, song,
-                                isCurrentSong, songProvider, displayedSongs),
-                          );
-                        },
-                        childCount: timelineItems.length,
-                      ),
-                    ),
-                  ),
-
-                // --- Geçmişi Temizle Butonu (Sayfa Sonu) ---
-                if (displayedSongs.isNotEmpty)
+      body: Responsive.limitPageWidth(
+        context,
+        allSongs.isEmpty
+            ? _buildEmptyState(context, true)
+            : CustomScrollView(
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  // --- Arama Çubuğu ---
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: EdgeInsets.only(
-                        bottom: songProvider.currentSong != null ? 160 : 40,
-                        top: 16,
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: CustomSearchBar(
+                        controller: _searchController,
+                        hintText: langProvider.t('search_in_history'),
+                        showClearButton: _searchText.isNotEmpty,
+                        onClear: () {
+                          setState(() => _searchText = '');
+                        },
+                        onChanged: (value) =>
+                            setState(() => _searchText = value),
                       ),
-                      child: Center(
-                        child: TextButton.icon(
-                          onPressed: () => _showClearHistoryDialog(context),
-                          icon: CustomIcons.svgIcon(CustomIcons.delete,
-                              size: 18, color: Colors.redAccent),
-                          label: Text(langProvider.t('clear_history')),
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.redAccent,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 24, vertical: 12),
+                    ),
+                  ),
+
+                  // --- Akıllı Filtre Çipleri ---
+                  SliverToBoxAdapter(
+                    child: _buildFilterChips(context),
+                  ),
+
+                  // --- En Sık Dinlediğin Sanatçılar (Yatay Scroll) ---
+                  if (_searchText.isEmpty &&
+                      topArtists.isNotEmpty &&
+                      _selectedFilterKey == 'all')
+                    SliverToBoxAdapter(
+                      child:
+                          _buildTopArtists(context, topArtists, songProvider),
+                    ),
+
+                  // --- Bu Saatte En Çok Dinlediğin Akıllı Kart ---
+                  if (_searchText.isEmpty &&
+                      allSongs.length > 5 &&
+                      _selectedFilterKey == 'all')
+                    SliverToBoxAdapter(
+                      child:
+                          _buildSmartReminder(context, allSongs, songProvider),
+                    ),
+
+                  // --- Zaman Tüneli Mimarisi (Flattened Lazy List) ---
+                  if (displayedSongs.isEmpty)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: _buildEmptyState(context, false),
+                    )
+                  else
+                    SliverPadding(
+                      padding: EdgeInsets.only(
+                        left: 16,
+                        right: 16,
+                        bottom: 24,
+                      ),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final item = timelineItems[index];
+
+                            if (item is String) {
+                              // Sticky Header Görünümü
+                              return Padding(
+                                padding:
+                                    const EdgeInsets.only(top: 24, bottom: 12),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 12,
+                                      height: 12,
+                                      decoration: BoxDecoration(
+                                          color: Theme.of(context).primaryColor,
+                                          shape: BoxShape.circle,
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Theme.of(context)
+                                                  .primaryColor
+                                                  .withOpacity(0.5),
+                                              blurRadius: 8,
+                                            )
+                                          ]),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      item,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
+
+                            final song = item as Song;
+                            final isCurrentSong =
+                                songProvider.currentSong?.id == song.id;
+
+                            // Oval ve Modern Swipe Destekli Şarkı Kartı
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12.0),
+                              child: _buildSwipeableModernSongCard(
+                                  context,
+                                  song,
+                                  isCurrentSong,
+                                  songProvider,
+                                  displayedSongs),
+                            );
+                          },
+                          childCount: timelineItems.length,
+                        ),
+                      ),
+                    ),
+
+                  // --- Geçmişi Temizle Butonu (Sayfa Sonu) ---
+                  if (displayedSongs.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          bottom: songProvider.currentSong != null ? 160 : 40,
+                          top: 16,
+                        ),
+                        child: Center(
+                          child: TextButton.icon(
+                            onPressed: () => _showClearHistoryDialog(context),
+                            icon: CustomIcons.svgIcon(CustomIcons.delete,
+                                size: 18, color: Colors.redAccent),
+                            label: Text(langProvider.t('clear_history')),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.redAccent,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 24, vertical: 12),
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
+                ],
+              ),
+      ),
     );
   }
 
